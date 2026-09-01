@@ -1,10 +1,26 @@
 [
   {
     "alias": [],
-    "command": "hello:world",
+    "command": "compute:deploy",
     "flagAliases": [],
-    "flagChars": ["n"],
-    "flags": ["flags-dir", "json", "name"],
+    "flagChars": ["d", "n", "o"],
+    "flags": ["flags-dir", "json", "name", "output-dir", "target-org"],
+    "plugin": "@salesforce/plugin-compute"
+  },
+  {
+    "alias": [],
+    "command": "compute:display",
+    "flagAliases": [],
+    "flagChars": ["n", "o", "v"],
+    "flags": ["flags-dir", "json", "name", "target-org", "verbose"],
+    "plugin": "@salesforce/plugin-compute"
+  },
+  {
+    "alias": [],
+    "command": "compute:generate",
+    "flagAliases": [],
+    "flagChars": ["d", "l", "n", "o"],
+    "flags": ["flags-dir", "json", "language", "name", "output-dir", "target-org"],
     "plugin": "@salesforce/plugin-compute"
   }
 ]

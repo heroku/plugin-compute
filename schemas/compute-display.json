@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ComputeDisplayResult",
+  "definitions": {
+    "ComputeDisplayResult": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "masterLabel": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["DEPLOYING", "ACTIVE", "FAILED"]
+        },
+        "statusReason": {
+          "type": "string"
+        },
+        "externalServiceRegistered": {
+          "type": "boolean"
+        },
+        "externalServiceActive": {
+          "type": "boolean"
+        },
+        "currentBuild": {
+          "type": "object",
+          "properties": {
+            "buildStatus": {
+              "type": "string",
+              "enum": ["PENDING", "BUILDING", "SUCCEEDED", "FAILED"]
+            },
+            "buildStartedAt": {
+              "type": "string"
+            },
+            "buildCompletedAt": {
+              "type": "string"
+            },
+            "deployedAt": {
+              "type": "string"
+            },
+            "deployedBy": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": ["buildStatus"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["name", "masterLabel", "status", "externalServiceRegistered"],
+      "additionalProperties": false
+    }
+  }
+}

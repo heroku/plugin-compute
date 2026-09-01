@@ -1,0 +1,1064 @@
+openapi: 3.0.3
+info:
+  title: Heroku Platform API (Compute subset)
+  description: >-
+    Subset of the Heroku Platform API that the `sf compute` CLI may invoke
+    directly, or that a mirrored Salesforce Connect resource may wrap on the
+    CLI's behalf. Scoped to the resources needed by `sf compute deploy`,
+    `build output`, `display`, `logs`, and `scale`: App, Build, Config Vars,
+    Dyno, Formation, Log Session, Release, Slug, Source, and OAuth Token
+    (token exchange fallback only -- the primary auth path is the Salesforce
+    Connect API). `sf compute source retrieve` is NOT covered here -- it's a
+    Metadata API retrieve of the Compute metadata followed by a Connect API
+    GET that mirrors the upload resource in salesforce-connect-compute.yaml;
+    see that spec's Compute tag description for status. Sourced from the
+    public Heroku Platform API reference. Add further resources/operations
+    here as CLI commands need them.
+  version: '3'
+externalDocs:
+  description: Heroku Platform API reference
+  url: https://devcenter.heroku.com/articles/platform-api-reference
+servers:
+  - url: https://api.heroku.com
+security:
+  - bearerAuth: []
+tags:
+  - name: App
+    description: Heroku apps backing deployed Compute apps.
+  - name: Build
+    description: Builds of a Compute app's source into a slug.
+  - name: ConfigVars
+    description: Environment/config vars for an app.
+  - name: Dyno
+    description: Running process instances for an app.
+  - name: Formation
+    description: Process-type scaling and sizing for an app.
+  - name: LogSession
+    description: HTTP log streaming sessions for an app.
+  - name: Release
+    description: Combinations of slug, config vars, and add-ons released to an app.
+  - name: Slug
+    description: Immutable snapshots of built application code.
+  - name: Source
+    description: Upload/download locations for application source tarballs.
+  - name: Auth
+    description: >-
+      OAuth token exchange. The Salesforce Connect API is the primary path
+      for obtaining Heroku credentials; direct use of this endpoint is a
+      fallback for callers that must talk to Heroku without a mirrored
+      Connect resource in front of it.
+paths:
+  /apps/{app_id_or_name}:
+    parameters:
+      - $ref: '#/components/parameters/AppIdOrName'
+      - $ref: '#/components/parameters/HerokuAcceptHeader'
+    get:
+      operationId: getApp
+      summary: Info for an app
+      tags: [App]
+      responses:
+        '200':
+          description: The app.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/App'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /apps/{app_id_or_name}/builds:
+    parameters:
+      - $ref: '#/components/parameters/AppIdOrName'
+      - $ref: '#/components/parameters/HerokuAcceptHeader'
+    get:
+      operationId: listBuilds
+      summary: List builds for an app
+      tags: [Build]
+      responses:
+        '200':
+          description: Builds for the app, oldest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Build'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: createBuild
+      summary: Create a build from a source tarball
+      description: >-
+        Starts a build of the given source blob. `source_blob.url` is
+        typically the `get_url` returned from a prior Source Create call.
+      tags: [Build]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuildCreateRequest'
+      responses:
+        '201':
+          description: Build was created and started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Build'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /apps/{app_id_or_name}/builds/{build_id}:
+    parameters:
+      - $ref: '#/components/parameters/AppIdOrName'
+      - name: build_id
+        in: path
+        required: true
+        description: Unique identifier of the build.
+        schema:
+          type: string
+          format: uuid
+        example: 01234567-89ab-cdef-0123-456789abcdef
+      - $ref: '#/components/parameters/HerokuAcceptHeader'
+    get:
+      operationId: getBuild
+      summary: Info for a build
+      tags: [Build]
+      responses:
+        '200':
+          description: The build.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Build'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /apps/{app_id_or_name}/config-vars:
+    parameters:
+      - $ref: '#/components/parameters/AppIdOrName'
+      - $ref: '#/components/parameters/HerokuAcceptHeader'
+    get:
+      operationId: getConfigVars
+      summary: Info for an app's config vars
+      tags: [ConfigVars]
+      responses:
+        '200':
+          description: Flat map of config var name to value.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigVars'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateConfigVars
+      summary: Update config vars for an app
+      description: >-
+        Merges the given key/value pairs into the app's config vars. Setting
+        a key's value to `null` deletes that config var.
+      tags: [ConfigVars]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigVarsUpdate'
+      responses:
+        '200':
+          description: Full, updated map of config vars.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigVars'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /apps/{app_id_or_name}/dynos:
+    parameters:
+      - $ref: '#/components/parameters/AppIdOrName'
+      - $ref: '#/components/parameters/HerokuAcceptHeader'
+    get:
+      operationId: listDynos
+      summary: List dynos for an app
+      tags: [Dyno]
+      responses:
+        '200':
+          description: Dynos for the app.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Dyno'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /apps/{app_id_or_name}/formation:
+    parameters:
+      - $ref: '#/components/parameters/AppIdOrName'
+      - $ref: '#/components/parameters/HerokuAcceptHeader'
+    get:
+      operationId: listFormation
+      summary: List process type formation for an app
+      tags: [Formation]
+      responses:
+        '200':
+          description: Process types for the app.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Formation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: batchUpdateFormation
+      summary: Batch update process types for an app
+      tags: [Formation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormationBatchUpdateRequest'
+      responses:
+        '200':
+          description: Updated process types.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Formation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /apps/{app_id_or_name}/formation/{formation_id_or_type}:
+    parameters:
+      - $ref: '#/components/parameters/AppIdOrName'
+      - name: formation_id_or_type
+        in: path
+        required: true
+        description: Unique identifier or process type name of the formation.
+        schema:
+          type: string
+        example: web
+      - $ref: '#/components/parameters/HerokuAcceptHeader'
+    get:
+      operationId: getFormation
+      summary: Info for a process type
+      tags: [Formation]
+      responses:
+        '200':
+          description: The process type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Formation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateFormation
+      summary: Update (scale/resize) a process type
+      tags: [Formation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormationUpdateRequest'
+      responses:
+        '200':
+          description: The updated process type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Formation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /apps/{app_id_or_name}/log-sessions:
+    parameters:
+      - $ref: '#/components/parameters/AppIdOrName'
+      - $ref: '#/components/parameters/HerokuAcceptHeader'
+    post:
+      operationId: createLogSession
+      summary: Create a log session
+      description: >-
+        Creates a reference to an HTTP log stream for the app. Used by `sf
+        compute logs` to obtain a `logplex_url` to stream or tail from.
+      tags: [LogSession]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogSessionCreateRequest'
+      responses:
+        '201':
+          description: The log session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /apps/{app_id_or_name}/releases:
+    parameters:
+      - $ref: '#/components/parameters/AppIdOrName'
+      - $ref: '#/components/parameters/HerokuAcceptHeader'
+    get:
+      operationId: listReleases
+      summary: List releases for an app
+      tags: [Release]
+      responses:
+        '200':
+          description: Releases for the app, oldest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Release'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /apps/{app_id_or_name}/releases/{release_id_or_version}:
+    parameters:
+      - $ref: '#/components/parameters/AppIdOrName'
+      - name: release_id_or_version
+        in: path
+        required: true
+        description: Unique identifier or version number of the release.
+        schema:
+          type: string
+        example: '11'
+      - $ref: '#/components/parameters/HerokuAcceptHeader'
+    get:
+      operationId: getRelease
+      summary: Info for a release
+      tags: [Release]
+      responses:
+        '200':
+          description: The release.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Release'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /apps/{app_id_or_name}/slugs/{slug_id}:
+    parameters:
+      - $ref: '#/components/parameters/AppIdOrName'
+      - name: slug_id
+        in: path
+        required: true
+        description: Unique identifier of the slug.
+        schema:
+          type: string
+          format: uuid
+        example: 01234567-89ab-cdef-0123-456789abcdef
+      - $ref: '#/components/parameters/HerokuAcceptHeader'
+    get:
+      operationId: getSlug
+      summary: Info for a slug
+      tags: [Slug]
+      responses:
+        '200':
+          description: The slug.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Slug'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /sources:
+    parameters:
+      - $ref: '#/components/parameters/HerokuAcceptHeader'
+    post:
+      operationId: createSource
+      summary: Create source upload/download URLs
+      description: >-
+        Creates a short-lived pair of URLs for uploading (`put_url`) and
+        downloading (`get_url`) a gzipped source tarball. Used ahead of
+        Build Create: upload the tarball to `put_url`, then pass `get_url`
+        as the build's `source_blob.url`. There is no Source Info operation
+        in the Heroku Platform API -- Source is create-only.
+      tags: [Source]
+      responses:
+        '201':
+          description: Source upload/download URLs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /oauth/tokens:
+    post:
+      operationId: createOAuthToken
+      summary: Exchange a grant or refresh token for an OAuth token
+      description: >-
+        Fallback token exchange for callers that must talk to the Heroku
+        Platform API directly. Prefer obtaining credentials through the
+        Salesforce Connect API's mirrored auth resource where available.
+      tags: [Auth]
+      parameters:
+        - $ref: '#/components/parameters/HerokuAcceptHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OAuthTokenCreateRequest'
+      responses:
+        '201':
+          description: The new OAuth token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthToken'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Heroku OAuth access token (HRKU-...)
+  parameters:
+    AppIdOrName:
+      name: app_id_or_name
+      in: path
+      required: true
+      description: Unique identifier or name of the app.
+      schema:
+        type: string
+      example: lease-agreement-parser
+    HerokuAcceptHeader:
+      name: Accept
+      in: header
+      required: true
+      description: Required Heroku Platform API version header.
+      schema:
+        type: string
+        enum: ['application/vnd.heroku+json; version=3']
+      example: application/vnd.heroku+json; version=3
+  schemas:
+    App:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          pattern: ^[a-z][a-z0-9-]{1,28}[a-z0-9]$
+          example: lease-agreement-parser
+        acm:
+          type: boolean
+        archived_at:
+          type: string
+          format: date-time
+          nullable: true
+        build_stack:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string, example: heroku-24 }
+        buildpack_provided_description:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        generation:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string, example: fir }
+        git_url:
+          type: string
+        internal_routing:
+          type: boolean
+          nullable: true
+        maintenance:
+          type: boolean
+        organization:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        owner:
+          type: object
+          properties:
+            email: { type: string, format: email }
+            id: { type: string, format: uuid }
+        region:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string, example: us }
+        released_at:
+          type: string
+          format: date-time
+        repo_size:
+          type: integer
+          nullable: true
+        slug_size:
+          type: integer
+          nullable: true
+        space:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            shield: { type: boolean }
+        stack:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string, example: heroku-24 }
+        team:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        updated_at:
+          type: string
+          format: date-time
+        web_url:
+          type: string
+    Build:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        app:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+        buildpacks:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              url: { type: string }
+        created_at:
+          type: string
+          format: date-time
+        output_stream_url:
+          type: string
+          description: >-
+            Streams build output as text/plain or text/event-stream.
+            Resumable via Range (text/plain) or Last-Event-Id
+            (text/event-stream) request headers.
+        release:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+        slug:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+        source_blob:
+          type: object
+          properties:
+            checksum: { type: string, nullable: true }
+            url: { type: string }
+            version: { type: string, nullable: true }
+            version_description: { type: string, nullable: true }
+        stack:
+          type: string
+          example: heroku-24
+        status:
+          type: string
+          enum: [failed, pending, succeeded]
+        updated_at:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string, format: email }
+    BuildCreateRequest:
+      type: object
+      required: [source_blob]
+      properties:
+        source_blob:
+          type: object
+          required: [url]
+          properties:
+            checksum:
+              type: string
+              nullable: true
+              example: 'SHA256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+            url:
+              type: string
+              example: https://api.heroku.com/sources/1234.tgz
+            version:
+              type: string
+              nullable: true
+              example: v1.3.0
+            version_description:
+              type: string
+              nullable: true
+        buildpacks:
+          type: array
+          items:
+            type: object
+            properties:
+              url: { type: string }
+    ConfigVars:
+      type: object
+      description: Flat map of config var name to value.
+      additionalProperties:
+        type: string
+      example:
+        HEROKU_APPLINK_URL: https://applink.heroku.com
+        LOG_LEVEL: info
+    ConfigVarsUpdate:
+      type: object
+      description: >-
+        Config var name to value; a null value deletes that config var.
+      additionalProperties:
+        type: string
+        nullable: true
+      example:
+        LOG_LEVEL: debug
+        UNUSED_VAR: null
+    Dyno:
+      type: object
+      properties:
+        app:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        attach_url:
+          type: string
+          nullable: true
+        command:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: web.1
+        release:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            version: { type: integer }
+        size:
+          type: string
+          example: standard-1X
+        state:
+          type: string
+          enum: [crashed, down, idle, starting, up]
+        type:
+          type: string
+          example: web
+        updated_at:
+          type: string
+          format: date-time
+    Formation:
+      type: object
+      properties:
+        app:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        command:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        dyno_size:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string, example: eco }
+        id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+        size:
+          type: string
+          description: Deprecated; refer to dyno_size instead.
+          example: standard-1X
+        type:
+          type: string
+          pattern: ^[-\w]{1,128}$
+          example: web
+        updated_at:
+          type: string
+          format: date-time
+    FormationUpdateRequest:
+      type: object
+      properties:
+        dyno_size:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string, example: Standard-1X }
+        quantity:
+          type: integer
+          example: 1
+    FormationBatchUpdateRequest:
+      type: object
+      required: [updates]
+      properties:
+        updates:
+          type: array
+          items:
+            type: object
+            required: [type]
+            properties:
+              type:
+                type: string
+                description: Id or name of the process type to update.
+                example: web
+              quantity:
+                type: integer
+              dyno_size:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+    LogSession:
+      type: object
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        id:
+          type: string
+          format: uuid
+        logplex_url:
+          type: string
+          example: >-
+            https://logplex.heroku.com/sessions/01234567-89ab-cdef-0123-456789abcdef?srv=1325419200
+        updated_at:
+          type: string
+          format: date-time
+    LogSessionCreateRequest:
+      type: object
+      properties:
+        dyno_name:
+          type: string
+          example: web.1
+        lines:
+          type: integer
+          example: 100
+        source:
+          type: string
+          example: app
+        tail:
+          type: boolean
+        type:
+          type: string
+          example: web
+    Release:
+      type: object
+      properties:
+        addon_plan_names:
+          type: array
+          items:
+            type: string
+        app:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        artifacts:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string, example: slug }
+              id: { type: string, format: uuid }
+        created_at:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+        description:
+          type: string
+        eligible_for_rollback:
+          type: boolean
+        id:
+          type: string
+          format: uuid
+        output_stream_url:
+          type: string
+          nullable: true
+        slug:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [failed, pending, succeeded, expired]
+        updated_at:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string, format: email }
+        version:
+          type: integer
+    Slug:
+      type: object
+      properties:
+        blob:
+          type: object
+          properties:
+            method: { type: string, example: GET }
+            url: { type: string, example: https://api.heroku.com/slugs/1234.tgz }
+        buildpack_provided_description:
+          type: string
+          nullable: true
+        checksum:
+          type: string
+          nullable: true
+        commit:
+          type: string
+          nullable: true
+        commit_description:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+        id:
+          type: string
+          format: uuid
+        process_types:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            web: ./bin/web -p $PORT
+        size:
+          type: integer
+          nullable: true
+        stack:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string, example: heroku-24 }
+        updated_at:
+          type: string
+          format: date-time
+    Source:
+      type: object
+      properties:
+        source_blob:
+          type: object
+          properties:
+            get_url:
+              type: string
+              example: https://api.heroku.com/sources/1234.tgz
+            put_url:
+              type: string
+              example: https://api.heroku.com/sources/1234.tgz
+    OAuthToken:
+      type: object
+      properties:
+        access_token:
+          type: object
+          properties:
+            expires_in: { type: integer, nullable: true, example: 2592000 }
+            id: { type: string, format: uuid }
+            token: { type: string, example: 'HRKU-01234567-89ab-cdef-0123-456789abcdef' }
+        authorization:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+        client:
+          type: object
+          nullable: true
+          properties:
+            secret: { type: string }
+        created_at:
+          type: string
+          format: date-time
+        grant:
+          type: object
+          properties:
+            code: { type: string }
+            type: { type: string, enum: [authorization_code, refresh_token] }
+        id:
+          type: string
+          format: uuid
+        refresh_token:
+          type: object
+          properties:
+            expires_in: { type: integer, nullable: true }
+            id: { type: string, format: uuid }
+            token: { type: string }
+        session:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+        updated_at:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+    OAuthTokenCreateRequest:
+      type: object
+      required: [grant]
+      properties:
+        client:
+          type: object
+          properties:
+            secret:
+              type: string
+              example: 01234567-89ab-cdef-0123-456789abcdef
+        grant:
+          type: object
+          properties:
+            code:
+              type: string
+              example: 01234567-89ab-cdef-0123-456789abcdef
+            type:
+              type: string
+              enum: [authorization_code, refresh_token]
+        refresh_token:
+          type: object
+          properties:
+            token:
+              type: string
+              example: 'HRKU-01234567-89ab-cdef-0123-456789abcdef'
+    HerokuError:
+      type: object
+      description: Standard Heroku Platform API error shape.
+      required: [id, message]
+      properties:
+        id:
+          type: string
+          description: Machine-readable error identifier.
+          example: not_found
+        message:
+          type: string
+          example: Couldn't find that app.
+        url:
+          type: string
+          nullable: true
+          description: Optional URL with more information about the error.
+  responses:
+    Unauthorized:
+      description: Missing or invalid OAuth token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HerokuError'
+    Forbidden:
+      description: Caller is not authorized to perform this action.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HerokuError'
+    NotFound:
+      description: No resource exists with the given identifier.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HerokuError'
+    UnprocessableEntity:
+      description: Request was well-formed but semantically invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HerokuError'

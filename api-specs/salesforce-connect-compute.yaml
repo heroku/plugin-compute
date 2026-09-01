@@ -1,0 +1,148 @@
+openapi: 3.0.3
+info:
+  title: Salesforce Compute Connect API
+  description: >-
+    Salesforce Connect REST APIs that the `sf compute` CLI calls directly
+    against a target org. Sourced from the `heroku-integration-connect-api`
+    module in core (ComputeSourceUploadRepresentation.java,
+    IComputeSourceUploadResource.java). Currently covers the deployment
+    bundle source upload used by `sf compute deploy`; add further Compute
+    Connect resources here as they land in core.
+  version: '64.0'
+externalDocs:
+  description: Connect REST API developer guide
+  url: https://developer.salesforce.com/docs/atlas.en-us.uxapi.meta/uxapi/
+servers:
+  - url: https://{instance}/services/data/v64.0
+    variables:
+      instance:
+        default: yourInstance.my.salesforce.com
+        description: The target org's My Domain hostname.
+security:
+  - bearerAuth: []
+tags:
+  - name: Compute
+    description: >-
+      Resources for deploying and managing Compute apps. `sf compute source
+      retrieve` will need a GET counterpart to /connect/compute/source (a
+      "download the deployed bundle" mirror of this upload resource), used
+      alongside a standard Metadata API retrieve of the app's Compute
+      metadata. That GET resource does not exist in core yet -- confirm with
+      the core team / GUS before authoring a spec entry or generating CLI
+      code for source retrieve, rather than inventing its shape here.
+paths:
+  /connect/compute/source:
+    post:
+      operationId: uploadComputeSource
+      summary: Upload a Compute deployment bundle source
+      description: >-
+        Uploads a Heroku Compute deployment bundle (OpenAPI spec plus
+        application source tarball) for a named Compute app. This only
+        creates a pending PlatformComputeAppBuild record -- it does not start
+        a build by itself. Deploying the app's compute-meta.xml through the
+        Metadata API is what triggers the build. Requires the
+        `DeployCompute` user permission. This is an Expensive-cost Connect
+        resource -- callers should avoid polling it and should instead poll
+        build status separately.
+      tags: [Compute]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name, bundle]
+              properties:
+                name:
+                  type: string
+                  description: >-
+                    DeveloperName of the PlatformComputeApp to deploy source
+                    for.
+                  example: LeaseAgreementParser
+                bundle:
+                  type: string
+                  format: binary
+                  description: >-
+                    Nested deployment bundle tarball (deployment-bundle.tar.gz)
+                    containing the app's OpenAPI spec and source tree.
+            encoding:
+              bundle:
+                contentType: application/gzip
+      responses:
+        '200':
+          description: >-
+            Source uploaded; a pending PlatformComputeAppBuild record was
+            created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeSourceUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Salesforce OAuth access token
+  schemas:
+    ComputeSourceUpload:
+      type: object
+      description: Result of a Compute deployment bundle source upload.
+      required: [platformComputeId, buildId, sourceBlobSize, uploadedAt]
+      properties:
+        platformComputeId:
+          type: string
+          description: PlatformComputeApp record Id.
+          example: 0abEE0000004CqYYAU
+        buildId:
+          type: string
+          description: PlatformComputeAppBuild record Id.
+          example: 0acEE0000004D1ZYAU
+        sourceBlobSize:
+          type: integer
+          format: int64
+          description: Size in bytes of the uploaded source blob.
+          example: 184320
+        uploadedAt:
+          type: string
+          format: date-time
+          description: Timestamp the source blob was uploaded.
+    ConnectError:
+      type: object
+      description: Standard Salesforce Connect API error shape.
+      properties:
+        message:
+          type: string
+        errorCode:
+          type: string
+      required: [message, errorCode]
+  responses:
+    BadRequest:
+      description: Malformed request (e.g. missing name/bundle, invalid tarball).
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/ConnectError'
+    Forbidden:
+      description: Caller lacks the DeployCompute permission.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/ConnectError'
+    NotFound:
+      description: No PlatformComputeApp exists with the given name.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/ConnectError'

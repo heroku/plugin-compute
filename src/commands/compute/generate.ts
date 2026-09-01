@@ -1,0 +1,162 @@
+/*
+ * Copyright 2026, Salesforce, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
+import { Messages } from '@salesforce/core';
+import { resolveAppDir, validateName, pathExists } from '../../shared/computeApp.js';
+
+Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
+const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.generate');
+
+// Only Node.js and Python have AppLink SDK/middleware support today; see the
+// design spec's "generate" open question for the other Heroku-supported languages.
+type Language = 'node' | 'python';
+
+export type ComputeGenerateResult = {
+  name: string;
+  path: string;
+  language: Language;
+  files: string[];
+};
+
+export default class Generate extends SfCommand<ComputeGenerateResult> {
+  public static readonly state = 'beta';
+  public static readonly summary = messages.getMessage('summary');
+  public static readonly description = messages.getMessage('description');
+  public static readonly examples = messages.getMessages('examples');
+  public static readonly requiresProject = true;
+
+  public static readonly flags = {
+    name: Flags.string({
+      char: 'n',
+      required: true,
+      summary: messages.getMessage('flags.name.summary'),
+    }),
+    'target-org': Flags.optionalOrg({
+      char: 'o',
+      summary: messages.getMessage('flags.target-org.summary'),
+    }),
+    'output-dir': Flags.directory({
+      char: 'd',
+      summary: messages.getMessage('flags.output-dir.summary'),
+      description: messages.getMessage('flags.output-dir.description'),
+      default: 'force-app/main/default/compute',
+    }),
+    language: Flags.string({
+      char: 'l',
+      summary: messages.getMessage('flags.language.summary'),
+      description: messages.getMessage('flags.language.description'),
+      options: ['node', 'python'],
+      default: 'node',
+    }),
+  };
+
+  public async run(): Promise<ComputeGenerateResult> {
+    const { flags } = await this.parse(Generate);
+    const { name } = flags;
+    const language = flags.language as Language;
+
+    validateName(name);
+
+    const appDir = resolveAppDir(flags['output-dir'], name);
+    if (await pathExists(appDir)) {
+      throw messages.createError('error.appAlreadyExists', [name, appDir]);
+    }
+
+    this.log(messages.getMessage('info.generating', [name]));
+
+    const starterFiles = await buildStarterFiles(name, language);
+    const writtenFiles = await Promise.all(
+      Object.entries(starterFiles).map(async ([relativePath, contents]) => {
+        const filePath = join(appDir, relativePath);
+        await mkdir(dirname(filePath), { recursive: true });
+        await writeFile(filePath, contents);
+        return filePath;
+      })
+    );
+    for (const filePath of writtenFiles) {
+      this.log(messages.getMessage('info.created', [filePath]));
+    }
+
+    this.log('');
+    this.logSuccess(messages.getMessage('info.done', [name]));
+    this.log(messages.getMessage('info.next', [name, flags['target-org']?.getUsername() ?? '<org>']));
+
+    return { name, path: appDir, language, files: writtenFiles };
+  }
+}
+
+// Starter source is vendored from the Heroku AppLink getting-started reference
+// apps (applink-getting-started-nodejs / applink-getting-started-python), minus
+// their repo-hygiene, lint, and test files. See templates/<language>/.
+//
+// project.toml is the one exception: those reference repos don't ship one, so
+// it's authored here per language (lang-specific buildpack, then the
+// heroku/heroku-applink CNB -- see heroku-buildpack-heroku-applink-service-mesh
+// -- then heroku/procfile) and stored alongside the vendored files.
+const TEMPLATES_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'templates');
+
+const TEMPLATE_FILES: Record<Language, string[]> = {
+  node: [
+    'project.toml',
+    'package.json',
+    'Procfile',
+    'api-spec.yaml',
+    'src/app.js',
+    'src/plugins/heroku-applink.js',
+    'src/routes/index.js',
+    'README.md',
+  ],
+  python: [
+    'project.toml',
+    'requirements.txt',
+    'Procfile',
+    'api-spec.yaml',
+    'app/main.py',
+    'app/routers/accounts.py',
+    'app/routers/unitofwork.py',
+    'app/routers/datacloud.py',
+    'README.md',
+  ],
+};
+
+async function buildStarterFiles(name: string, language: Language): Promise<Record<string, string>> {
+  const metaXml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<PlatformComputeApp xmlns="http://soap.sforce.com/2006/04/metadata">',
+    `    <masterLabel>${name}</masterLabel>`,
+    '    <description>Compute app generated by sf compute generate.</description>',
+    '</PlatformComputeApp>',
+    '',
+  ].join('\n');
+
+  const files: Record<string, string> = {
+    [`${name}.compute-meta.xml`]: metaXml,
+  };
+
+  const templateDir = join(TEMPLATES_ROOT, language);
+  await Promise.all(
+    TEMPLATE_FILES[language].map(async (relativePath) => {
+      const raw = await readFile(join(templateDir, relativePath), 'utf8');
+      files[relativePath] = raw.replaceAll('__APP_NAME_LOWER__', name.toLowerCase()).replaceAll('__APP_NAME__', name);
+    })
+  );
+
+  return files;
+}

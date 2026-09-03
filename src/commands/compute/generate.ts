@@ -96,7 +96,7 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
 
     this.log('');
     this.logSuccess(messages.getMessage('info.done', [name]));
-    this.log(messages.getMessage('info.next', [name, flags['target-org']?.getUsername() ?? '<org>']));
+    this.log(messages.getMessage('info.next', [appDir, flags['target-org']?.getUsername() ?? '<org>']));
 
     return { name, path: appDir, language, files: writtenFiles };
   }

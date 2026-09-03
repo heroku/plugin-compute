@@ -3,6 +3,9 @@
   "$ref": "#/definitions/ComputeDisplayResult",
   "definitions": {
     "ComputeDisplayResult": {
+      "$ref": "#/definitions/ComputeAppSummary"
+    },
+    "ComputeAppSummary": {
       "type": "object",
       "properties": {
         "name": {

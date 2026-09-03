@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+import { basename } from 'node:path';
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
-import { resolveAppDir, validateName, pathExists } from '../../shared/computeApp.js';
+import { validateName, pathExists } from '../../shared/computeApp.js';
 import { packageComputeBundle } from '../../shared/computeBundle.js';
 import { uploadComputeSource } from '../../shared/computeConnectApi.js';
 import { deployComputeMetadata } from '../../shared/metadataDeploy.js';
@@ -38,30 +39,24 @@ export default class Deploy extends SfCommand<ComputeDeployResult> {
   public static readonly requiresProject = true;
 
   public static readonly flags = {
-    name: Flags.string({
-      char: 'n',
-      required: true,
-      summary: messages.getMessage('flags.name.summary'),
-    }),
     'target-org': Flags.requiredOrg({ char: 'o' }),
-    'output-dir': Flags.directory({
-      char: 'd',
-      summary: messages.getMessage('flags.output-dir.summary'),
-      description: messages.getMessage('flags.output-dir.description'),
-      default: 'force-app/main/default/compute',
-    }),
   };
 
   public async run(): Promise<ComputeDeployResult> {
     const { flags } = await this.parse(Deploy);
-    const { name } = flags;
 
-    validateName(name);
+    // No --name flag -- run this command from inside the compute app's own directory. The
+    // directory's name doubles as the app's DeveloperName and the <name>.compute-meta.xml filename.
+    const appDir = process.cwd();
+    const name = basename(appDir);
 
-    const appDir = resolveAppDir(flags['output-dir'], name);
-    if (!(await pathExists(appDir))) {
-      throw messages.createError('error.appNotFound', [name, appDir], [name]);
+    // Check this looks like an app directory before validating the name -- otherwise
+    // running from the wrong place (e.g. the project root) surfaces a confusing "name
+    // isn't valid" error instead of guidance to cd into the app's own directory.
+    if (!(await pathExists(`${appDir}/${name}.compute-meta.xml`))) {
+      throw messages.createError('error.notAppDir', [name]);
     }
+    validateName(name);
     if (!(await pathExists(`${appDir}/Procfile`))) {
       throw messages.createError('error.noProcfile', [appDir]);
     }

@@ -28,7 +28,7 @@ describe('compute display', () => {
 
   const activeRecord = {
     Id: '0abEE0000004CqYYAU',
-    DeveloperName: 'LeaseAgreementParser',
+    DeveloperName: 'CreditRatingScorer',
     MasterLabel: 'Lease Agreement Parser',
     Description: 'Parses lease agreements.',
     Status: 'ACTIVE',
@@ -66,10 +66,10 @@ describe('compute display', () => {
   it('returns the flattened result for an active app with a current build', async () => {
     resolveWith([activeRecord]);
 
-    const result = await Display.run(['--name', 'LeaseAgreementParser', '--target-org', testOrg.username]);
+    const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).to.deep.equal({
-      name: 'LeaseAgreementParser',
+      name: 'CreditRatingScorer',
       masterLabel: 'Lease Agreement Parser',
       description: 'Parses lease agreements.',
       status: 'ACTIVE',
@@ -87,13 +87,13 @@ describe('compute display', () => {
     });
 
     const soql: string = toolingQueryStub.firstCall.args[0];
-    expect(soql).to.include("WHERE DeveloperName = 'LeaseAgreementParser'");
+    expect(soql).to.include("WHERE DeveloperName = 'CreditRatingScorer'");
   });
 
   it('includes currentBuild in the JSON result even without --verbose', async () => {
     resolveWith([activeRecord]);
 
-    const result = await Display.run(['--name', 'LeaseAgreementParser', '--target-org', testOrg.username]);
+    const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result.currentBuild).to.not.be.undefined;
     const output =
@@ -107,7 +107,7 @@ describe('compute display', () => {
   it('renders External Service and Current Build sections under --verbose', async () => {
     resolveWith([activeRecord]);
 
-    await Display.run(['--name', 'LeaseAgreementParser', '--target-org', testOrg.username, '--verbose']);
+    await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--verbose']);
 
     const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
     expect(headers).to.include('External Service');
@@ -124,7 +124,7 @@ describe('compute display', () => {
       },
     ]);
 
-    const result = await Display.run(['--name', 'LeaseAgreementParser', '--target-org', testOrg.username]);
+    const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result.currentBuild).to.be.undefined;
     expect(result.externalServiceRegistered).to.be.false;
@@ -142,7 +142,7 @@ describe('compute display', () => {
       },
     ]);
 
-    const result = await Display.run(['--name', 'LeaseAgreementParser', '--target-org', testOrg.username]);
+    const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result.description).to.be.undefined;
     expect(result.statusReason).to.equal('Buildpack detection failed.');
@@ -151,11 +151,11 @@ describe('compute display', () => {
   it('preserves the exact case of --name in the SOQL filter', async () => {
     resolveWith([activeRecord]);
 
-    await Display.run(['--name', 'LeaseAgreementParser', '--target-org', testOrg.username]);
+    await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     const soql: string = toolingQueryStub.firstCall.args[0];
-    expect(soql).to.include("DeveloperName = 'LeaseAgreementParser'");
-    expect(soql).to.not.include("DeveloperName = 'leaseagreementparser'");
+    expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
+    expect(soql).to.not.include("DeveloperName = 'creditratingscorer'");
   });
 
   it('fails with a deploy hint when the app is not found in the org', async () => {
@@ -166,10 +166,8 @@ describe('compute display', () => {
       expect.fail('expected an error');
     } catch (e) {
       expect((e as Error).message).to.include('No compute app named NeverDeployed was found in the org');
-      // Regression check for the actionTokens bug: the --name %s placeholder in
-      // error.appNotFoundInOrg.actions must be filled in, not left as a literal %s.
       const actions = (e as SfError).actions ?? [];
-      expect(actions.join('\n')).to.include('--name NeverDeployed');
+      expect(actions.join('\n')).to.include('compute deploy');
       expect(actions.join('\n')).to.not.include('%s');
     }
   });
@@ -178,10 +176,10 @@ describe('compute display', () => {
     resolveWith([activeRecord, activeRecord]);
 
     try {
-      await Display.run(['--name', 'LeaseAgreementParser', '--target-org', testOrg.username]);
+      await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
-      expect((e as Error).message).to.include('Found more than one compute app named LeaseAgreementParser');
+      expect((e as Error).message).to.include('Found more than one compute app named CreditRatingScorer');
     }
   });
 
@@ -189,7 +187,7 @@ describe('compute display', () => {
     toolingQueryStub.rejects(new Error('INVALID_SESSION_ID'));
 
     try {
-      await Display.run(['--name', 'LeaseAgreementParser', '--target-org', testOrg.username]);
+      await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
       expect((e as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");

@@ -25,5 +25,5 @@ uvicorn app.main:app --reload
 ## Deploy
 
 ```
-sf compute deploy --name __APP_NAME__ --target-org <org>
+sf compute deploy --target-org <org>
 ```

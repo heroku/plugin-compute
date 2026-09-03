@@ -25,5 +25,5 @@ npm run dev
 ## Deploy
 
 ```
-sf compute deploy --name __APP_NAME__ --target-org <org>
+sf compute deploy --target-org <org>
 ```

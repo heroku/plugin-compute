@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ComputeBuildOutputResult",
+  "definitions": {
+    "ComputeBuildOutputResult": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "buildStatus": {
+          "type": "string",
+          "enum": ["PENDING", "BUILDING", "SUCCEEDED", "FAILED"]
+        },
+        "log": {
+          "type": "string"
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    }
+  }
+}

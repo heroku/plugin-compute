@@ -17,7 +17,7 @@ export interface paths {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -46,7 +46,7 @@ export interface paths {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -79,7 +79,7 @@ export interface paths {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
         /**
@@ -113,7 +113,7 @@ export interface paths {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -146,7 +146,7 @@ export interface paths {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -175,7 +175,7 @@ export interface paths {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -205,7 +205,7 @@ export interface paths {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
         /**
@@ -240,7 +240,7 @@ export interface paths {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -250,7 +250,7 @@ export interface paths {
     put?: never;
     /**
      * Create a log session
-     * @description Creates a reference to an HTTP log stream for the app. Used by `sf compute logs` to obtain a `logplex_url` to stream or tail from.
+     * @description Creates a reference to an HTTP log stream for the app. The org calls this on the customer's behalf (via /connect/compute/logs/session in salesforce-connect-compute.yaml) to obtain a `logplex_url` for `sf compute logs` to stream or tail from -- the CLI itself never calls this endpoint directly.
      */
     post: operations['createLogSession'];
     delete?: never;
@@ -272,7 +272,7 @@ export interface paths {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -301,7 +301,7 @@ export interface paths {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
         /**
@@ -335,7 +335,7 @@ export interface paths {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
         /**
@@ -409,7 +409,7 @@ export interface components {
     App: {
       /** Format: uuid */
       id?: string;
-      /** @example lease-agreement-parser */
+      /** @example credit-rating-scorer */
       name?: string;
       acm?: boolean;
       /** Format: date-time */
@@ -845,7 +845,7 @@ export interface components {
   parameters: {
     /**
      * @description Unique identifier or name of the app.
-     * @example lease-agreement-parser
+     * @example credit-rating-scorer
      */
     AppIdOrName: string;
     /**
@@ -873,7 +873,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -908,7 +908,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -943,7 +943,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -983,7 +983,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
         /**
@@ -1023,7 +1023,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -1058,7 +1058,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -1097,7 +1097,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -1132,7 +1132,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -1167,7 +1167,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -1207,7 +1207,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
         /**
@@ -1247,7 +1247,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
         /**
@@ -1292,7 +1292,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -1331,7 +1331,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
       };
@@ -1366,7 +1366,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
         /**
@@ -1406,7 +1406,7 @@ export interface operations {
       path: {
         /**
          * @description Unique identifier or name of the app.
-         * @example lease-agreement-parser
+         * @example credit-rating-scorer
          */
         app_id_or_name: components['parameters']['AppIdOrName'];
         /**

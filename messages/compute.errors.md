@@ -26,8 +26,8 @@ No compute app named %s was found in the org. It may not have been deployed yet,
 
 # error.appNotFoundInOrg.actions
 
-- Run <%= config.bin %> compute deploy --name %s --target-org <org> to deploy it.
-- Check that --name matches the DeveloperName used when it was deployed.
+- cd into the compute app's directory and run <%= config.bin %> compute deploy --target-org <org> to deploy it.
+- Check that the app's directory name matches the DeveloperName used when it was deployed.
 
 # error.ambiguousName
 
@@ -45,3 +45,30 @@ Couldn't query compute app details: %s
 
 - Confirm the target org has compute apps enabled and that you have the DeployCompute or ManageCompute permission.
 - Run the command again; if it still fails, check Setup for outstanding compute app errors.
+
+# error.buildOutputFetchFailed
+
+Couldn't fetch build output: %s
+
+# error.buildOutputFetchFailed.actions
+
+- Confirm the target org has compute apps enabled and that you have the DeployCompute or ManageCompute permission.
+- Run the command again; if it still fails, check Setup for outstanding compute app errors.
+
+# error.logSessionCreateFailed
+
+Couldn't create a log session: %s
+
+# error.logSessionCreateFailed.actions
+
+- Confirm the target org has compute apps enabled and that you have the DeployCompute or ManageCompute permission.
+- Run the command again; if it still fails, check Setup for outstanding compute app errors.
+
+# error.logStreamFailed
+
+Couldn't read the log stream: %s
+
+# error.logStreamFailed.actions
+
+- Run the command again; the log session may have expired.
+- If the problem persists, check your network connection to logplex.heroku.com.

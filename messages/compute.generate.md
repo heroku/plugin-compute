@@ -37,9 +37,9 @@ scaffolds starters for node and python only.
 
 # examples
 
-- Scaffold a Node.js compute app named LeaseAgreementParser:
+- Scaffold a Node.js compute app named CreditRatingScorer:
 
-  <%= config.bin %> <%= command.id %> --name LeaseAgreementParser
+  <%= config.bin %> <%= command.id %> --name CreditRatingScorer
 
 - Scaffold a Python compute app and associate it with an org:
 
@@ -68,4 +68,4 @@ Created compute app %s.
 
 # info.next
 
-Next: sf compute deploy --name %s --target-org %s
+Next: cd %s && sf compute deploy --target-org %s

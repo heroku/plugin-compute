@@ -22,7 +22,7 @@ import sinon from 'sinon';
 import tarStream from 'tar-stream';
 import type FormData from 'form-data';
 import { TestContext, MockTestOrgData } from '@salesforce/core/testSetup';
-import { Org, SfError } from '@salesforce/core';
+import { Org } from '@salesforce/core';
 import { stubSfCommandUx } from '@salesforce/sf-plugins-core';
 import Deploy from '../../../src/commands/compute/deploy.js';
 
@@ -113,21 +113,23 @@ describe('compute deploy', () => {
       join(projectDir, 'sfdx-project.json'),
       JSON.stringify({ packageDirectories: [{ path: 'force-app', default: true }] })
     );
-    process.chdir(projectDir);
 
     // TestContext.inProject(true) stubs SfProject.resolveProjectPath to an internal sandbox
     // path unrelated to cwd. Override the retrievers (the supported hook) so this.project.getPath()
-    // in deploy.ts matches the fixture directory we actually created above.
+    // in deploy.ts matches the fixture directory we actually created above, independent of cwd.
     $$.localPathRetriever = async () => projectDir;
     $$.localPathRetrieverSync = () => projectDir;
 
-    const appDir = join(projectDir, 'force-app/main/default/compute/LeaseAgreementParser');
+    const appDir = join(projectDir, 'force-app/main/default/compute/CreditRatingScorer');
     await mkdir(join(appDir, 'src'), { recursive: true });
     await writeFile(join(appDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
     await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');
-    await writeFile(join(appDir, 'LeaseAgreementParser.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
     await writeFile(join(appDir, 'project.toml'), '[_]\nschema-version = "0.2"\n');
     await writeFile(join(appDir, 'src', 'app.js'), 'console.log("hi");\n');
+
+    // deploy.ts derives the app name from basename(cwd) -- run from inside the app's own directory.
+    process.chdir(appDir);
   });
 
   afterEach(async () => {
@@ -137,10 +139,10 @@ describe('compute deploy', () => {
   });
 
   it('uploads source before deploying metadata, and returns the build ids', async () => {
-    const result = await Deploy.run(['--name', 'LeaseAgreementParser', '--target-org', testOrg.username]);
+    const result = await Deploy.run(['--target-org', testOrg.username]);
 
     expect(result).to.deep.equal({
-      name: 'LeaseAgreementParser',
+      name: 'CreditRatingScorer',
       platformComputeId: '0abEE0000004CqYYAU',
       buildId: '0acEE0000004D1ZYAU',
     });
@@ -159,11 +161,11 @@ describe('compute deploy', () => {
   });
 
   it('excludes files matching the project-root .forceignore from the uploaded bundle', async () => {
-    const appDir = join(projectDir, 'force-app/main/default/compute/LeaseAgreementParser');
+    const appDir = join(projectDir, 'force-app/main/default/compute/CreditRatingScorer');
     await writeFile(join(appDir, 'src', 'secret.pem'), 'private key\n');
     await writeFile(join(projectDir, '.forceignore'), '*.pem\n');
 
-    await Deploy.run(['--name', 'LeaseAgreementParser', '--target-org', testOrg.username]);
+    await Deploy.run(['--target-org', testOrg.username]);
 
     const uploadCall = findUploadCall(requestStub);
     const form = uploadCall!.args[0] as { body: FormData };
@@ -178,7 +180,7 @@ describe('compute deploy', () => {
     requestStub.rejects(new Error('socket hang up'));
 
     try {
-      await Deploy.run(['--name', 'LeaseAgreementParser', '--target-org', testOrg.username]);
+      await Deploy.run(['--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
       expect((e as Error).message).to.include('socket hang up');
@@ -194,7 +196,7 @@ describe('compute deploy', () => {
     });
 
     try {
-      await Deploy.run(['--name', 'LeaseAgreementParser', '--target-org', testOrg.username]);
+      await Deploy.run(['--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
       expect((e as Error).message).to.include('Invalid metadata type PlatformComputeApp');
@@ -203,17 +205,33 @@ describe('compute deploy', () => {
     expect(findUploadCall(requestStub)).to.not.be.undefined;
   });
 
-  it('fails fast when the app directory does not exist', async () => {
+  it('fails fast when the current directory has no <name>.compute-meta.xml', async () => {
+    const appDir = join(projectDir, 'force-app/main/default/compute/NotScaffolded');
+    await mkdir(appDir, { recursive: true });
+    await writeFile(join(appDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
+    await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');
+    process.chdir(appDir);
+
     try {
-      await Deploy.run(['--name', 'DoesNotExist', '--target-org', testOrg.username]);
+      await Deploy.run(['--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
-      expect((e as Error).message).to.include('No compute app named DoesNotExist');
-      // Regression check for the actionTokens bug: the --name %s placeholder in
-      // error.appNotFound.actions must be filled in, not left as a literal %s.
-      const actions = (e as SfError).actions ?? [];
-      expect(actions.join('\n')).to.include('compute generate --name DoesNotExist');
-      expect(actions.join('\n')).to.not.include('%s');
+      expect((e as Error).message).to.include('NotScaffolded.compute-meta.xml');
+    }
+    expect(findUploadCall(requestStub)).to.be.undefined;
+  });
+
+  it('reports the missing compute-meta.xml before checking whether the directory name is valid', async () => {
+    const appDir = join(projectDir, 'force-app/main/default/compute/Not-Valid');
+    await mkdir(appDir, { recursive: true });
+    process.chdir(appDir);
+
+    try {
+      await Deploy.run(['--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('Not-Valid.compute-meta.xml');
+      expect((e as Error).message).to.not.include("isn't valid");
     }
     expect(findUploadCall(requestStub)).to.be.undefined;
   });
@@ -223,9 +241,10 @@ describe('compute deploy', () => {
     await mkdir(appDir, { recursive: true });
     await writeFile(join(appDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
     await writeFile(join(appDir, 'NoProcfile.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    process.chdir(appDir);
 
     try {
-      await Deploy.run(['--name', 'NoProcfile', '--target-org', testOrg.username]);
+      await Deploy.run(['--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
       expect((e as Error).message).to.include('no Procfile');
@@ -238,9 +257,10 @@ describe('compute deploy', () => {
     await mkdir(appDir, { recursive: true });
     await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');
     await writeFile(join(appDir, 'NoApiSpec.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    process.chdir(appDir);
 
     try {
-      await Deploy.run(['--name', 'NoApiSpec', '--target-org', testOrg.username]);
+      await Deploy.run(['--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
       expect((e as Error).message).to.include('no api-spec.yaml');
@@ -248,9 +268,14 @@ describe('compute deploy', () => {
     expect(findUploadCall(requestStub)).to.be.undefined;
   });
 
-  it('rejects a name that would traverse outside the output directory', async () => {
+  it("rejects a directory name that isn't a valid compute app name", async () => {
+    const appDir = join(projectDir, 'force-app/main/default/compute/Not-Valid');
+    await mkdir(appDir, { recursive: true });
+    await writeFile(join(appDir, 'Not-Valid.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    process.chdir(appDir);
+
     try {
-      await Deploy.run(['--name', '../evil', '--target-org', testOrg.username]);
+      await Deploy.run(['--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
       expect((e as Error).message).to.include("isn't valid");

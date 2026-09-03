@@ -50,11 +50,11 @@ describe('computeBundle.packageComputeBundle', () => {
 
   beforeEach(async () => {
     projectRoot = await mkdtemp(join(tmpdir(), 'plugin-compute-bundle-'));
-    appDir = join(projectRoot, 'force-app/main/default/compute/LeaseAgreementParser');
+    appDir = join(projectRoot, 'force-app/main/default/compute/CreditRatingScorer');
     await mkdir(appDir, { recursive: true });
     await writeFile(join(appDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
     await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');
-    await writeFile(join(appDir, 'LeaseAgreementParser.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
     await writeFile(join(appDir, 'project.toml'), '[_]\nschema-version = "0.2"\n');
     await mkdir(join(appDir, 'src'), { recursive: true });
     await writeFile(join(appDir, 'src', 'app.js'), 'console.log("hi");\n');
@@ -65,7 +65,7 @@ describe('computeBundle.packageComputeBundle', () => {
   });
 
   it('produces a bundle with exactly api-spec.yaml and a nested source.tar.gz', async () => {
-    const { buffer } = await packageComputeBundle(appDir, 'LeaseAgreementParser', projectRoot);
+    const { buffer } = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const outer = await extractTarGz(buffer);
     expect(Object.keys(outer).sort()).to.deep.equal(['api-spec.yaml', 'source.tar.gz']);
@@ -73,7 +73,7 @@ describe('computeBundle.packageComputeBundle', () => {
   });
 
   it('excludes api-spec.yaml, the compute-meta.xml, and project.toml from source.tar.gz', async () => {
-    const { buffer } = await packageComputeBundle(appDir, 'LeaseAgreementParser', projectRoot);
+    const { buffer } = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const outer = await extractTarGz(buffer);
     const source = await extractTarGz(outer['source.tar.gz']);
@@ -83,7 +83,7 @@ describe('computeBundle.packageComputeBundle', () => {
   });
 
   it('reports the source file count excluding api-spec.yaml, meta xml, and project.toml', async () => {
-    const { fileCount } = await packageComputeBundle(appDir, 'LeaseAgreementParser', projectRoot);
+    const { fileCount } = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     expect(fileCount).to.equal(3); // Procfile, src/app.js, plus the api-spec.yaml entry in the outer bundle
   });
@@ -92,7 +92,7 @@ describe('computeBundle.packageComputeBundle', () => {
     await writeFile(join(appDir, 'src', 'app.log'), 'debug output\n');
     await writeFile(join(appDir, '.forceignore'), '*.log\n');
 
-    const { buffer } = await packageComputeBundle(appDir, 'LeaseAgreementParser', projectRoot);
+    const { buffer } = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
     expect(Object.keys(source).sort()).to.deep.equal(['Procfile', 'src/app.js']);
@@ -102,7 +102,7 @@ describe('computeBundle.packageComputeBundle', () => {
     await writeFile(join(appDir, 'src', 'secret.pem'), 'private key\n');
     await writeFile(join(projectRoot, '.forceignore'), '*.pem\n');
 
-    const { buffer } = await packageComputeBundle(appDir, 'LeaseAgreementParser', projectRoot);
+    const { buffer } = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
     expect(Object.keys(source).sort()).to.deep.equal(['Procfile', 'src/app.js']);
@@ -116,7 +116,7 @@ describe('computeBundle.packageComputeBundle', () => {
     await writeFile(join(projectRoot, 'src', 'unrelated.js'), 'unrelated\n');
     await writeFile(join(projectRoot, '.forceignore'), '/src/**\n');
 
-    const { buffer } = await packageComputeBundle(appDir, 'LeaseAgreementParser', projectRoot);
+    const { buffer } = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
     expect(Object.keys(source).sort()).to.deep.equal(['Procfile', 'src/app.js']);
@@ -127,7 +127,7 @@ describe('computeBundle.packageComputeBundle', () => {
     await writeFile(join(appDir, 'src', 'keep.log'), 'keep me\n');
     await writeFile(join(appDir, '.forceignore'), '*.log\n!keep.log\n');
 
-    const { buffer } = await packageComputeBundle(appDir, 'LeaseAgreementParser', projectRoot);
+    const { buffer } = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
     expect(Object.keys(source).sort()).to.deep.equal(['Procfile', 'src/app.js', 'src/keep.log']);
@@ -138,7 +138,7 @@ describe('computeBundle.packageComputeBundle', () => {
     await writeFile(join(appDir, '.forceignore'), '!app.log\n');
     await writeFile(join(projectRoot, '.forceignore'), '*.log\n');
 
-    const { buffer } = await packageComputeBundle(appDir, 'LeaseAgreementParser', projectRoot);
+    const { buffer } = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
     expect(Object.keys(source).sort()).to.deep.equal(['Procfile', 'src/app.js']);
@@ -151,7 +151,7 @@ describe('computeBundle.packageComputeBundle', () => {
     // responsible for surfacing this earlier if it becomes a problem in practice.
     await writeFile(join(appDir, '.forceignore'), 'Procfile\n');
 
-    const { buffer } = await packageComputeBundle(appDir, 'LeaseAgreementParser', projectRoot);
+    const { buffer } = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
     expect(Object.keys(source).sort()).to.deep.equal(['src/app.js']);

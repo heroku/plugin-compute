@@ -51,7 +51,7 @@ export type ComputeAppRecord = {
   } | null;
 };
 
-const SOQL_FIELDS = [
+export const SOQL_FIELDS = [
   'Id',
   'DeveloperName',
   'MasterLabel',
@@ -89,4 +89,65 @@ export async function queryComputeApp(connection: Connection, name: string): Pro
       err instanceof Error ? err : undefined
     );
   }
+}
+
+// No --name filter -- lists every PlatformComputeApp in the org. autoFetchQuery auto-paginates
+// (10,000-record default fetch size), which comfortably covers any realistic org's compute-app count.
+export async function listComputeApps(connection: Connection): Promise<ComputeAppRecord[]> {
+  const soql = `SELECT ${SOQL_FIELDS} FROM PlatformComputeApp ORDER BY DeveloperName ASC`;
+  try {
+    // autoFetchQuery's type param is bounded to jsforce's Schema (org-wide SObject map), not the
+    // record shape -- there's no way to type this call against ComputeAppRecord directly.
+    const result = await connection.autoFetchQuery(soql, { tooling: true });
+    return result.records as unknown as ComputeAppRecord[];
+  } catch (err) {
+    throw messages.createError(
+      'error.queryFailed',
+      [err instanceof Error ? err.message : String(err)],
+      [],
+      err instanceof Error ? err : undefined
+    );
+  }
+}
+
+export type ComputeAppSummary = {
+  name: string;
+  masterLabel: string;
+  description?: string;
+  status: 'DEPLOYING' | 'ACTIVE' | 'FAILED';
+  statusReason?: string;
+  externalServiceRegistered: boolean;
+  externalServiceActive?: boolean;
+  currentBuild?: {
+    buildStatus: 'PENDING' | 'BUILDING' | 'SUCCEEDED' | 'FAILED';
+    buildStartedAt?: string;
+    buildCompletedAt?: string;
+    deployedAt?: string;
+    deployedBy?: string;
+    error?: string;
+  };
+};
+
+// Heroku-side runtime metadata (dyno type, web process/formation count) isn't included here --
+// there's no confirmed Salesforce-queryable source for it yet. Open item, not yet resolved.
+export function toComputeAppSummary(record: ComputeAppRecord): ComputeAppSummary {
+  return {
+    name: record.DeveloperName,
+    masterLabel: record.MasterLabel,
+    description: record.Description ?? undefined,
+    status: record.Status,
+    statusReason: record.StatusReason ?? undefined,
+    externalServiceRegistered: record.ExternalServiceRegistration !== null,
+    externalServiceActive: record.ExternalServiceRegistration?.IsActive,
+    currentBuild: record.CurrentBuild
+      ? {
+          buildStatus: record.CurrentBuild.BuildStatus,
+          buildStartedAt: record.CurrentBuild.BuildStartedAt ?? undefined,
+          buildCompletedAt: record.CurrentBuild.BuildCompletedAt ?? undefined,
+          deployedAt: record.CurrentBuild.DeployedAt ?? undefined,
+          deployedBy: record.CurrentBuild.DeployedBy?.Username,
+          error: record.CurrentBuild.Error ?? undefined,
+        }
+      : undefined,
+  };
 }

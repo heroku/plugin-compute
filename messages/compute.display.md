@@ -24,8 +24,8 @@ Also show external service registration and current build detail.
 
 - Show the current status of a compute app:
 
-  <%= config.bin %> <%= command.id %> --name LeaseAgreementParser --target-org my-org
+  <%= config.bin %> <%= command.id %> --name CreditRatingScorer --target-org my-org
 
 - Include external service and current build detail:
 
-  <%= config.bin %> <%= command.id %> --name LeaseAgreementParser --target-org my-org --verbose
+  <%= config.bin %> <%= command.id %> --name CreditRatingScorer --target-org my-org --verbose

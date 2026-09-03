@@ -91,7 +91,131 @@ sf plugins
 
 <!-- commands -->
 
+- [`sf compute build output`](#sf-compute-build-output)
+- [`sf compute deploy`](#sf-compute-deploy)
+- [`sf compute display`](#sf-compute-display)
 - [`sf compute generate`](#sf-compute-generate)
+- [`sf compute list`](#sf-compute-list)
+- [`sf compute logs`](#sf-compute-logs)
+
+## `sf compute build output`
+
+Print the build/compile log for a compute app's latest build.
+
+```
+USAGE
+  $ sf compute build output -n <value> -o <value> [--json] [--flags-dir <value>]
+
+FLAGS
+  -n, --name=<value>        (required) Name of the compute app to fetch build output for.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Print the build/compile log for a compute app's latest build.
+
+  Fetches the bounded build/compile log (dependency install, slug compile,
+  release) for the most recent build of a compute app -- useful right after
+  deploy to confirm the build compiled. This is a one-shot fetch of a
+  finished-or-in-progress log, not a live stream; use compute logs --tail for
+  the ongoing runtime log.
+
+  This is a read-only, org-mediated lookup by --name (the app's DeveloperName)
+  -- the org calls Heroku's Build Info API on your behalf, and the CLI never
+  talks to Heroku directly. It doesn't read from or require a local Salesforce
+  DX project.
+
+EXAMPLES
+  Print the latest build's log:
+
+    $ sf compute build output --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/build/output.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/build/output.ts)_
+
+## `sf compute deploy`
+
+Deploy a compute app's source and metadata to an org.
+
+```
+USAGE
+  $ sf compute deploy -o <value> [--json] [--flags-dir <value>]
+
+FLAGS
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Deploy a compute app's source and metadata to an org.
+
+  Packages the compute app's source (everything under its directory except the
+  compute metadata file, project.toml, and .forceignore) together with its
+  api-spec.yaml into a deployment bundle, uploads it to the org through the
+  Connect API, then
+  deploys the app's <name>.compute-meta.xml through the Metadata API to trigger
+  the build. Deploy is asynchronous: this command returns once the build has
+  been enqueued, it doesn't wait for the build to finish.
+
+  Files matching patterns in a .forceignore are excluded from the source
+  bundle. Both the compute app's own .forceignore and the one at the project
+  root (next to sfdx-project.json) are applied, if present.
+
+EXAMPLES
+  Deploy a compute app to an org, from inside the app's own directory:
+  cd force-app/main/default/compute/CreditRatingScorer
+  $ sf compute deploy --target-org my-org
+```
+
+_See code: [src/commands/compute/deploy.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/deploy.ts)_
+
+## `sf compute display`
+
+Show the current org-side status of a deployed compute app.
+
+```
+USAGE
+  $ sf compute display -n <value> -o <value> [--json] [--flags-dir <value>] [-v]
+
+FLAGS
+  -n, --name=<value>        (required) Name of the compute app to show status for.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+  -v, --verbose             Also show external service registration and current build detail.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Show the current org-side status of a deployed compute app.
+
+  Queries the org for the compute app's current deployment status: its master
+  label, description, and overall status. With --verbose, also shows whether
+  an external service has been registered for it (and whether it's active),
+  plus the phase, timestamps, and error detail of its current build.
+
+  This is a read-only, live lookup by --name (the app's DeveloperName) -- it
+  doesn't read from or require a local Salesforce DX project.
+
+EXAMPLES
+  Show the current status of a compute app:
+
+    $ sf compute display --name CreditRatingScorer --target-org my-org
+
+  Include external service and current build detail:
+
+    $ sf compute display --name CreditRatingScorer --target-org my-org --verbose
+```
+
+_See code: [src/commands/compute/display.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/display.ts)_
 
 ## `sf compute generate`
 
@@ -121,9 +245,9 @@ DESCRIPTION
   entirely locally; no org is contacted.
 
 EXAMPLES
-  Scaffold a Node.js compute app named LeaseAgreementParser:
+  Scaffold a Node.js compute app named CreditRatingScorer:
 
-    $ sf compute generate --name LeaseAgreementParser
+    $ sf compute generate --name CreditRatingScorer
 
   Scaffold a Python compute app and associate it with an org:
 
@@ -142,5 +266,94 @@ FLAG DESCRIPTIONS
 ```
 
 _See code: [src/commands/compute/generate.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/generate.ts)_
+
+## `sf compute list`
+
+List the compute apps deployed in an org.
+
+```
+USAGE
+  $ sf compute list -o <value> [--json] [--flags-dir <value>]
+
+FLAGS
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  List the compute apps deployed in an org.
+
+  Queries the org for every compute app (PlatformComputeApp). The table shows
+  each app's master label, status, and status reason; for description, external
+  service registration, and current build detail on a single app, use compute
+  display (the full detail is also available here via --json).
+
+  This is a read-only, live lookup -- it doesn't read from or require a local
+  Salesforce DX project.
+
+EXAMPLES
+  List the compute apps in an org:
+
+    $ sf compute list --target-org my-org
+```
+
+_See code: [src/commands/compute/list.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/list.ts)_
+
+## `sf compute logs`
+
+Print or stream the runtime log for a compute app.
+
+```
+USAGE
+  $ sf compute logs -n <value> -o <value> [--flags-dir <value>] [--num <value>] [--tail | --json]
+
+FLAGS
+  -n, --name=<value>        (required) Name of the compute app to fetch logs for.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+      --num=<value>         [default: 100] Number of historical log lines to print before new output.
+      --tail                Keep the session open and print new log lines as they arrive.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Print or stream the runtime log for a compute app.
+
+  Fetches a compute app's runtime log -- this is the app's ongoing output
+  (request handling, application logs), not the build/compile log; use
+  compute build output for that.
+
+  This is an org-mediated operation by --name (the app's DeveloperName) -- the
+  org creates a log session with Heroku on your behalf and hands back a
+  short-lived, pre-authorized URL that the CLI reads from directly. It doesn't
+  read from or require a local Salesforce DX project.
+
+  By default this prints the most recent log lines and exits. Pass --tail to
+  keep the session open and print new lines as they arrive, until you stop it
+  with Ctrl-C or the session ends on its own.
+
+  --tail can't be combined with --json, since a live stream has no single
+  point at which to emit one JSON result.
+
+EXAMPLES
+  Print the most recent log lines:
+
+    $ sf compute logs --name CreditRatingScorer --target-org my-org
+
+  Print the most recent 500 log lines:
+
+    $ sf compute logs --name CreditRatingScorer --num 500 --target-org my-org
+
+  Tail the log until stopped with Ctrl-C:
+
+    $ sf compute logs --name CreditRatingScorer --tail --target-org my-org
+```
+
+_See code: [src/commands/compute/logs.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/logs.ts)_
 
 <!-- commandsstop -->

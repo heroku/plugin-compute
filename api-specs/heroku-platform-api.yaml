@@ -330,8 +330,11 @@ paths:
       operationId: createLogSession
       summary: Create a log session
       description: >-
-        Creates a reference to an HTTP log stream for the app. Used by `sf
-        compute logs` to obtain a `logplex_url` to stream or tail from.
+        Creates a reference to an HTTP log stream for the app. The org calls
+        this on the customer's behalf (via /connect/compute/logs/session in
+        salesforce-connect-compute.yaml) to obtain a `logplex_url` for `sf
+        compute logs` to stream or tail from -- the CLI itself never calls
+        this endpoint directly.
       tags: [LogSession]
       requestBody:
         required: false
@@ -500,7 +503,7 @@ components:
       description: Unique identifier or name of the app.
       schema:
         type: string
-      example: lease-agreement-parser
+      example: credit-rating-scorer
     HerokuAcceptHeader:
       name: Accept
       in: header
@@ -520,7 +523,7 @@ components:
         name:
           type: string
           pattern: ^[a-z][a-z0-9-]{1,28}[a-z0-9]$
-          example: lease-agreement-parser
+          example: credit-rating-scorer
         acm:
           type: boolean
         archived_at:

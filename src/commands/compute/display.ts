@@ -17,28 +17,13 @@
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
 import { validateName } from '../../shared/computeApp.js';
-import { queryComputeApp, type ComputeAppRecord } from '../../shared/computeQuery.js';
+import { queryComputeApp, toComputeAppSummary, type ComputeAppSummary } from '../../shared/computeQuery.js';
+import { useBorderlessTables } from '../../shared/tableStyle.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.display');
 
-export type ComputeDisplayResult = {
-  name: string;
-  masterLabel: string;
-  description?: string;
-  status: 'DEPLOYING' | 'ACTIVE' | 'FAILED';
-  statusReason?: string;
-  externalServiceRegistered: boolean;
-  externalServiceActive?: boolean;
-  currentBuild?: {
-    buildStatus: 'PENDING' | 'BUILDING' | 'SUCCEEDED' | 'FAILED';
-    buildStartedAt?: string;
-    buildCompletedAt?: string;
-    deployedAt?: string;
-    deployedBy?: string;
-    error?: string;
-  };
-};
+export type ComputeDisplayResult = ComputeAppSummary;
 
 export default class Display extends SfCommand<ComputeDisplayResult> {
   public static readonly state = 'beta';
@@ -68,8 +53,9 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
 
     const connection = flags['target-org'].getConnection();
     const record = await queryComputeApp(connection, name);
-    const result = toResult(record);
+    const result = toComputeAppSummary(record);
 
+    useBorderlessTables();
     this.styledHeader('Compute App');
     this.table({
       data: [
@@ -112,28 +98,4 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
 
     return result;
   }
-}
-
-// Heroku-side runtime metadata (dyno type, web process/formation count) isn't included here --
-// there's no confirmed Salesforce-queryable source for it yet. Open item, not yet resolved.
-function toResult(record: ComputeAppRecord): ComputeDisplayResult {
-  return {
-    name: record.DeveloperName,
-    masterLabel: record.MasterLabel,
-    description: record.Description ?? undefined,
-    status: record.Status,
-    statusReason: record.StatusReason ?? undefined,
-    externalServiceRegistered: record.ExternalServiceRegistration !== null,
-    externalServiceActive: record.ExternalServiceRegistration?.IsActive,
-    currentBuild: record.CurrentBuild
-      ? {
-          buildStatus: record.CurrentBuild.BuildStatus,
-          buildStartedAt: record.CurrentBuild.BuildStartedAt ?? undefined,
-          buildCompletedAt: record.CurrentBuild.BuildCompletedAt ?? undefined,
-          deployedAt: record.CurrentBuild.DeployedAt ?? undefined,
-          deployedBy: record.CurrentBuild.DeployedBy?.Username,
-          error: record.CurrentBuild.Error ?? undefined,
-        }
-      : undefined,
-  };
 }

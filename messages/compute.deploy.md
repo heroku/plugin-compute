@@ -16,33 +16,22 @@ Files matching patterns in a .forceignore are excluded from the source
 bundle. Both the compute app's own .forceignore and the one at the project
 root (next to sfdx-project.json) are applied, if present.
 
-# flags.name.summary
-
-Name of the compute app to deploy.
-
-# flags.output-dir.summary
-
-Directory the compute app was generated into.
-
-# flags.output-dir.description
-
-Defaults to force-app/main/default/compute. Must match --output-dir from
-sf compute generate for this app.
-
 # examples
 
-- Deploy a compute app to an org:
+- Deploy a compute app to an org, from inside the app's own directory:
 
-  <%= config.bin %> <%= command.id %> --name LeaseAgreementParser --target-org my-org
+  cd force-app/main/default/compute/CreditRatingScorer
 
-# error.appNotFound
+  <%= config.bin %> <%= command.id %> --target-org my-org
 
-No compute app named %s was found at %s. Run "sf compute generate" first, or check --output-dir.
+# error.notAppDir
 
-# error.appNotFound.actions
+This directory has no %s.compute-meta.xml. Run this command from inside the compute app's own directory (the one "sf compute generate" created).
 
-- Run <%= config.bin %> compute generate --name %s to scaffold it.
-- Check that --output-dir points at the right location.
+# error.notAppDir.actions
+
+- cd into the compute app's directory (e.g. force-app/main/default/compute/<AppName>) and run the command again.
+- Run <%= config.bin %> compute generate first if the app hasn't been scaffolded yet.
 
 # error.noProcfile
 

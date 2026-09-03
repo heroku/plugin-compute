@@ -24,6 +24,46 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/connect/compute/build/output': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Fetch the latest build's compile/deploy log
+     * @description Returns the bounded build/compile log (dependency install, slug compile, release) for the most recent build of a Compute app. This is a one-shot fetch of a finished-or-in-progress log, not a live stream -- `sf compute logs --tail` covers the ongoing runtime log. Org calls Heroku's Build Info API on the customer's behalf and returns the log body; the CLI never talks to Heroku directly. Returns 404 if the org hasn't ingested a build listing for this app's current build yet (e.g. the build was only just enqueued).
+     */
+    get: operations['fetchComputeBuildOutput'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/connect/compute/logs/session': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Create a log session for a Compute app
+     * @description Creates a short-lived, pre-authorized session URL for streaming or tailing a Compute app's runtime logs. Org calls Heroku's Create Log Session API on the customer's behalf; the CLI never holds a Heroku credential. The returned `logplexUrl` is itself the auth mechanism -- the CLI fetches or streams from it directly, without going through this org connection. Requires the `DeployCompute` or `ManageCompute` user permission.
+     */
+    post: operations['createComputeLogSession'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -51,6 +91,33 @@ export interface components {
        * @description Timestamp the source blob was uploaded.
        */
       uploadedAt: string;
+    };
+    /** @description Parameters for creating a Compute app log session. */
+    ComputeLogSessionCreate: {
+      /**
+       * @description DeveloperName of the PlatformComputeApp to create a log session for.
+       * @example CreditRatingScorer
+       */
+      name: string;
+      /**
+       * @description Number of historical log lines to backfill before new output.
+       * @example 100
+       */
+      lines?: number;
+      /**
+       * @description Whether the session should stay open for an ongoing live stream.
+       * @example false
+       */
+      tail?: boolean;
+    };
+    /** @description A Compute app log session. */
+    ComputeLogSession: {
+      /**
+       * Format: uri
+       * @description Short-lived, pre-authorized URL to fetch or stream the app's runtime logs from directly.
+       * @example https://logplex.heroku.com/sessions/01234567-89ab-cdef-0123-456789abcdef?srv=1325419200
+       */
+      logplexUrl: string;
     };
     /** @description Standard Salesforce Connect API error shape. */
     ConnectError: {
@@ -106,7 +173,7 @@ export interface operations {
         'multipart/form-data': {
           /**
            * @description DeveloperName of the PlatformComputeApp to deploy source for.
-           * @example LeaseAgreementParser
+           * @example CreditRatingScorer
            */
           name: string;
           /**
@@ -130,6 +197,78 @@ export interface operations {
       400: components['responses']['BadRequest'];
       403: components['responses']['Forbidden'];
       404: components['responses']['NotFound'];
+    };
+  };
+  fetchComputeBuildOutput: {
+    parameters: {
+      query: {
+        /**
+         * @description DeveloperName of the PlatformComputeApp to fetch build output for.
+         * @example CreditRatingScorer
+         */
+        name: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Build/compile log body for the app's latest build. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'text/plain': string;
+        };
+      };
+      400: components['responses']['BadRequest'];
+      403: components['responses']['Forbidden'];
+      /** @description Either no PlatformComputeApp exists with the given name, or the org hasn't ingested a build listing for this app's current build yet. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ConnectError'][];
+        };
+      };
+    };
+  };
+  createComputeLogSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ComputeLogSessionCreate'];
+      };
+    };
+    responses: {
+      /** @description Log session created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ComputeLogSession'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      403: components['responses']['Forbidden'];
+      /** @description Either no PlatformComputeApp exists with the given name, or Heroku hasn't provisioned a log-streamable app for it yet. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ConnectError'][];
+        };
+      };
     };
   };
 }

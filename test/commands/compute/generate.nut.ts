@@ -30,15 +30,15 @@ describe('compute generate NUTs', () => {
   });
 
   it('scaffolds a node compute app', () => {
-    const result = execCmd<ComputeGenerateResult>('compute generate --name LeaseAgreementParser --json', {
+    const result = execCmd<ComputeGenerateResult>('compute generate --name CreditRatingScorer --json', {
       ensureExitCode: 0,
     }).jsonOutput?.result;
-    expect(result?.name).to.equal('LeaseAgreementParser');
+    expect(result?.name).to.equal('CreditRatingScorer');
     expect(result?.language).to.equal('node');
   });
 
   it('fails when the app already exists', () => {
-    const output = execCmd('compute generate --name LeaseAgreementParser --json', { ensureExitCode: 1 }).jsonOutput;
+    const output = execCmd('compute generate --name CreditRatingScorer --json', { ensureExitCode: 1 }).jsonOutput;
     expect(output?.message).to.include('already exists');
   });
 });

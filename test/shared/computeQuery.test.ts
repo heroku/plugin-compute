@@ -16,11 +16,11 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 import { SfError, type Connection } from '@salesforce/core';
-import { queryComputeApp } from '../../src/shared/computeQuery.js';
+import { queryComputeApp, listComputeApps, toComputeAppSummary } from '../../src/shared/computeQuery.js';
 
 const activeRecord = {
   Id: '0abEE0000004CqYYAU',
-  DeveloperName: 'LeaseAgreementParser',
+  DeveloperName: 'CreditRatingScorer',
   MasterLabel: 'Lease Agreement Parser',
   Description: 'Parses lease agreements.',
   Status: 'ACTIVE' as const,
@@ -38,13 +38,13 @@ describe('computeQuery.queryComputeApp', () => {
     const singleRecordQuery = sinon.stub().resolves(activeRecord);
     const connection = { singleRecordQuery } as unknown as Connection;
 
-    const result = await queryComputeApp(connection, 'LeaseAgreementParser');
+    const result = await queryComputeApp(connection, 'CreditRatingScorer');
 
     expect(result).to.deep.equal(activeRecord);
     expect(singleRecordQuery.calledOnce).to.be.true;
     const [soql, options] = singleRecordQuery.firstCall.args as [string, { tooling?: boolean }];
     expect(soql).to.include('FROM PlatformComputeApp');
-    expect(soql).to.include("WHERE DeveloperName = 'LeaseAgreementParser'");
+    expect(soql).to.include("WHERE DeveloperName = 'CreditRatingScorer'");
     expect(soql).to.include('CurrentBuild.BuildStatus');
     expect(soql).to.include('CurrentBuild.DeployedBy.Username');
     expect(soql).to.include('ExternalServiceRegistration.IsActive');
@@ -62,7 +62,7 @@ describe('computeQuery.queryComputeApp', () => {
       const e = err as SfError;
       expect(e.message).to.include('No compute app named NeverDeployed was found in the org');
       const actions = e.actions ?? [];
-      expect(actions.join('\n')).to.include('--name NeverDeployed');
+      expect(actions.join('\n')).to.include('compute deploy');
       expect(actions.join('\n')).to.not.include('%s');
     }
   });
@@ -74,10 +74,10 @@ describe('computeQuery.queryComputeApp', () => {
     const connection = { singleRecordQuery } as unknown as Connection;
 
     try {
-      await queryComputeApp(connection, 'LeaseAgreementParser');
+      await queryComputeApp(connection, 'CreditRatingScorer');
       expect.fail('expected queryComputeApp to throw');
     } catch (err) {
-      expect((err as Error).message).to.include('Found more than one compute app named LeaseAgreementParser');
+      expect((err as Error).message).to.include('Found more than one compute app named CreditRatingScorer');
     }
   });
 
@@ -86,7 +86,7 @@ describe('computeQuery.queryComputeApp', () => {
     const connection = { singleRecordQuery } as unknown as Connection;
 
     try {
-      await queryComputeApp(connection, 'LeaseAgreementParser');
+      await queryComputeApp(connection, 'CreditRatingScorer');
       expect.fail('expected queryComputeApp to throw');
     } catch (err) {
       expect((err as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
@@ -99,10 +99,120 @@ describe('computeQuery.queryComputeApp', () => {
     const connection = { singleRecordQuery } as unknown as Connection;
 
     try {
-      await queryComputeApp(connection, 'LeaseAgreementParser');
+      await queryComputeApp(connection, 'CreditRatingScorer');
       expect.fail('expected queryComputeApp to throw');
     } catch (err) {
       expect((err as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
     }
+  });
+});
+
+describe('computeQuery.listComputeApps', () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('lists every PlatformComputeApp in the org, ordered by DeveloperName, with no WHERE clause', async () => {
+    const autoFetchQuery = sinon.stub().resolves({ totalSize: 1, records: [activeRecord], done: true });
+    const connection = { autoFetchQuery } as unknown as Connection;
+
+    const result = await listComputeApps(connection);
+
+    expect(result).to.deep.equal([activeRecord]);
+    expect(autoFetchQuery.calledOnce).to.be.true;
+    const [soql, options] = autoFetchQuery.firstCall.args as [string, { tooling?: boolean }];
+    expect(soql).to.include('FROM PlatformComputeApp');
+    expect(soql).to.include('ORDER BY DeveloperName ASC');
+    expect(soql).to.not.include('WHERE');
+    expect(options).to.deep.equal({ tooling: true });
+  });
+
+  it('returns an empty array when the org has no compute apps', async () => {
+    const autoFetchQuery = sinon.stub().resolves({ totalSize: 0, records: [], done: true });
+    const connection = { autoFetchQuery } as unknown as Connection;
+
+    const result = await listComputeApps(connection);
+
+    expect(result).to.deep.equal([]);
+  });
+
+  it('wraps an unexpected Error-typed query failure', async () => {
+    const autoFetchQuery = sinon.stub().rejects(new Error('INVALID_SESSION_ID'));
+    const connection = { autoFetchQuery } as unknown as Connection;
+
+    try {
+      await listComputeApps(connection);
+      expect.fail('expected listComputeApps to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
+    }
+  });
+
+  it('wraps a non-Error throw (e.g. a rejected string) without crashing', async () => {
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- deliberately non-Error, to test listComputeApps's non-Error fallback
+    const autoFetchQuery = sinon.stub().callsFake(() => Promise.reject('INVALID_SESSION_ID'));
+    const connection = { autoFetchQuery } as unknown as Connection;
+
+    try {
+      await listComputeApps(connection);
+      expect.fail('expected listComputeApps to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
+    }
+  });
+});
+
+describe('computeQuery.toComputeAppSummary', () => {
+  it('flattens a full record with a current build and an active external service', () => {
+    const result = toComputeAppSummary({
+      ...activeRecord,
+      CurrentBuild: {
+        Id: '0acEE0000004D1ZYAU',
+        BuildStatus: 'SUCCEEDED',
+        BuildStartedAt: '2026-08-04T14:23:50.000Z',
+        BuildCompletedAt: '2026-08-04T14:25:32.000Z',
+        DeployedAt: '2026-08-04T14:25:32.000Z',
+        DeployedBy: { Username: 'dev@mycompany.com' },
+        Error: null,
+      },
+      ExternalServiceRegistration: { Id: '0ES0x00000ABC456', IsActive: true },
+    });
+
+    expect(result).to.deep.equal({
+      name: 'CreditRatingScorer',
+      masterLabel: 'Lease Agreement Parser',
+      description: 'Parses lease agreements.',
+      status: 'ACTIVE',
+      statusReason: undefined,
+      externalServiceRegistered: true,
+      externalServiceActive: true,
+      currentBuild: {
+        buildStatus: 'SUCCEEDED',
+        buildStartedAt: '2026-08-04T14:23:50.000Z',
+        buildCompletedAt: '2026-08-04T14:25:32.000Z',
+        deployedAt: '2026-08-04T14:25:32.000Z',
+        deployedBy: 'dev@mycompany.com',
+        error: undefined,
+      },
+    });
+  });
+
+  it('omits currentBuild and treats a null ExternalServiceRegistration as not registered', () => {
+    const result = toComputeAppSummary(activeRecord);
+
+    expect(result.currentBuild).to.be.undefined;
+    expect(result.externalServiceRegistered).to.be.false;
+    expect(result.externalServiceActive).to.be.undefined;
+  });
+
+  it('maps null Description and StatusReason to undefined', () => {
+    const result = toComputeAppSummary({
+      ...activeRecord,
+      Description: null,
+      StatusReason: 'Buildpack detection failed.',
+    });
+
+    expect(result.description).to.be.undefined;
+    expect(result.statusReason).to.equal('Buildpack detection failed.');
   });
 });

@@ -27,7 +27,7 @@ describe('metadataDeploy.deployComputeMetadata', () => {
 
   beforeEach(async () => {
     appDir = await mkdtemp(join(tmpdir(), 'plugin-compute-metadeploy-'));
-    await writeFile(join(appDir, 'LeaseAgreementParser.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
   });
 
   afterEach(async () => {
@@ -51,7 +51,7 @@ describe('metadataDeploy.deployComputeMetadata', () => {
   it('builds a package.xml + compute/<name>/<name>.compute-meta.xml zip and deploys it', async () => {
     const { connection, deploy, complete } = stubConnection({ success: true, details: { componentFailures: [] } });
 
-    await deployComputeMetadata(connection, appDir, 'LeaseAgreementParser');
+    await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
 
     expect(deploy.calledOnce).to.be.true;
     const [zipBuffer, options] = deploy.firstCall.args as [Buffer, { singlePackage: boolean }];
@@ -59,12 +59,10 @@ describe('metadataDeploy.deployComputeMetadata', () => {
 
     const zip = await JSZip.loadAsync(zipBuffer);
     const packageXml = await zip.file('package.xml')?.async('string');
-    expect(packageXml).to.include('<members>LeaseAgreementParser</members>');
+    expect(packageXml).to.include('<members>CreditRatingScorer</members>');
     expect(packageXml).to.include('<name>PlatformComputeApp</name>');
 
-    const metaXml = await zip
-      .file('compute/LeaseAgreementParser/LeaseAgreementParser.compute-meta.xml')
-      ?.async('string');
+    const metaXml = await zip.file('compute/CreditRatingScorer/CreditRatingScorer.compute-meta.xml')?.async('string');
     expect(metaXml).to.equal('<PlatformComputeApp/>\n');
 
     expect(complete.calledOnceWith(true)).to.be.true;
@@ -77,10 +75,10 @@ describe('metadataDeploy.deployComputeMetadata', () => {
     });
 
     try {
-      await deployComputeMetadata(connection, appDir, 'LeaseAgreementParser');
+      await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
       expect.fail('expected an error');
     } catch (e) {
-      expect((e as Error).message).to.include('LeaseAgreementParser');
+      expect((e as Error).message).to.include('CreditRatingScorer');
       expect((e as Error).message).to.include('Invalid metadata type PlatformComputeApp');
     }
   });

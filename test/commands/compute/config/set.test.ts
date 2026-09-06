@@ -187,7 +187,7 @@ describe('compute config set', () => {
       await ConfigSet.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
-      expect((e as Error).message).to.include('Specify at least one config var, for example STRIPE_KEY=sk_live_....');
+      expect((e as Error).message).to.include('Specify at least one config var, for example `STRIPE_KEY=sk_live_...`.');
     }
     expect(findConfigVarsCall(requestStub)).to.be.undefined;
   });

@@ -33,7 +33,7 @@ directory's app name if that isn't set either.
 
 # error.configSetNoPairsSpecified
 
-Specify at least one config var, for example STRIPE*KEY=sk_live*....
+Specify at least one config var, for example `STRIPE_KEY=sk_live_...`.
 
 # error.configSetNoPairsSpecified.actions
 

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { basename } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
-import { validateName, pathExists } from '../../shared/computeApp.js';
+import { validateName, pathExists, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
 import { packageComputeBundle } from '../../shared/computeBundle.js';
 import { uploadComputeSource } from '../../shared/computeConnectApi.js';
 import { deployComputeMetadata } from '../../shared/metadataDeploy.js';
@@ -39,22 +39,35 @@ export default class Deploy extends SfCommand<ComputeDeployResult> {
   public static readonly requiresProject = true;
 
   public static readonly flags = {
+    'source-dir': Flags.directory({
+      char: 'd',
+      exists: true,
+      // A plain `process.cwd()` value would be captured once, at class-definition time --
+      // this must stay a function so each run() picks up the actual cwd at parse time.
+      default: () => Promise.resolve(process.cwd()),
+      // Without this, oclif's help/readme generation evaluates `default` itself to display
+      // it, baking whatever machine-specific cwd happened to run `oclif readme` into the
+      // published README and --help output. defaultHelp overrides just the displayed text.
+      defaultHelp: () => Promise.resolve('current directory'),
+      summary: messages.getMessage('flags.source-dir.summary'),
+    }),
     'target-org': Flags.requiredOrg({ char: 'o' }),
   };
 
   public async run(): Promise<ComputeDeployResult> {
     const { flags } = await this.parse(Deploy);
 
-    // No --name flag -- run this command from inside the compute app's own directory. The
-    // directory's name doubles as the app's DeveloperName and the <name>.compute-meta.xml filename.
-    const appDir = process.cwd();
-    const name = basename(appDir);
+    // No --name flag -- run this from inside the compute app's own directory, or point
+    // --source-dir at it. The directory's name doubles as the app's DeveloperName and the
+    // <name>.compute-meta.xml filename.
+    const appDir = resolve(flags['source-dir']);
 
     // Check this looks like an app directory before validating the name -- otherwise
     // running from the wrong place (e.g. the project root) surfaces a confusing "name
     // isn't valid" error instead of guidance to cd into the app's own directory.
-    if (!(await pathExists(`${appDir}/${name}.compute-meta.xml`))) {
-      throw messages.createError('error.notAppDir', [name]);
+    const name = await resolveComputeAppNameFromDir(appDir);
+    if (!name) {
+      throw messages.createError('error.notAppDir', [basename(appDir)]);
     }
     validateName(name);
     if (!(await pathExists(`${appDir}/Procfile`))) {

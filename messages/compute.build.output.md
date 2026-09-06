@@ -11,13 +11,17 @@ finished-or-in-progress log, not a live stream; use compute logs --tail for
 the ongoing runtime log.
 
 This is a read-only, org-mediated lookup by --name (the app's DeveloperName)
--- the org calls Heroku's Build Info API on your behalf, and the CLI never
-talks to Heroku directly. It doesn't read from or require a local Salesforce
-DX project.
+-- the org calls Heroku's Build Info API on your behalf. It doesn't read from
+or require a local Salesforce DX project.
+
+If the HEROKU_API_TOKEN environment variable is set, this command calls the
+Heroku Platform API directly instead, using --name as the Heroku app name.
 
 # flags.name.summary
 
-Name of the compute app to fetch build output for.
+Name of the compute app to fetch build output for. Defaults to the
+COMPUTE_APP_NAME environment variable, or the current directory's app name
+if that isn't set either.
 
 # info.noBuildsFound
 

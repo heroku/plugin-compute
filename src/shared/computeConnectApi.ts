@@ -86,6 +86,107 @@ export async function fetchComputeBuildOutput(
   }
 }
 
+export type ComputeFormationUpdate = components['schemas']['ComputeFormationUpdate'];
+export type ComputeFormation = components['schemas']['ComputeFormation'];
+
+export type UpdateComputeFormationParams = {
+  /** PlatformComputeApp Id or DeveloperName to scale. */
+  app: string;
+  /** Heroku process type to scale (e.g. web, worker). */
+  processType: string;
+  dynoSize?: string;
+  quantity?: number;
+};
+
+// Named ComputeFormationUpdateResult, not ComputeScaleResult, for the same reason
+// HerokuFormationUpdate in herokuComputeApi.ts isn't named that -- see its comment.
+export type ComputeFormationUpdateResult = { type: string; dynoSize?: string; quantity: number };
+
+// Speculative resource -- see the Compute tag description in salesforce-connect-compute.yaml.
+// {app_id_or_name} is deliberately Id-or-DeveloperName (unlike the DeveloperName-only `name`
+// used by the other functions in this file); the org resolves it server-side, so this function
+// never has to tell the two apart itself. Request/response bodies deliberately mirror Heroku's
+// own snake_case dyno_size shape rather than this file's usual camelCase -- see the same tag
+// description -- so the flattening into ComputeFormationUpdateResult below happens here, not on
+// the wire, mirroring scaleComputeFormationViaHeroku's mapping in herokuComputeApi.ts.
+export async function updateComputeFormation(
+  connection: Connection,
+  params: UpdateComputeFormationParams
+): Promise<ComputeFormationUpdateResult> {
+  /* eslint-disable camelcase -- dyno_size mirrors Heroku's FormationUpdateRequest field name */
+  const body: ComputeFormationUpdate = {
+    dyno_size: params.dynoSize ? { name: params.dynoSize } : undefined,
+    quantity: params.quantity,
+  };
+  /* eslint-enable camelcase */
+  try {
+    const formation = await connection.request<ComputeFormation>({
+      method: 'PATCH',
+      url: `/connect/compute/${encodeURIComponent(params.app)}/formation/${encodeURIComponent(params.processType)}`,
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return { type: formation.type, dynoSize: formation.dyno_size?.name, quantity: formation.quantity };
+  } catch (err) {
+    throw messages.createError('error.formationUpdateFailed', [(err as Error).message]);
+  }
+}
+
+export type ComputeConfigVars = components['schemas']['ComputeConfigVars'];
+export type ComputeConfigVarsUpdate = components['schemas']['ComputeConfigVarsUpdate'];
+export type ComputeConfigVarsUpdateResult = components['schemas']['ComputeConfigVarsUpdateResult'];
+
+export type FetchComputeConfigVarsParams = {
+  /** PlatformComputeApp Id or DeveloperName to fetch config vars for. */
+  app: string;
+};
+
+// Speculative resource -- see the Compute tag description in salesforce-connect-compute.yaml.
+export async function fetchComputeConfigVars(
+  connection: Connection,
+  params: FetchComputeConfigVarsParams
+): Promise<ComputeConfigVars> {
+  try {
+    return await connection.request<ComputeConfigVars>({
+      method: 'GET',
+      url: `/connect/compute/${encodeURIComponent(params.app)}/config-vars`,
+    });
+  } catch (err) {
+    throw messages.createError('error.configVarsFetchFailed', [(err as Error).message]);
+  }
+}
+
+export type UpdateComputeConfigVarsParams = {
+  /** PlatformComputeApp Id or DeveloperName to update config vars for. */
+  app: string;
+  /** Config var name to new value; null unsets that config var. */
+  updates: Record<string, string | null>;
+};
+
+export type UpdateComputeConfigVarsResult = { configVars: ComputeConfigVars; release?: number };
+
+// Speculative resource -- see the Compute tag description in salesforce-connect-compute.yaml.
+// The request body is a pure mirror of Heroku's ConfigVarsUpdate; the response bundles in the
+// resulting release version, which Heroku's own PATCH response doesn't carry (see the same tag
+// description for why that departure is sanctioned here but not for the formation resource).
+export async function updateComputeConfigVars(
+  connection: Connection,
+  params: UpdateComputeConfigVarsParams
+): Promise<UpdateComputeConfigVarsResult> {
+  const body: ComputeConfigVarsUpdate = params.updates;
+  try {
+    const result = await connection.request<ComputeConfigVarsUpdateResult>({
+      method: 'PATCH',
+      url: `/connect/compute/${encodeURIComponent(params.app)}/config-vars`,
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return { configVars: result.configVars, release: result.release };
+  } catch (err) {
+    throw messages.createError('error.configVarsUpdateFailed', [(err as Error).message]);
+  }
+}
+
 export type ComputeLogSessionCreate = components['schemas']['ComputeLogSessionCreate'];
 export type ComputeLogSession = components['schemas']['ComputeLogSession'];
 

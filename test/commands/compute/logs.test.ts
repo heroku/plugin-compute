@@ -13,6 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect } from 'chai';
 import sinon from 'sinon';
 import { TestContext, MockTestOrgData } from '@salesforce/core/testSetup';
@@ -221,6 +224,52 @@ describe('compute logs', () => {
     expect(findLogSessionCall(requestStub)).to.be.undefined;
   });
 
+  it('resolves --name from COMPUTE_APP_NAME when --name is not passed', async () => {
+    resolveWith([deployedRecord]);
+    process.env.COMPUTE_APP_NAME = 'CreditRatingScorer';
+    try {
+      const result = await Logs.run(['--target-org', testOrg.username]);
+      expect(result.name).to.equal('CreditRatingScorer');
+      const soql: string = toolingQueryStub.firstCall.args[0];
+      expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
+    } finally {
+      delete process.env.COMPUTE_APP_NAME;
+    }
+  });
+
+  it("resolves --name from the current directory's <name>.compute-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
+    resolveWith([deployedRecord]);
+    const originalCwd = process.cwd();
+    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-logs-'));
+    const appDir = join(tmp, 'CreditRatingScorer');
+    await mkdir(appDir);
+    await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    process.chdir(appDir);
+    try {
+      const result = await Logs.run(['--target-org', testOrg.username]);
+      expect(result.name).to.equal('CreditRatingScorer');
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('throws error.cannotResolveAppName when --name, COMPUTE_APP_NAME, and directory detection all fail', async () => {
+    const originalCwd = process.cwd();
+    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-logs-empty-'));
+    process.chdir(tmp);
+    try {
+      await Logs.run(['--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("Couldn't determine which compute app to use");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tmp, { recursive: true, force: true });
+    }
+    expect(toolingQueryStub.called).to.be.false;
+  });
+
   it('drops the lines key under --json for the no-builds-yet case', async () => {
     resolveWith([{ ...deployedRecord, CurrentBuild: null }]);
 
@@ -229,5 +278,123 @@ describe('compute logs', () => {
 
     expect(JSON.stringify(jsonOutput)).to.not.include('"lines"');
     expect(result).to.deep.equal({ name: 'CreditRatingScorer' });
+  });
+});
+
+describe('compute logs with HEROKU_API_TOKEN set', () => {
+  const $$ = new TestContext();
+  const testOrg = new MockTestOrgData();
+  let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
+  let toolingQueryStub: sinon.SinonStub;
+  let requestStub: sinon.SinonStub;
+  let fetchStub: sinon.SinonStub;
+
+  const deployedRecord = {
+    Id: '0abEE0000004CqYYAU',
+    DeveloperName: 'CreditRatingScorer',
+    MasterLabel: 'Credit Rating Scorer',
+    Description: null,
+    Status: 'ACTIVE',
+    StatusReason: null,
+    CurrentBuild: {
+      Id: '0acEE0000004D1ZYAU',
+      BuildStatus: 'SUCCEEDED',
+      BuildStartedAt: '2026-08-31T14:23:50.000Z',
+      BuildCompletedAt: '2026-08-31T14:25:32.000Z',
+      DeployedAt: '2026-08-31T14:25:32.000Z',
+      DeployedBy: { Username: 'dev@mycompany.com' },
+      Error: null,
+    },
+    ExternalServiceRegistration: null,
+  };
+
+  beforeEach(async () => {
+    sfCommandStubs = stubSfCommandUx($$.SANDBOX);
+    await $$.stubAuths(testOrg);
+
+    const org = await Org.create({ aliasOrUsername: testOrg.username });
+    const connection = org.getConnection();
+    toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
+    $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
+    toolingQueryStub.resolves({ totalSize: 1, records: [deployedRecord], done: true });
+
+    // Distinct from the Heroku log-sessions call below so a stray Connect call is easy to notice.
+    requestStub = sinon.stub().resolves({ logplexUrl: 'https://connect-api-path-not-used.example/sessions/abc' });
+    $$.fakeConnectionRequest = requestStub;
+
+    process.env.HEROKU_API_TOKEN = 'shh-secret-token';
+    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch');
+  });
+
+  afterEach(() => {
+    delete process.env.HEROKU_API_TOKEN;
+    $$.restore();
+  });
+
+  function stubLogSessionAndLogplex(logplexUrl: string, logplexResponse: Response): void {
+    fetchStub.callsFake(async (input: string | Request) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (url.includes('/log-sessions')) {
+        // eslint-disable-next-line camelcase -- logplex_url is Heroku's LogSession field name
+        return new Response(JSON.stringify({ id: 'sess1', logplex_url: logplexUrl }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url === logplexUrl) {
+        return logplexResponse;
+      }
+      throw new Error(`Unexpected fetch to ${url}`);
+    });
+  }
+
+  it('creates the log session via Heroku directly and prints backfilled lines, without calling Connect', async () => {
+    stubLogSessionAndLogplex(
+      'https://logplex.heroku.com/sessions/direct?srv=1',
+      new Response('line one\nline two\n', { status: 200 })
+    );
+
+    const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result).to.deep.equal({ name: 'CreditRatingScorer', lines: ['line one', 'line two'] });
+    expect(findLogSessionCall(requestStub)).to.be.undefined;
+  });
+
+  it('creates the log session via Heroku directly under --tail', async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('line one\n'));
+        controller.close();
+      },
+    });
+    stubLogSessionAndLogplex('https://logplex.heroku.com/sessions/direct?srv=1', new Response(stream, { status: 200 }));
+
+    const result = await Logs.run(['--name', 'CreditRatingScorer', '--tail', '--target-org', testOrg.username]);
+
+    expect(result).to.deep.equal({ name: 'CreditRatingScorer' });
+    const output = sfCommandStubs.log
+      .getCalls()
+      .flatMap((c) => c.args)
+      .join('\n');
+    expect(output).to.include('line one');
+    expect(findLogSessionCall(requestStub)).to.be.undefined;
+  });
+
+  it('surfaces a hard herokuAppNotFound error when Heroku 404s the app itself', async () => {
+    fetchStub.resolves(
+      new Response(JSON.stringify({ id: 'not_found', message: "Couldn't find that app." }), {
+        status: 404,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+
+    try {
+      await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('CreditRatingScorer');
+    }
+    expect(findLogSessionCall(requestStub)).to.be.undefined;
   });
 });

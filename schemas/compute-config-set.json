@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ComputeConfigSetResult",
+  "definitions": {
+    "ComputeConfigSetResult": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "configVars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "release": {
+          "type": "number"
+        }
+      },
+      "required": ["name", "configVars"],
+      "additionalProperties": false
+    }
+  }
+}

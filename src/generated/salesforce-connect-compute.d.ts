@@ -64,6 +64,56 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/connect/compute/{app_id_or_name}/formation/{formation_id_or_type}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Update a Compute app's dyno formation for one process type
+     * @description Updates the dyno size and/or quantity for one process type of a Compute app's dyno formation. Org calls Heroku's Update Formation API on the customer's behalf; the CLI never talks to Heroku directly unless HEROKU_API_TOKEN is set, in which case `sf compute scale` bypasses the org and calls Heroku directly instead. Requires the `ManageCompute` user permission.
+     */
+    patch: operations['updateComputeFormation'];
+    trace?: never;
+  };
+  '/connect/compute/{app_id_or_name}/config-vars': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /**
+         * @description PlatformComputeApp Id or DeveloperName.
+         * @example CreditRatingScorer
+         */
+        app_id_or_name: string;
+      };
+      cookie?: never;
+    };
+    /**
+     * Get a Compute app's runtime config vars
+     * @description Returns the full set of config vars (environment variables) for a Compute app. Org calls Heroku's Config Vars API on the customer's behalf; the CLI never talks to Heroku directly. Requires the `DeployCompute` or `ManageCompute` user permission.
+     */
+    get: operations['fetchComputeConfigVars'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Set or unset one or more of a Compute app's config vars
+     * @description Sets and/or unsets config vars for a Compute app in one call -- a null value for a key unsets it, mirroring Heroku's own Config Vars Update API exactly. Org calls Heroku on the customer's behalf and then looks up the resulting release, returning both together -- see the Compute tag description above for why this response isn't a pure mirror of Heroku's (bare-map) response. Requires the `ManageCompute` user permission.
+     */
+    patch: operations['updateComputeConfigVars'];
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -118,6 +168,66 @@ export interface components {
        * @example https://logplex.heroku.com/sessions/01234567-89ab-cdef-0123-456789abcdef?srv=1325419200
        */
       logplexUrl: string;
+    };
+    /** @description Requested dyno size/quantity change for one process type. Field names deliberately mirror Heroku's own FormationUpdateRequest (snake_case dyno_size, not this file's usual camelCase) -- see the Compute tag description above. */
+    ComputeFormationUpdate: {
+      /** @description Heroku dyno size to scale the process type to, by name. */
+      dyno_size?: {
+        /** @example eco */
+        name?: string;
+      };
+      /**
+       * @description Number of dynos to run for the process type. 0 stops it.
+       * @example 2
+       */
+      quantity?: number;
+    };
+    /** @description A Compute app's dyno formation for one process type, after update. Field names deliberately mirror Heroku's own Formation resource (snake_case dyno_size, not this file's usual camelCase) -- see the Compute tag description above. */
+    ComputeFormation: {
+      /**
+       * @description Heroku process type (e.g. web, worker).
+       * @example web
+       */
+      type: string;
+      /** @description Heroku dyno size currently assigned to the process type. */
+      dyno_size?: {
+        /** @example eco */
+        name?: string;
+      };
+      /**
+       * @description Number of dynos currently running for the process type.
+       * @example 2
+       */
+      quantity: number;
+    };
+    /**
+     * @description Flat map of config var name to value. Mirrors Heroku's own ConfigVars resource exactly -- see the Compute tag description above.
+     * @example {
+     *       "LOG_LEVEL": "info",
+     *       "STRIPE_KEY": "sk_live_abc123"
+     *     }
+     */
+    ComputeConfigVars: {
+      [key: string]: string;
+    };
+    /**
+     * @description Config var names to set, mapped to their new value; a null value unsets that config var. Mirrors Heroku's own ConfigVarsUpdate resource exactly -- see the Compute tag description above.
+     * @example {
+     *       "STRIPE_KEY": "sk_live_xyz789",
+     *       "LOG_LEVEL": null
+     *     }
+     */
+    ComputeConfigVarsUpdate: {
+      [key: string]: string | null;
+    };
+    /** @description Result of a config var update -- the full updated config var map plus the resulting release version. Deliberately not a pure mirror of Heroku's own (bare-map) PATCH response -- see the Compute tag description above. */
+    ComputeConfigVarsUpdateResult: {
+      configVars: components['schemas']['ComputeConfigVars'];
+      /**
+       * @description Version of the release created by this config var change.
+       * @example 11
+       */
+      release?: number;
     };
     /** @description Standard Salesforce Connect API error shape. */
     ConnectError: {
@@ -269,6 +379,114 @@ export interface operations {
           'application/json': components['schemas']['ConnectError'][];
         };
       };
+    };
+  };
+  updateComputeFormation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /**
+         * @description PlatformComputeApp Id or DeveloperName to scale.
+         * @example CreditRatingScorer
+         */
+        app_id_or_name: string;
+        /**
+         * @description Heroku process type to scale (e.g. web, worker).
+         * @example web
+         */
+        formation_id_or_type: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ComputeFormationUpdate'];
+      };
+    };
+    responses: {
+      /** @description Updated dyno formation for the process type. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ComputeFormation'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      403: components['responses']['Forbidden'];
+      /** @description Either no PlatformComputeApp exists with the given Id/name, or it has no such process type in its dyno formation. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ConnectError'][];
+        };
+      };
+    };
+  };
+  fetchComputeConfigVars: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /**
+         * @description PlatformComputeApp Id or DeveloperName.
+         * @example CreditRatingScorer
+         */
+        app_id_or_name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The app's current config vars. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ComputeConfigVars'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
+  updateComputeConfigVars: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /**
+         * @description PlatformComputeApp Id or DeveloperName.
+         * @example CreditRatingScorer
+         */
+        app_id_or_name: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ComputeConfigVarsUpdate'];
+      };
+    };
+    responses: {
+      /** @description Updated config vars (full map) plus the resulting release. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ComputeConfigVarsUpdateResult'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
     };
   };
 }

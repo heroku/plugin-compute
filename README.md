@@ -24,8 +24,6 @@ Additionally, there are some additional tests that the Salesforce CLI will enfor
 - [@salesforce/dev-config](https://github.com/forcedotcom/dev-config)
 - [@salesforce/dev-scripts](https://github.com/forcedotcom/dev-scripts)
 
-# Everything past here is only a suggestion as to what should be in your specific plugin's description
-
 This plugin is bundled with the [Salesforce CLI](https://developer.salesforce.com/tools/sfdxcli). For more information on the CLI, read the [getting started guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_intro.htm).
 
 We always recommend using the latest version of these commands bundled with the CLI, however, you can install a specific version or tag if needed.
@@ -92,11 +90,16 @@ sf plugins
 <!-- commands -->
 
 - [`sf compute build output`](#sf-compute-build-output)
+- [`sf compute config`](#sf-compute-config)
+- [`sf compute config get [KEY]`](#sf-compute-config-get-key)
+- [`sf compute config set [PAIR]`](#sf-compute-config-set-pair)
+- [`sf compute config unset [KEY]`](#sf-compute-config-unset-key)
 - [`sf compute deploy`](#sf-compute-deploy)
 - [`sf compute display`](#sf-compute-display)
 - [`sf compute generate`](#sf-compute-generate)
 - [`sf compute list`](#sf-compute-list)
 - [`sf compute logs`](#sf-compute-logs)
+- [`sf compute scale [TARGET]`](#sf-compute-scale-target)
 
 ## `sf compute build output`
 
@@ -104,10 +107,12 @@ Print the build/compile log for a compute app's latest build.
 
 ```
 USAGE
-  $ sf compute build output -n <value> -o <value> [--json] [--flags-dir <value>]
+  $ sf compute build output -o <value> [--json] [--flags-dir <value>] [-n <value>]
 
 FLAGS
-  -n, --name=<value>        (required) Name of the compute app to fetch build output for.
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] Name of the compute app to fetch build output for. Defaults to the
+                            COMPUTE_APP_NAME environment variable, or the current directory's app name
+                            if that isn't set either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
 
@@ -125,9 +130,11 @@ DESCRIPTION
   the ongoing runtime log.
 
   This is a read-only, org-mediated lookup by --name (the app's DeveloperName)
-  -- the org calls Heroku's Build Info API on your behalf, and the CLI never
-  talks to Heroku directly. It doesn't read from or require a local Salesforce
-  DX project.
+  -- the org calls Heroku's Build Info API on your behalf. It doesn't read from
+  or require a local Salesforce DX project.
+
+  If the HEROKU_API_TOKEN environment variable is set, this command calls the
+  Heroku Platform API directly instead, using --name as the Heroku app name.
 
 EXAMPLES
   Print the latest build's log:
@@ -137,15 +144,172 @@ EXAMPLES
 
 _See code: [src/commands/compute/build/output.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/build/output.ts)_
 
+## `sf compute config`
+
+List a compute app's config vars.
+
+```
+USAGE
+  $ sf compute config -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] PlatformComputeApp Id or DeveloperName of the compute app to show
+                            config for.
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  List a compute app's config vars.
+
+  Shows every config var (environment variable) currently set for a deployed
+  compute app, sorted alphabetically. Goes through the target org's Salesforce
+  Connect API, which calls Heroku on your behalf. Use config get to read a
+  single var's value, config set to add or change vars, or config unset to
+  remove them.
+
+EXAMPLES
+  List all config vars for a compute app:
+
+    $ sf compute config --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/config.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/config.ts)_
+
+## `sf compute config get [KEY]`
+
+Print one or more of a compute app's config var values.
+
+```
+USAGE
+  $ sf compute config get [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] PlatformComputeApp Id or DeveloperName of the compute app to read
+                            config
+                            from. Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Print one or more of a compute app's config var values.
+
+  Goes through the target org's Salesforce Connect API, which calls Heroku on
+  your behalf. Pass a single key to print its bare value, or more than one to
+  print each as key: value. Fails if any requested key isn't currently set.
+
+EXAMPLES
+  Print a single config var's value:
+
+    $ sf compute config get STRIPE_KEY --name CreditRatingScorer --target-org my-org
+
+  Print more than one config var:
+
+    $ sf compute config get STRIPE_KEY LOG_LEVEL --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/config/get.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/config/get.ts)_
+
+## `sf compute config set [PAIR]`
+
+Set one or more of a compute app's config vars.
+
+```
+USAGE
+  $ sf compute config set [PAIR...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] PlatformComputeApp Id or DeveloperName of the compute app to change
+                            config
+                            for. Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Set one or more of a compute app's config vars.
+
+  Goes through the target org's Salesforce Connect API, which calls Heroku on
+  your behalf. Setting a config var restarts the app's dynos so the new value
+  takes effect. Pass one or more KEY=VALUE pairs; a key that doesn't already
+  exist is created.
+
+EXAMPLES
+  Set a single config var:
+
+    $ sf compute config set STRIPE_KEY=sk_live_xyz789 --name CreditRatingScorer --target-org my-org
+
+  Set more than one config var in one command:
+
+    $ sf compute config set STRIPE_KEY=sk_live_xyz789 LOG_LEVEL=debug --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/config/set.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/config/set.ts)_
+
+## `sf compute config unset [KEY]`
+
+Unset one or more of a compute app's config vars.
+
+```
+USAGE
+  $ sf compute config unset [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] PlatformComputeApp Id or DeveloperName of the compute app to change
+                            config
+                            for. Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Unset one or more of a compute app's config vars.
+
+  Goes through the target org's Salesforce Connect API, which calls Heroku on
+  your behalf. Unsetting a config var restarts the app's dynos so the removal
+  takes effect. Fails if any requested key isn't currently set.
+
+EXAMPLES
+  Unset a single config var:
+
+    $ sf compute config unset LOG_LEVEL --name CreditRatingScorer --target-org my-org
+
+  Unset more than one config var in one command:
+
+    $ sf compute config unset LOG_LEVEL DEBUG_MODE --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/config/unset.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/config/unset.ts)_
+
 ## `sf compute deploy`
 
 Deploy a compute app's source and metadata to an org.
 
 ```
 USAGE
-  $ sf compute deploy -o <value> [--json] [--flags-dir <value>]
+  $ sf compute deploy -o <value> [--json] [--flags-dir <value>] [-d <value>]
 
 FLAGS
+  -d, --source-dir=<value>  [default: current directory] Directory containing the compute app to deploy. Defaults to the
+                            current directory.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
 
@@ -159,10 +323,10 @@ DESCRIPTION
   Packages the compute app's source (everything under its directory except the
   compute metadata file, project.toml, and .forceignore) together with its
   api-spec.yaml into a deployment bundle, uploads it to the org through the
-  Connect API, then
-  deploys the app's <name>.compute-meta.xml through the Metadata API to trigger
-  the build. Deploy is asynchronous: this command returns once the build has
-  been enqueued, it doesn't wait for the build to finish.
+  Connect API, then deploys the app's <name>.compute-meta.xml through the
+  Metadata API to trigger the build. Deploy is asynchronous: this command
+  returns once the build has been enqueued, it doesn't wait for the build to
+  finish.
 
   Files matching patterns in a .forceignore are excluded from the source
   bundle. Both the compute app's own .forceignore and the one at the project
@@ -172,6 +336,10 @@ EXAMPLES
   Deploy a compute app to an org, from inside the app's own directory:
   cd force-app/main/default/compute/CreditRatingScorer
   $ sf compute deploy --target-org my-org
+
+  Deploy a compute app to an org, from anywhere, by pointing --source-dir at it:
+
+    $ sf compute deploy --source-dir force-app/main/default/compute/CreditRatingScorer --target-org my-org
 ```
 
 _See code: [src/commands/compute/deploy.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/deploy.ts)_
@@ -182,10 +350,13 @@ Show the current org-side status of a deployed compute app.
 
 ```
 USAGE
-  $ sf compute display -n <value> -o <value> [--json] [--flags-dir <value>] [-v]
+  $ sf compute display -o <value> [--json] [--flags-dir <value>] [-n <value>] [-v]
 
 FLAGS
-  -n, --name=<value>        (required) Name of the compute app to show status for.
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] Name of the compute app to show status for. Defaults to the
+                            COMPUTE_APP_NAME
+                            environment variable, or the current directory's app name if that isn't set
+                            either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
   -v, --verbose             Also show external service registration and current build detail.
@@ -204,6 +375,11 @@ DESCRIPTION
 
   This is a read-only, live lookup by --name (the app's DeveloperName) -- it
   doesn't read from or require a local Salesforce DX project.
+
+  If the HEROKU_API_TOKEN environment variable is set, this command also calls
+  the Heroku Platform API directly to show the app's dyno formation (process
+  type, dyno size, and count) alongside the org-side status above. A failure
+  to reach Heroku only produces a warning -- the org-side status is always shown.
 
 EXAMPLES
   Show the current status of a compute app:
@@ -308,10 +484,13 @@ Print or stream the runtime log for a compute app.
 
 ```
 USAGE
-  $ sf compute logs -n <value> -o <value> [--flags-dir <value>] [--num <value>] [--tail | --json]
+  $ sf compute logs -o <value> [--flags-dir <value>] [-n <value>] [--num <value>] [--tail | --json]
 
 FLAGS
-  -n, --name=<value>        (required) Name of the compute app to fetch logs for.
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] Name of the compute app to fetch logs for. Defaults to the
+                            COMPUTE_APP_NAME
+                            environment variable, or the current directory's app name if that isn't set
+                            either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
       --num=<value>         [default: 100] Number of historical log lines to print before new output.
@@ -332,6 +511,11 @@ DESCRIPTION
   org creates a log session with Heroku on your behalf and hands back a
   short-lived, pre-authorized URL that the CLI reads from directly. It doesn't
   read from or require a local Salesforce DX project.
+
+  If the HEROKU_API_TOKEN environment variable is set, this command creates
+  the log session by calling the Heroku Platform API directly instead, using
+  --name as the Heroku app name. Reading the resulting log session URL works
+  the same either way.
 
   By default this prints the most recent log lines and exits. Pass --tail to
   keep the session open and print new lines as they arrive, until you stop it
@@ -355,5 +539,61 @@ EXAMPLES
 ```
 
 _See code: [src/commands/compute/logs.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/logs.ts)_
+
+## `sf compute scale [TARGET]`
+
+Resize or rescale a compute app's dyno formation.
+
+```
+USAGE
+  $ sf compute scale [TARGET...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] PlatformComputeApp Id or DeveloperName of the compute app to scale
+                            (or the
+                            Heroku app Id/name, when HEROKU_API_TOKEN is set). Defaults to the
+                            COMPUTE_APP_NAME environment variable, or the current directory's app name
+                            if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Resize or rescale a compute app's dyno formation.
+
+  Updates one or more process types' dyno size and/or quantity for a deployed
+  compute app. Pass one target per process type in the form
+  type[=count][:size], for example web=2 or web:eco or web=2:eco. By default
+  this goes through the target org's Salesforce Connect API, which calls
+  Heroku on your behalf. If HEROKU_API_TOKEN is set, the command bypasses the
+  org and calls the Heroku Platform API directly instead, using --name as the
+  Heroku app Id or name.
+
+EXAMPLES
+  Change a process type's dyno size:
+
+    $ sf compute scale web:standard-1x --name CreditRatingScorer --target-org my-org
+
+  Scale a process type's dyno count:
+
+    $ sf compute scale worker=3 --name CreditRatingScorer --target-org my-org
+
+  Change size and quantity together:
+
+    $ sf compute scale web=2:standard-2x --name CreditRatingScorer --target-org my-org
+
+  Scale multiple process types in one command:
+
+    $ sf compute scale web=2:standard-2x worker=1:eco --name CreditRatingScorer --target-org my-org
+
+  Stop all dynos of a process type:
+
+    $ sf compute scale worker=0 --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/scale.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/scale.ts)_
 
 <!-- commandsstop -->

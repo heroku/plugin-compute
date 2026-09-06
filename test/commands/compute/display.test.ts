@@ -13,6 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect } from 'chai';
 import sinon from 'sinon';
 import { TestContext, MockTestOrgData } from '@salesforce/core/testSetup';
@@ -84,6 +87,7 @@ describe('compute display', () => {
         deployedBy: 'dev@mycompany.com',
         error: undefined,
       },
+      formation: undefined,
     });
 
     const soql: string = toolingQueryStub.firstCall.args[0];
@@ -202,5 +206,174 @@ describe('compute display', () => {
       expect((e as Error).message).to.include("isn't valid");
     }
     expect(toolingQueryStub.called).to.be.false;
+  });
+
+  it('resolves --name from COMPUTE_APP_NAME when --name is not passed', async () => {
+    resolveWith([activeRecord]);
+    process.env.COMPUTE_APP_NAME = 'CreditRatingScorer';
+    try {
+      const result = await Display.run(['--target-org', testOrg.username]);
+      expect(result.name).to.equal('CreditRatingScorer');
+      const soql: string = toolingQueryStub.firstCall.args[0];
+      expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
+    } finally {
+      delete process.env.COMPUTE_APP_NAME;
+    }
+  });
+
+  it('prefers an explicit --name over a different COMPUTE_APP_NAME value', async () => {
+    resolveWith([activeRecord]);
+    process.env.COMPUTE_APP_NAME = 'SomeOtherApp';
+    try {
+      const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect(result.name).to.equal('CreditRatingScorer');
+      const soql: string = toolingQueryStub.firstCall.args[0];
+      expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
+    } finally {
+      delete process.env.COMPUTE_APP_NAME;
+    }
+  });
+
+  it("resolves --name from the current directory's <name>.compute-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
+    resolveWith([activeRecord]);
+    const originalCwd = process.cwd();
+    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-display-'));
+    const appDir = join(tmp, 'CreditRatingScorer');
+    await mkdir(appDir);
+    await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    process.chdir(appDir);
+    try {
+      const result = await Display.run(['--target-org', testOrg.username]);
+      expect(result.name).to.equal('CreditRatingScorer');
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('throws error.cannotResolveAppName when --name, COMPUTE_APP_NAME, and directory detection all fail', async () => {
+    const originalCwd = process.cwd();
+    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-display-empty-'));
+    process.chdir(tmp);
+    try {
+      await Display.run(['--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("Couldn't determine which compute app to use");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tmp, { recursive: true, force: true });
+    }
+    expect(toolingQueryStub.called).to.be.false;
+  });
+});
+
+describe('compute display with HEROKU_API_TOKEN set', () => {
+  const $$ = new TestContext();
+  const testOrg = new MockTestOrgData();
+  let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
+  let toolingQueryStub: sinon.SinonStub;
+  let fetchStub: sinon.SinonStub;
+
+  const activeRecord = {
+    Id: '0abEE0000004CqYYAU',
+    DeveloperName: 'CreditRatingScorer',
+    MasterLabel: 'Lease Agreement Parser',
+    Description: 'Parses lease agreements.',
+    Status: 'ACTIVE',
+    StatusReason: null,
+    CurrentBuild: {
+      Id: '0acEE0000004D1ZYAU',
+      BuildStatus: 'SUCCEEDED',
+      BuildStartedAt: '2026-08-04T14:23:50.000Z',
+      BuildCompletedAt: '2026-08-04T14:25:32.000Z',
+      DeployedAt: '2026-08-04T14:25:32.000Z',
+      DeployedBy: { Username: 'dev@mycompany.com' },
+      Error: null,
+    },
+    ExternalServiceRegistration: { Id: '0ES0x00000ABC456', IsActive: true },
+  };
+
+  beforeEach(async () => {
+    sfCommandStubs = stubSfCommandUx($$.SANDBOX);
+    await $$.stubAuths(testOrg);
+
+    const org = await Org.create({ aliasOrUsername: testOrg.username });
+    const connection = org.getConnection();
+    toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
+    $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
+    toolingQueryStub.resolves({ totalSize: 1, records: [activeRecord], done: true });
+
+    process.env.HEROKU_API_TOKEN = 'shh-secret-token';
+    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch');
+  });
+
+  afterEach(() => {
+    delete process.env.HEROKU_API_TOKEN;
+    $$.restore();
+  });
+
+  it('supplements the org-side result with the dyno formation and renders a Dyno Formation table', async () => {
+    fetchStub.resolves(
+      // eslint-disable-next-line camelcase -- dyno_size is Heroku's Formation field name
+      new Response(JSON.stringify([{ type: 'web', quantity: 2, dyno_size: { id: 'sz1', name: 'Standard-1X' } }]), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+
+    const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result.formation).to.deep.equal([{ type: 'web', dynoSize: 'Standard-1X', quantity: 2 }]);
+    const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
+    expect(headers).to.include('Dyno Formation');
+  });
+
+  it('omits the Dyno Formation table when the formation is empty', async () => {
+    fetchStub.resolves(
+      new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
+    );
+
+    const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result.formation).to.deep.equal([]);
+    const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
+    expect(headers).to.not.include('Dyno Formation');
+  });
+
+  it('warns and still returns the org-side result when the Heroku call fails, without formation in the result', async () => {
+    fetchStub.resolves(new Response('server error', { status: 500 }));
+
+    const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result.formation).to.be.undefined;
+    expect(result.status).to.equal('ACTIVE');
+    expect(sfCommandStubs.warn.lastCall.args[0]).to.include("Couldn't fetch dyno formation from Heroku");
+    // this.warn()'s message is built from (err as Error).message -- confirm the token never
+    // makes it into that string via this call site either, not just inside herokuComputeApi.ts.
+    expect(sfCommandStubs.warn.lastCall.args[0]).to.not.include('shh-secret-token');
+  });
+
+  // The formation fetch can fail below the HTTP layer too (e.g. a network-level fetch rejection
+  // rather than a non-2xx Response) -- confirm display.ts's catch-and-warn still downgrades that
+  // gracefully instead of letting an unhandled rejection crash the command, and still returns the
+  // org-only data.
+  it('warns and still returns the org-side result when the Heroku call rejects at the network level', async () => {
+    fetchStub.rejects(new TypeError('fetch failed'));
+
+    const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result.formation).to.be.undefined;
+    expect(result.status).to.equal('ACTIVE');
+    expect(sfCommandStubs.warn.lastCall.args[0]).to.include("Couldn't fetch dyno formation from Heroku");
+  });
+
+  it('drops the formation key from --json output when the Heroku call fails', async () => {
+    fetchStub.resolves(new Response('server error', { status: 500 }));
+
+    await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
+    const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as Record<string, unknown>;
+
+    expect(JSON.stringify(jsonOutput)).to.not.include('formation');
   });
 });

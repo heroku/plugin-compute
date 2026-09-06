@@ -7,9 +7,9 @@ info:
     module in core (ComputeSourceUploadRepresentation.java,
     IComputeSourceUploadResource.java). Covers the deployment bundle source
     upload used by `sf compute deploy`, the build log lookup used by
-    `sf compute build output`, and the log session creation used by
-    `sf compute logs`; add further Compute Connect resources here as they
-    land in core.
+    `sf compute build output`, the log session creation used by
+    `sf compute logs`, and the dyno formation update used by `sf compute
+    scale`; add further Compute Connect resources here as they land in core.
   version: '64.0'
 externalDocs:
   description: Connect REST API developer guide
@@ -32,6 +32,30 @@ tags:
       metadata. That GET resource does not exist in core yet -- confirm with
       the core team / GUS before authoring a spec entry or generating CLI
       code for source retrieve, rather than inventing its shape here.
+      /connect/compute/{app_id_or_name}/formation/{formation_id_or_type}
+      below is drafted speculatively ahead of core landing it (sanctioned
+      exception to the "confirm with core first" rule above) -- update this
+      spec once the real resource ships if its shape differs. Deliberately
+      mirrors Heroku's own /apps/{app_id_or_name}/formation/{formation_id_or_type}
+      path and request/response field names (snake_case dyno_size, not this
+      file's usual camelCase) rather than a Connect-idiomatic shape, since
+      it's currently unresolved whether GA calls this org-mediated resource
+      or lets the CLI call Heroku directly with a forthcoming app-scoped
+      token -- an identical wire shape means that decision won't require a
+      body-mapping rewrite either way.
+      /connect/compute/{app_id_or_name}/config-vars below is also drafted
+      speculatively ahead of core landing it, for the same reason. Its GET
+      and its request body mirror Heroku's own
+      /apps/{app_id_or_name}/config-vars shape exactly (a flat string map;
+      null deletes a key). Its PATCH *response*, however, is deliberately
+      NOT a mirror of Heroku's (which returns only the bare updated map) --
+      it additionally returns the resulting release version, because unlike
+      formation this resource has no undecided direct-Heroku fork to stay
+      wire-compatible with (config is, and will stay, org-mediated only) and
+      bundling the version here saves `sf compute config set`/`unset` a
+      second round trip to list releases the way Heroku's own CLI does
+      internally. Confirm this composed shape with the core team / GUS
+      before treating it as final, same as any other net-new resource.
 paths:
   /connect/compute/source:
     post:
@@ -168,6 +192,122 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ConnectError'
+  /connect/compute/{app_id_or_name}/formation/{formation_id_or_type}:
+    patch:
+      operationId: updateComputeFormation
+      summary: Update a Compute app's dyno formation for one process type
+      description: >-
+        Updates the dyno size and/or quantity for one process type of a
+        Compute app's dyno formation. Org calls Heroku's Update Formation API
+        on the customer's behalf; the CLI never talks to Heroku directly
+        unless HEROKU_API_TOKEN is set, in which case `sf compute scale`
+        bypasses the org and calls Heroku directly instead. Requires the
+        `ManageCompute` user permission.
+      tags: [Compute]
+      parameters:
+        - name: app_id_or_name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: PlatformComputeApp Id or DeveloperName to scale.
+          example: CreditRatingScorer
+        - name: formation_id_or_type
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Heroku process type to scale (e.g. web, worker).
+          example: web
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComputeFormationUpdate'
+      responses:
+        '200':
+          description: Updated dyno formation for the process type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeFormation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: >-
+            Either no PlatformComputeApp exists with the given Id/name, or it
+            has no such process type in its dyno formation.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConnectError'
+  /connect/compute/{app_id_or_name}/config-vars:
+    parameters:
+      - name: app_id_or_name
+        in: path
+        required: true
+        schema:
+          type: string
+        description: PlatformComputeApp Id or DeveloperName.
+        example: CreditRatingScorer
+    get:
+      operationId: fetchComputeConfigVars
+      summary: Get a Compute app's runtime config vars
+      description: >-
+        Returns the full set of config vars (environment variables) for a
+        Compute app. Org calls Heroku's Config Vars API on the customer's
+        behalf; the CLI never talks to Heroku directly. Requires the
+        `DeployCompute` or `ManageCompute` user permission.
+      tags: [Compute]
+      responses:
+        '200':
+          description: The app's current config vars.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeConfigVars'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateComputeConfigVars
+      summary: Set or unset one or more of a Compute app's config vars
+      description: >-
+        Sets and/or unsets config vars for a Compute app in one call -- a
+        null value for a key unsets it, mirroring Heroku's own Config Vars
+        Update API exactly. Org calls Heroku on the customer's behalf and
+        then looks up the resulting release, returning both together -- see
+        the Compute tag description above for why this response isn't a
+        pure mirror of Heroku's (bare-map) response. Requires the
+        `ManageCompute` user permission.
+      tags: [Compute]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComputeConfigVarsUpdate'
+      responses:
+        '200':
+          description: Updated config vars (full map) plus the resulting release.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeConfigVarsUpdateResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     bearerAuth:
@@ -227,6 +367,87 @@ components:
             runtime logs from directly.
           example: >-
             https://logplex.heroku.com/sessions/01234567-89ab-cdef-0123-456789abcdef?srv=1325419200
+    ComputeFormationUpdate:
+      type: object
+      description: >-
+        Requested dyno size/quantity change for one process type. Field
+        names deliberately mirror Heroku's own FormationUpdateRequest
+        (snake_case dyno_size, not this file's usual camelCase) -- see the
+        Compute tag description above.
+      properties:
+        dyno_size:
+          type: object
+          description: Heroku dyno size to scale the process type to, by name.
+          properties:
+            name:
+              type: string
+              example: eco
+        quantity:
+          type: integer
+          description: Number of dynos to run for the process type. 0 stops it.
+          example: 2
+    ComputeFormation:
+      type: object
+      description: >-
+        A Compute app's dyno formation for one process type, after update.
+        Field names deliberately mirror Heroku's own Formation resource
+        (snake_case dyno_size, not this file's usual camelCase) -- see the
+        Compute tag description above.
+      required: [type, quantity]
+      properties:
+        type:
+          type: string
+          description: Heroku process type (e.g. web, worker).
+          example: web
+        dyno_size:
+          type: object
+          description: Heroku dyno size currently assigned to the process type.
+          properties:
+            name:
+              type: string
+              example: eco
+        quantity:
+          type: integer
+          description: Number of dynos currently running for the process type.
+          example: 2
+    ComputeConfigVars:
+      type: object
+      description: >-
+        Flat map of config var name to value. Mirrors Heroku's own
+        ConfigVars resource exactly -- see the Compute tag description
+        above.
+      additionalProperties:
+        type: string
+      example:
+        LOG_LEVEL: info
+        STRIPE_KEY: sk_live_abc123
+    ComputeConfigVarsUpdate:
+      type: object
+      description: >-
+        Config var names to set, mapped to their new value; a null value
+        unsets that config var. Mirrors Heroku's own ConfigVarsUpdate
+        resource exactly -- see the Compute tag description above.
+      additionalProperties:
+        type: string
+        nullable: true
+      example:
+        STRIPE_KEY: sk_live_xyz789
+        LOG_LEVEL: null
+    ComputeConfigVarsUpdateResult:
+      type: object
+      description: >-
+        Result of a config var update -- the full updated config var map
+        plus the resulting release version. Deliberately not a pure mirror
+        of Heroku's own (bare-map) PATCH response -- see the Compute tag
+        description above.
+      required: [configVars]
+      properties:
+        configVars:
+          $ref: '#/components/schemas/ComputeConfigVars'
+        release:
+          type: integer
+          description: Version of the release created by this config var change.
+          example: 11
     ConnectError:
       type: object
       description: Standard Salesforce Connect API error shape.

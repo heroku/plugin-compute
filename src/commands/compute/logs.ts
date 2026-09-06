@@ -16,10 +16,12 @@
 
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
-import { validateName } from '../../shared/computeApp.js';
+import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
 import { queryComputeApp, toComputeAppSummary } from '../../shared/computeQuery.js';
 import { createComputeLogSession } from '../../shared/computeConnectApi.js';
 import { fetchLogplexOutput, streamLogplexOutput } from '../../shared/computeLogStream.js';
+import { getHerokuApiToken } from '../../shared/herokuApi.js';
+import { createComputeLogSessionViaHeroku } from '../../shared/herokuComputeApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.logs');
@@ -50,7 +52,7 @@ export default class Logs extends SfCommand<ComputeLogsResult> {
   public static readonly flags = {
     name: Flags.string({
       char: 'n',
-      required: true,
+      env: 'COMPUTE_APP_NAME',
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({ char: 'o' }),
@@ -69,7 +71,8 @@ export default class Logs extends SfCommand<ComputeLogsResult> {
 
   public async run(): Promise<ComputeLogsResult> {
     const { flags } = await this.parse(Logs);
-    const { name, num, tail } = flags;
+    const { num, tail } = flags;
+    const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
     const connection = flags['target-org'].getConnection();
@@ -81,7 +84,10 @@ export default class Logs extends SfCommand<ComputeLogsResult> {
       return { name };
     }
 
-    const session = await createComputeLogSession(connection, { name, lines: num, tail });
+    const herokuToken = getHerokuApiToken();
+    const session = herokuToken
+      ? await createComputeLogSessionViaHeroku(herokuToken, { name, lines: num, tail })
+      : await createComputeLogSession(connection, { name, lines: num, tail });
 
     if (!tail) {
       const output = await fetchLogplexOutput(session.logplexUrl);

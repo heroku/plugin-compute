@@ -2,9 +2,10 @@
 
 `@salesforce/plugin-compute` is a Salesforce CLI (`sf`) plugin, built on the
 oclif plugin framework and `@salesforce/sf-plugins-core`, that adds
-`sf compute deploy|display|generate|list` — commands for managing
-"compute apps" (Heroku-backed `PlatformComputeApp` metadata invocable from
-Apex/Flow via AppLink External Services).
+`sf compute deploy|display|generate|list|logs|build output|scale|config|config
+get|config set|config unset` — commands for managing "compute apps"
+(Heroku-backed `PlatformComputeApp` metadata invocable from Apex/Flow via
+AppLink External Services).
 
 Standard oclif/sf-plugins-core layout: commands in `src/commands/compute/`,
 shared logic in `src/shared/`, user-facing strings in `messages/*.md`
@@ -19,8 +20,10 @@ shared logic in `src/shared/`, user-facing strings in `messages/*.md`
 This overrides the global git-workflow defaults — treat every session as
 write-file-only unless told otherwise.
 
-For every `sf compute` command (deploy/display/generate/list), consult an
-Architect-role and QA-role review both BEFORE and AFTER implementing changes.
+For every `sf compute` command — deploy/display/generate/list and every
+command added since (logs/build output/scale/config/config get/config
+set/config unset) — consult an Architect-role and QA-role review both
+BEFORE and AFTER implementing changes.
 
 ## Gotcha: `SfCommand.table()` styling is a no-op — don't chase it
 
@@ -40,28 +43,36 @@ nothing to fix at this layer.
 
 ## Design decisions already made (don't re-litigate without new user input)
 
-- **`sf compute deploy` has no `--name` or `--output-dir` flag.** It derives
-  the app name from `basename(process.cwd())` and must be run from inside
-  the compute app's own directory (the one `sf compute generate` created).
-  It validates by checking `<name>.compute-meta.xml` exists in the cwd
+- **`sf compute deploy` has no `--name` flag.** It derives the app name from
+  `basename()` of the target directory — by default the cwd, or the
+  directory passed via `--source-dir` (default: `process.cwd()`, char `-d`).
+  Either way it must resolve to the compute app's own directory (the one
+  `sf compute generate` created). It validates by checking
+  `<name>.compute-meta.xml` exists in that directory
   (`src/commands/compute/deploy.ts`, error key `error.notAppDir` in
   `messages/compute.deploy.md`). **This check runs BEFORE `validateName(name)`
-  intentionally** — running from the wrong directory must produce "cd into
+  intentionally** — resolving to the wrong directory must produce "cd into
   the app's directory" guidance, not a confusing "name isn't valid" error.
-  Do not swap that ordering back.
+  Do not swap that ordering back. `--source-dir` is deploy's own mechanism
+  for pointing at an app directory from anywhere — it is not the same as the
+  `--name`/`COMPUTE_APP_NAME`/directory-detection fallback chain used by
+  display/logs/build output/scale/config/config get/config set/config unset.
 - **`sf compute list` has no `--verbose` flag** and always shows exactly 4
   columns (`name`, `masterLabel`, `status`, `statusReason`). Explicit user
   decision: "if the customer wants more details, they should use the display
   command." `sf compute display --name <app>` is the place for full
   single-app detail (description, external service registration, current
   build). Don't re-add `--verbose` to `list` without a fresh explicit ask.
-- All four commands were audited against the full Salesforce CLI Plugin
-  Developer Guide (design-guidelines, conceptual-overview, patterns, flags,
-  actions, common-actions, resources, topics, messages, interactivity,
-  sub-actions). They match the canonical standard verbs in
-  `common-actions.html` (list = simple table, display = full detail,
-  deploy = push local source, generate = scaffold). None of the four need
-  interactive prompts or sub-actions today.
+- The original four commands (deploy/display/generate/list) were audited
+  against the full Salesforce CLI Plugin Developer Guide
+  (design-guidelines, conceptual-overview, patterns, flags, actions,
+  common-actions, resources, topics, messages, interactivity, sub-actions).
+  They match the canonical standard verbs in `common-actions.html`
+  (list = simple table, display = full detail, deploy = push local source,
+  generate = scaffold). None of the four need interactive prompts or
+  sub-actions today. logs/build output/scale/config/config
+  get/config set/config unset were added in a later session — re-audit
+  before assuming the same guide compliance for those.
 
 ## Environment quirk: `NODE_ENV=development` breaks oclif tooling
 

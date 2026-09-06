@@ -1,0 +1,23 @@
+# summary
+
+List a compute app's config vars.
+
+# description
+
+Shows every config var (environment variable) currently set for a deployed
+compute app, sorted alphabetically. Goes through the target org's Salesforce
+Connect API, which calls Heroku on your behalf. Use config get to read a
+single var's value, config set to add or change vars, or config unset to
+remove them.
+
+# flags.name.summary
+
+PlatformComputeApp Id or DeveloperName of the compute app to show config for.
+Defaults to the COMPUTE_APP_NAME environment variable, or the current
+directory's app name if that isn't set either.
+
+# examples
+
+- List all config vars for a compute app:
+
+  <%= config.bin %> <%= command.id %> --name CreditRatingScorer --target-org my-org

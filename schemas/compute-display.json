@@ -3,11 +3,12 @@
   "$ref": "#/definitions/ComputeDisplayResult",
   "definitions": {
     "ComputeDisplayResult": {
-      "$ref": "#/definitions/ComputeAppSummary"
-    },
-    "ComputeAppSummary": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
+        "formation": {
+          "$ref": "#/definitions/HerokuFormationSummary"
+        },
         "name": {
           "type": "string"
         },
@@ -57,8 +58,26 @@
           "additionalProperties": false
         }
       },
-      "required": ["name", "masterLabel", "status", "externalServiceRegistered"],
-      "additionalProperties": false
+      "required": ["externalServiceRegistered", "masterLabel", "name", "status"]
+    },
+    "HerokuFormationSummary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "dynoSize": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          }
+        },
+        "required": ["type", "quantity"],
+        "additionalProperties": false
+      }
     }
   }
 }

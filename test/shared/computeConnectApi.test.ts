@@ -16,7 +16,13 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 import type { Connection } from '@salesforce/core';
-import { uploadComputeSource, createComputeLogSession } from '../../src/shared/computeConnectApi.js';
+import {
+  uploadComputeSource,
+  createComputeLogSession,
+  updateComputeFormation,
+  fetchComputeConfigVars,
+  updateComputeConfigVars,
+} from '../../src/shared/computeConnectApi.js';
 
 describe('computeConnectApi.uploadComputeSource', () => {
   afterEach(() => {
@@ -92,6 +98,179 @@ describe('computeConnectApi.createComputeLogSession', () => {
     } catch (err) {
       expect((err as Error).message).to.include("Couldn't create a log session");
       expect((err as Error).message).to.include('Not Found');
+    }
+  });
+});
+
+describe('computeConnectApi.updateComputeFormation', () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('PATCHes /connect/compute/{app_id_or_name}/formation/{formation_id_or_type} with a Heroku-shaped body, and flattens the response', async () => {
+    /* eslint-disable camelcase -- dyno_size mirrors Heroku's Formation field name */
+    const request = sinon.stub().resolves({ type: 'web', dyno_size: { name: 'Standard-1X' }, quantity: 2 });
+    /* eslint-enable camelcase */
+    const connection = { request } as unknown as Connection;
+
+    const result = await updateComputeFormation(connection, {
+      app: 'CreditRatingScorer',
+      processType: 'web',
+      dynoSize: 'Standard-1X',
+      quantity: 2,
+    });
+
+    expect(result).to.deep.equal({ type: 'web', dynoSize: 'Standard-1X', quantity: 2 });
+    expect(request.calledOnce).to.be.true;
+    const [httpRequest] = request.firstCall.args as [{ method: string; url: string; body: string }];
+    expect(httpRequest.method).to.equal('PATCH');
+    expect(httpRequest.url).to.equal('/connect/compute/CreditRatingScorer/formation/web');
+    /* eslint-disable-next-line camelcase -- dyno_size mirrors Heroku's FormationUpdateRequest field name */
+    expect(JSON.parse(httpRequest.body)).to.deep.equal({ dyno_size: { name: 'Standard-1X' }, quantity: 2 });
+  });
+
+  // app/processType land in the URL path, not the request body -- confirm both are escaped so a
+  // value containing a slash or other reserved character can't smuggle in an extra path segment.
+  it('URL-encodes the app and processType path segments', async () => {
+    const request = sinon.stub().resolves({ type: 'web', quantity: 1 });
+    const connection = { request } as unknown as Connection;
+
+    await updateComputeFormation(connection, { app: 'my app/1', processType: 'web worker', quantity: 1 });
+
+    const [httpRequest] = request.firstCall.args as [{ url: string }];
+    expect(httpRequest.url).to.equal('/connect/compute/my%20app%2F1/formation/web%20worker');
+  });
+
+  // dynoSize/quantity are independently optional -- JSON.stringify drops the omitted one entirely
+  // rather than sending it as null/0.
+  it('omits quantity from the request body when only dynoSize is passed', async () => {
+    const request = sinon.stub().resolves({ type: 'web', quantity: 1 });
+    const connection = { request } as unknown as Connection;
+
+    await updateComputeFormation(connection, {
+      app: 'CreditRatingScorer',
+      processType: 'web',
+      dynoSize: 'Standard-1X',
+    });
+
+    const [httpRequest] = request.firstCall.args as [{ body: string }];
+    /* eslint-disable-next-line camelcase -- dyno_size mirrors Heroku's FormationUpdateRequest field name */
+    expect(JSON.parse(httpRequest.body)).to.deep.equal({ dyno_size: { name: 'Standard-1X' } });
+  });
+
+  // dyno_size is entirely absent from the request when no dynoSize is passed -- JSON.stringify
+  // drops the key rather than sending dyno_size: undefined.
+  it('omits dyno_size from the request body when only quantity is passed', async () => {
+    const request = sinon.stub().resolves({ type: 'worker', quantity: 0 });
+    const connection = { request } as unknown as Connection;
+
+    await updateComputeFormation(connection, { app: 'CreditRatingScorer', processType: 'worker', quantity: 0 });
+
+    const [httpRequest] = request.firstCall.args as [{ body: string }];
+    expect(JSON.parse(httpRequest.body)).to.deep.equal({ quantity: 0 });
+  });
+
+  it('translates a failed request into a createError-style message', async () => {
+    const request = sinon.stub().rejects(new Error('socket hang up'));
+    const connection = { request } as unknown as Connection;
+
+    try {
+      await updateComputeFormation(connection, { app: 'CreditRatingScorer', processType: 'web', quantity: 1 });
+      expect.fail('expected updateComputeFormation to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include('socket hang up');
+      expect((err as Error).message).to.include('dyno formation');
+    }
+  });
+});
+
+describe('computeConnectApi.fetchComputeConfigVars', () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('GETs /connect/compute/{app_id_or_name}/config-vars', async () => {
+    const expected = { LOG_LEVEL: 'info', STRIPE_KEY: 'sk_live_abc123' };
+    const request = sinon.stub().resolves(expected);
+    const connection = { request } as unknown as Connection;
+
+    const result = await fetchComputeConfigVars(connection, { app: 'CreditRatingScorer' });
+
+    expect(result).to.deep.equal(expected);
+    const [httpRequest] = request.firstCall.args as [{ method: string; url: string }];
+    expect(httpRequest.method).to.equal('GET');
+    expect(httpRequest.url).to.equal('/connect/compute/CreditRatingScorer/config-vars');
+  });
+
+  it('URL-encodes the app path segment', async () => {
+    const request = sinon.stub().resolves({});
+    const connection = { request } as unknown as Connection;
+
+    await fetchComputeConfigVars(connection, { app: 'my app/1' });
+
+    const [httpRequest] = request.firstCall.args as [{ url: string }];
+    expect(httpRequest.url).to.equal('/connect/compute/my%20app%2F1/config-vars');
+  });
+
+  it('translates a failed request into a createError-style message', async () => {
+    const request = sinon.stub().rejects(new Error('socket hang up'));
+    const connection = { request } as unknown as Connection;
+
+    try {
+      await fetchComputeConfigVars(connection, { app: 'CreditRatingScorer' });
+      expect.fail('expected fetchComputeConfigVars to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include('socket hang up');
+      expect((err as Error).message).to.include('config vars');
+    }
+  });
+});
+
+describe('computeConnectApi.updateComputeConfigVars', () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('PATCHes /connect/compute/{app_id_or_name}/config-vars and returns the configVars and release', async () => {
+    const request = sinon.stub().resolves({ configVars: { STRIPE_KEY: 'sk_live_xyz789' }, release: 11 });
+    const connection = { request } as unknown as Connection;
+
+    const result = await updateComputeConfigVars(connection, {
+      app: 'CreditRatingScorer',
+      updates: { STRIPE_KEY: 'sk_live_xyz789' },
+    });
+
+    expect(result).to.deep.equal({ configVars: { STRIPE_KEY: 'sk_live_xyz789' }, release: 11 });
+    const [httpRequest] = request.firstCall.args as [{ method: string; url: string; body: string }];
+    expect(httpRequest.method).to.equal('PATCH');
+    expect(httpRequest.url).to.equal('/connect/compute/CreditRatingScorer/config-vars');
+    expect(JSON.parse(httpRequest.body)).to.deep.equal({ STRIPE_KEY: 'sk_live_xyz789' });
+  });
+
+  it('sends a null value to unset a config var, and omits release when the response has none', async () => {
+    const request = sinon.stub().resolves({ configVars: {} });
+    const connection = { request } as unknown as Connection;
+
+    const result = await updateComputeConfigVars(connection, {
+      app: 'CreditRatingScorer',
+      updates: { LOG_LEVEL: null },
+    });
+
+    expect(result).to.deep.equal({ configVars: {}, release: undefined });
+    const [httpRequest] = request.firstCall.args as [{ body: string }];
+    expect(JSON.parse(httpRequest.body)).to.deep.equal({ LOG_LEVEL: null });
+  });
+
+  it('translates a failed request into a createError-style message', async () => {
+    const request = sinon.stub().rejects(new Error('socket hang up'));
+    const connection = { request } as unknown as Connection;
+
+    try {
+      await updateComputeConfigVars(connection, { app: 'CreditRatingScorer', updates: { FOO: 'bar' } });
+      expect.fail('expected updateComputeConfigVars to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include('socket hang up');
+      expect((err as Error).message).to.include('config vars');
     }
   });
 });

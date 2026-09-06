@@ -1,0 +1,186 @@
+/*
+ * Copyright 2026, Salesforce, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { expect } from 'chai';
+import sinon from 'sinon';
+import { TestContext, MockTestOrgData } from '@salesforce/core/testSetup';
+import { Org } from '@salesforce/core';
+import { stubSfCommandUx } from '@salesforce/sf-plugins-core';
+import ConfigGet from '../../../../src/commands/compute/config/get.js';
+
+function findConfigVarsCall(stub: sinon.SinonStub, method?: string): sinon.SinonSpyCall | undefined {
+  return stub.getCalls().find((call) => {
+    const req = call.args[0] as { url?: string; method?: string } | undefined;
+    return Boolean(
+      req?.url?.startsWith('/connect/compute/') &&
+        req.url.endsWith('/config-vars') &&
+        (!method || req.method === method)
+    );
+  });
+}
+
+describe('compute config get', () => {
+  const $$ = new TestContext();
+  const testOrg = new MockTestOrgData();
+  let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
+  let requestStub: sinon.SinonStub;
+
+  beforeEach(async () => {
+    sfCommandStubs = stubSfCommandUx($$.SANDBOX);
+    await $$.stubAuths(testOrg);
+
+    const org = await Org.create({ aliasOrUsername: testOrg.username });
+    const connection = org.getConnection();
+    $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
+
+    requestStub = sinon.stub().resolves({ STRIPE_KEY: 'sk_live_abc123', LOG_LEVEL: 'info' });
+    $$.fakeConnectionRequest = requestStub;
+  });
+
+  afterEach(() => {
+    process.exitCode = 0;
+    $$.restore();
+  });
+
+  it('prints the bare value for a single key, with no KEY: prefix', async () => {
+    const result = await ConfigGet.run([
+      'STRIPE_KEY',
+      '--name',
+      'CreditRatingScorer',
+      '--target-org',
+      testOrg.username,
+    ]);
+
+    expect(result).to.deep.equal({ name: 'CreditRatingScorer', values: { STRIPE_KEY: 'sk_live_abc123' } });
+    expect(sfCommandStubs.log.args.flat()).to.deep.equal(['sk_live_abc123']);
+  });
+
+  it('prints KEY: value pairs, aligned, for more than one key', async () => {
+    const result = await ConfigGet.run([
+      'STRIPE_KEY',
+      'LOG_LEVEL',
+      '--name',
+      'CreditRatingScorer',
+      '--target-org',
+      testOrg.username,
+    ]);
+
+    expect(result).to.deep.equal({
+      name: 'CreditRatingScorer',
+      values: { STRIPE_KEY: 'sk_live_abc123', LOG_LEVEL: 'info' },
+    });
+    expect(sfCommandStubs.log.args.flat()).to.deep.equal(['STRIPE_KEY:  sk_live_abc123', 'LOG_LEVEL:   info']);
+  });
+
+  it('prints one line for a key requested twice, deduping the JSON values too', async () => {
+    const result = await ConfigGet.run([
+      'STRIPE_KEY',
+      'STRIPE_KEY',
+      '--name',
+      'CreditRatingScorer',
+      '--target-org',
+      testOrg.username,
+    ]);
+
+    expect(result).to.deep.equal({ name: 'CreditRatingScorer', values: { STRIPE_KEY: 'sk_live_abc123' } });
+    expect(sfCommandStubs.log.args.flat()).to.deep.equal(['sk_live_abc123']);
+  });
+
+  it('errors on the first missing key, in the order the keys were requested', async () => {
+    try {
+      await ConfigGet.run(['ZEBRA', 'ALPHA', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.equal('CreditRatingScorer has no config var named "ZEBRA".');
+    }
+  });
+
+  it('rejects when no keys are given, without calling the Connect API', async () => {
+    try {
+      await ConfigGet.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('Specify at least one config var to get');
+    }
+    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+  });
+
+  it('rejects an invalid --name before calling the Connect API', async () => {
+    try {
+      await ConfigGet.run(['STRIPE_KEY', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("isn't valid");
+    }
+    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+  });
+
+  it('returns the flattened result under --json, not the full status envelope', async () => {
+    await ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
+
+    const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as { result: unknown };
+    expect(jsonOutput.result).to.deep.equal({
+      name: 'CreditRatingScorer',
+      values: { STRIPE_KEY: 'sk_live_abc123' },
+    });
+  });
+
+  it('resolves --name from COMPUTE_APP_NAME when --name is not passed', async () => {
+    process.env.COMPUTE_APP_NAME = 'CreditRatingScorer';
+    try {
+      const result = await ConfigGet.run(['STRIPE_KEY', '--target-org', testOrg.username]);
+      expect(result.name).to.equal('CreditRatingScorer');
+      const call = findConfigVarsCall(requestStub, 'GET');
+      expect((call!.args[0] as { url: string }).url).to.equal('/connect/compute/CreditRatingScorer/config-vars');
+    } finally {
+      delete process.env.COMPUTE_APP_NAME;
+    }
+  });
+
+  it("resolves --name from the current directory's <name>.compute-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
+    const originalCwd = process.cwd();
+    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-config-get-'));
+    const appDir = join(tmp, 'CreditRatingScorer');
+    await mkdir(appDir);
+    await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    process.chdir(appDir);
+    try {
+      const result = await ConfigGet.run(['STRIPE_KEY', '--target-org', testOrg.username]);
+      expect(result.name).to.equal('CreditRatingScorer');
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('throws error.cannotResolveAppName when --name, COMPUTE_APP_NAME, and directory detection all fail', async () => {
+    const originalCwd = process.cwd();
+    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-config-get-empty-'));
+    process.chdir(tmp);
+    try {
+      await ConfigGet.run(['STRIPE_KEY', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("Couldn't determine which compute app to use");
+    } finally {
+      process.chdir(originalCwd);
+      await rm(tmp, { recursive: true, force: true });
+    }
+    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+  });
+});

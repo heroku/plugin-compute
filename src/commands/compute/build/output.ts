@@ -16,9 +16,11 @@
 
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
-import { validateName } from '../../../shared/computeApp.js';
+import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
 import { queryComputeApp, toComputeAppSummary } from '../../../shared/computeQuery.js';
 import { fetchComputeBuildOutput } from '../../../shared/computeConnectApi.js';
+import { getHerokuApiToken } from '../../../shared/herokuApi.js';
+import { fetchComputeBuildOutputViaHeroku } from '../../../shared/herokuComputeApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.build.output');
@@ -40,7 +42,7 @@ export default class Output extends SfCommand<ComputeBuildOutputResult> {
   public static readonly flags = {
     name: Flags.string({
       char: 'n',
-      required: true,
+      env: 'COMPUTE_APP_NAME',
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({ char: 'o' }),
@@ -48,7 +50,7 @@ export default class Output extends SfCommand<ComputeBuildOutputResult> {
 
   public async run(): Promise<ComputeBuildOutputResult> {
     const { flags } = await this.parse(Output);
-    const { name } = flags;
+    const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
     const connection = flags['target-org'].getConnection();
@@ -61,7 +63,10 @@ export default class Output extends SfCommand<ComputeBuildOutputResult> {
     }
 
     const { buildStatus } = currentBuild;
-    const log = await fetchComputeBuildOutput(connection, { name });
+    const herokuToken = getHerokuApiToken();
+    const log = herokuToken
+      ? await fetchComputeBuildOutputViaHeroku(herokuToken, { name })
+      : await fetchComputeBuildOutput(connection, { name });
 
     if (log === undefined) {
       this.info(messages.getMessage('info.buildOutputNotYetAvailable', [name, buildStatus]));

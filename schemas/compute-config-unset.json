@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ComputeConfigUnsetResult",
+  "definitions": {
+    "ComputeConfigUnsetResult": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "unset": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "release": {
+          "type": "number"
+        }
+      },
+      "required": ["name", "unset"],
+      "additionalProperties": false
+    }
+  }
+}

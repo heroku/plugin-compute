@@ -16,14 +16,18 @@
 
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
-import { validateName } from '../../shared/computeApp.js';
+import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
 import { queryComputeApp, toComputeAppSummary, type ComputeAppSummary } from '../../shared/computeQuery.js';
 import { useBorderlessTables } from '../../shared/tableStyle.js';
+import { getHerokuApiToken } from '../../shared/herokuApi.js';
+import { fetchComputeFormationViaHeroku, type HerokuFormationSummary } from '../../shared/herokuComputeApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.display');
 
-export type ComputeDisplayResult = ComputeAppSummary;
+// formation is only populated when HEROKU_API_TOKEN is set and Heroku answers -- it's a
+// best-effort supplement to the org-side ComputeAppSummary fields, never a replacement for them.
+export type ComputeDisplayResult = ComputeAppSummary & { formation?: HerokuFormationSummary };
 
 export default class Display extends SfCommand<ComputeDisplayResult> {
   public static readonly state = 'beta';
@@ -36,7 +40,7 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
   public static readonly flags = {
     name: Flags.string({
       char: 'n',
-      required: true,
+      env: 'COMPUTE_APP_NAME',
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({ char: 'o' }),
@@ -48,12 +52,22 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
 
   public async run(): Promise<ComputeDisplayResult> {
     const { flags } = await this.parse(Display);
-    const { name } = flags;
+    const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
     const connection = flags['target-org'].getConnection();
     const record = await queryComputeApp(connection, name);
     const result = toComputeAppSummary(record);
+
+    let formation: HerokuFormationSummary | undefined;
+    const herokuToken = getHerokuApiToken();
+    if (herokuToken) {
+      try {
+        formation = await fetchComputeFormationViaHeroku(herokuToken, { name });
+      } catch (err) {
+        this.warn(messages.getMessage('warning.herokuFormationUnavailable', [(err as Error).message]));
+      }
+    }
 
     useBorderlessTables();
     this.styledHeader('Compute App');
@@ -67,6 +81,15 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
       ],
       columns: ['key', 'value'],
     });
+
+    if (formation && formation.length > 0) {
+      this.log('');
+      this.styledHeader('Dyno Formation');
+      this.table({
+        data: formation.map((f) => ({ type: f.type, dynoSize: f.dynoSize ?? '-', quantity: f.quantity })),
+        columns: ['type', 'dynoSize', 'quantity'],
+      });
+    }
 
     if (flags.verbose) {
       this.log('');
@@ -96,6 +119,6 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
       }
     }
 
-    return result;
+    return { ...result, formation };
   }
 }

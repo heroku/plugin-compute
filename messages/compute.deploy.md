@@ -7,14 +7,18 @@ Deploy a compute app's source and metadata to an org.
 Packages the compute app's source (everything under its directory except the
 compute metadata file, project.toml, and .forceignore) together with its
 api-spec.yaml into a deployment bundle, uploads it to the org through the
-Connect API, then
-deploys the app's <name>.compute-meta.xml through the Metadata API to trigger
-the build. Deploy is asynchronous: this command returns once the build has
-been enqueued, it doesn't wait for the build to finish.
+Connect API, then deploys the app's <name>.compute-meta.xml through the
+Metadata API to trigger the build. Deploy is asynchronous: this command
+returns once the build has been enqueued, it doesn't wait for the build to
+finish.
 
 Files matching patterns in a .forceignore are excluded from the source
 bundle. Both the compute app's own .forceignore and the one at the project
 root (next to sfdx-project.json) are applied, if present.
+
+# flags.source-dir.summary
+
+Directory containing the compute app to deploy. Defaults to the current directory.
 
 # examples
 
@@ -24,6 +28,10 @@ root (next to sfdx-project.json) are applied, if present.
 
   <%= config.bin %> <%= command.id %> --target-org my-org
 
+- Deploy a compute app to an org, from anywhere, by pointing --source-dir at it:
+
+  <%= config.bin %> <%= command.id %> --source-dir force-app/main/default/compute/CreditRatingScorer --target-org my-org
+
 # error.notAppDir
 
 This directory has no %s.compute-meta.xml. Run this command from inside the compute app's own directory (the one "sf compute generate" created).
@@ -31,7 +39,7 @@ This directory has no %s.compute-meta.xml. Run this command from inside the comp
 # error.notAppDir.actions
 
 - cd into the compute app's directory (e.g. force-app/main/default/compute/<AppName>) and run the command again.
-- Run <%= config.bin %> compute generate first if the app hasn't been scaffolded yet.
+- Run sf compute generate first if the app hasn't been scaffolded yet.
 
 # error.noProcfile
 

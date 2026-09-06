@@ -282,4 +282,87 @@ describe('compute deploy', () => {
     }
     expect(findUploadCall(requestStub)).to.be.undefined;
   });
+
+  it('deploys from --source-dir without needing to chdir into the app directory', async () => {
+    process.chdir(projectDir);
+
+    const result = await Deploy.run([
+      '--source-dir',
+      'force-app/main/default/compute/CreditRatingScorer',
+      '--target-org',
+      testOrg.username,
+    ]);
+
+    expect(result).to.deep.equal({
+      name: 'CreditRatingScorer',
+      platformComputeId: '0abEE0000004CqYYAU',
+      buildId: '0acEE0000004D1ZYAU',
+    });
+    expect(findUploadCall(requestStub)).to.not.be.undefined;
+  });
+
+  it('resolves a relative --source-dir to an absolute path before deriving the app name', async () => {
+    process.chdir(join(projectDir, 'force-app/main/default/compute'));
+
+    const result = await Deploy.run(['--source-dir', './CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result.name).to.equal('CreditRatingScorer');
+  });
+
+  it('rejects --source-dir when it has no <name>.compute-meta.xml, without falling back to cwd', async () => {
+    const notScaffolded = join(projectDir, 'force-app/main/default/compute/NotScaffolded');
+    await mkdir(notScaffolded, { recursive: true });
+    process.chdir(projectDir);
+
+    try {
+      await Deploy.run([
+        '--source-dir',
+        'force-app/main/default/compute/NotScaffolded',
+        '--target-org',
+        testOrg.username,
+      ]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('NotScaffolded.compute-meta.xml');
+    }
+    expect(findUploadCall(requestStub)).to.be.undefined;
+  });
+
+  it('rejects a --source-dir that does not exist', async () => {
+    process.chdir(projectDir);
+
+    try {
+      await Deploy.run([
+        '--source-dir',
+        'force-app/main/default/compute/DoesNotExist',
+        '--target-org',
+        testOrg.username,
+      ]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('No directory found');
+    }
+    expect(findUploadCall(requestStub)).to.be.undefined;
+  });
+
+  // Guards against the exact regression a plain `default: process.cwd()` would reintroduce --
+  // that value is captured once at class-definition time, so every run() after the first would
+  // keep resolving whichever cwd was current when the class first loaded, not the cwd at parse
+  // time. Two Deploy.run() calls from two different cwds, neither passing --source-dir, must each
+  // resolve their own app name.
+  it("re-evaluates --source-dir's default per invocation rather than once at class load", async () => {
+    const otherAppDir = join(projectDir, 'force-app/main/default/compute/OtherApp');
+    await mkdir(join(otherAppDir, 'src'), { recursive: true });
+    await writeFile(join(otherAppDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
+    await writeFile(join(otherAppDir, 'Procfile'), 'web: node src/app.js\n');
+    await writeFile(join(otherAppDir, 'OtherApp.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    await writeFile(join(otherAppDir, 'src', 'app.js'), 'console.log("hi");\n');
+
+    const first = await Deploy.run(['--target-org', testOrg.username]);
+    expect(first.name).to.equal('CreditRatingScorer');
+
+    process.chdir(otherAppDir);
+    const second = await Deploy.run(['--target-org', testOrg.username]);
+    expect(second.name).to.equal('OtherApp');
+  });
 });

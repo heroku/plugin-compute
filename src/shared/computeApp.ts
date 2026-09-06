@@ -15,14 +15,17 @@
  */
 
 import { access } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { Messages } from '@salesforce/core';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
 
 // Also guards against path traversal, since `name` is joined directly into a filesystem path.
-const NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_]*$/;
+// Leading digit is allowed (unlike a strict DeveloperName) so a PlatformComputeApp/Heroku Id --
+// which may start with a digit -- passes too; see sf compute scale, the first command that
+// accepts an Id as well as a DeveloperName.
+const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_]*$/;
 
 // Shared by every command that takes --name, so the path-traversal guard has one source of truth.
 export function validateName(name: string): void {
@@ -42,4 +45,21 @@ export async function pathExists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// The same "does this look like a compute app's own directory" check deploy.ts uses to derive
+// its app name from cwd, reused here as the last resort in the --name/COMPUTE_APP_NAME/directory
+// fallback chain shared by every other command that takes --name.
+export async function resolveComputeAppNameFromDir(dir: string): Promise<string | undefined> {
+  const name = basename(dir);
+  return (await pathExists(join(dir, `${name}.compute-meta.xml`))) ? name : undefined;
+}
+
+// Shared by every command in the --name/COMPUTE_APP_NAME/directory fallback chain, so the
+// "couldn't figure out which app" error is thrown identically everywhere instead of duplicated.
+export function requireAppName(name: string | undefined): string {
+  if (!name) {
+    throw messages.createError('error.cannotResolveAppName');
+  }
+  return name;
 }

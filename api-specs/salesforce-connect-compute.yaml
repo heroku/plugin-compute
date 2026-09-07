@@ -25,13 +25,14 @@ security:
 tags:
   - name: Compute
     description: >-
-      Resources for deploying and managing Compute apps. `sf compute source
-      retrieve` will need a GET counterpart to /connect/compute/source (a
-      "download the deployed bundle" mirror of this upload resource), used
-      alongside a standard Metadata API retrieve of the app's Compute
-      metadata. That GET resource does not exist in core yet -- confirm with
-      the core team / GUS before authoring a spec entry or generating CLI
-      code for source retrieve, rather than inventing its shape here.
+      Resources for deploying and managing Compute apps. The GET on
+      /connect/compute/source below (downloadComputeSource, used by `sf
+      compute source retrieve` alongside a standard Metadata API retrieve of
+      the app's Compute metadata) is a user-confirmed mirror of the existing
+      upload resource above it -- same sanctioned-ahead-of-core-landing
+      status as the formation/config-vars resources documented later in this
+      description, not an invented shape. Update this spec if the real
+      resource's shape differs once it ships.
       /connect/compute/{app_id_or_name}/formation/{formation_id_or_type}
       below is drafted speculatively ahead of core landing it (sanctioned
       exception to the "confirm with core first" rule above) -- update this
@@ -103,6 +104,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ComputeSourceUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    get:
+      operationId: downloadComputeSource
+      summary: Download a Compute app's deployed source
+      description: >-
+        Downloads the same nested deployment bundle (OpenAPI spec plus
+        application source tarball) most recently deployed for a named
+        Compute app -- the GET counterpart to the upload above, used by `sf
+        compute source retrieve` alongside a Metadata API retrieve of the
+        app's compute-meta.xml. Requires the `DeployCompute` or
+        `ManageCompute` user permission.
+      tags: [Compute]
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+          description: DeveloperName of the PlatformComputeApp to download source for.
+          example: CreditRatingScorer
+      responses:
+        '200':
+          description: >-
+            Deployment bundle tarball (deployment-bundle.tar.gz) most
+            recently deployed for the app.
+          content:
+            application/gzip:
+              schema:
+                type: string
+                format: binary
         '400':
           $ref: '#/components/responses/BadRequest'
         '403':

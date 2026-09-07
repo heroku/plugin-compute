@@ -6,7 +6,8 @@ Resize or rescale a compute app's dyno formation.
 
 Updates one or more process types' dyno size and/or quantity for a deployed
 compute app. Pass one target per process type in the form
-type[=count][:size], for example web=2 or web:eco or web=2:eco. By default
+type[=count][:size], for example web=2 or web:dyno-1c-4gb or
+web=2:dyno-1c-4gb. By default
 this goes through the target org's Salesforce Connect API, which calls
 Heroku on your behalf. If HEROKU_API_TOKEN is set, the command bypasses the
 org and calls the Heroku Platform API directly instead, using --name as the
@@ -15,8 +16,8 @@ Heroku app Id or name.
 # args.target.summary
 
 Process type to scale, in the form type[=count][:size] (for example web=2,
-web:eco, or web=2:eco). Pass more than one to scale multiple process types
-in one command.
+web:dyno-1c-4gb, or web=2:dyno-1c-4gb). Pass more than one to scale multiple
+process types in one command.
 
 # flags.name.summary
 
@@ -29,7 +30,7 @@ if that isn't set either.
 
 - Change a process type's dyno size:
 
-  <%= config.bin %> <%= command.id %> web:standard-1x --name CreditRatingScorer --target-org my-org
+  <%= config.bin %> <%= command.id %> web:dyno-2c-8gb --name CreditRatingScorer --target-org my-org
 
 - Scale a process type's dyno count:
 
@@ -37,11 +38,11 @@ if that isn't set either.
 
 - Change size and quantity together:
 
-  <%= config.bin %> <%= command.id %> web=2:standard-2x --name CreditRatingScorer --target-org my-org
+  <%= config.bin %> <%= command.id %> web=2:dyno-4c-16gb --name CreditRatingScorer --target-org my-org
 
 - Scale multiple process types in one command:
 
-  <%= config.bin %> <%= command.id %> web=2:standard-2x worker=1:eco --name CreditRatingScorer --target-org my-org
+  <%= config.bin %> <%= command.id %> web=2:dyno-4c-16gb worker=1:dyno-1c-0.5gb --name CreditRatingScorer --target-org my-org
 
 - Stop all dynos of a process type:
 
@@ -61,7 +62,7 @@ Specify at least one process type to scale, for example web=2.
 
 # error.scaleInvalidTarget.actions
 
-- Use the format type[=count][:size], for example web=2, web:eco, or web=2:eco.
+- Use the format type[=count][:size], for example web=2, web:dyno-1c-4gb, or web=2:dyno-1c-4gb.
 
 # error.scaleNoChangeForTarget
 
@@ -69,7 +70,7 @@ Specify at least one process type to scale, for example web=2.
 
 # error.scaleNoChangeForTarget.actions
 
-- Add a count and/or size, for example web=2, web:eco, or web=2:eco.
+- Add a count and/or size, for example web=2, web:dyno-1c-4gb, or web=2:dyno-1c-4gb.
 
 # error.scaleInvalidSize
 

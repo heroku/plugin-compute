@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { gunzipSync } from 'node:zlib';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { expect } from 'chai';
 import tarStream from 'tar-stream';
-import { packageComputeBundle } from '../../src/shared/computeBundle.js';
+import { packageComputeBundle, unpackComputeBundle } from '../../src/shared/computeBundle.js';
 
 async function extractTarGz(buffer: Buffer): Promise<Record<string, Buffer>> {
   const entries: Record<string, Buffer> = {};
@@ -42,6 +42,28 @@ async function extractTarGz(buffer: Buffer): Promise<Record<string, Buffer>> {
   });
 
   return entries;
+}
+
+async function buildTarGz(entries: ReadonlyArray<{ name: string; data: Buffer }>): Promise<Buffer> {
+  const pack = tarStream.pack();
+  await entries.reduce(
+    (previous, { name, data }) =>
+      previous.then(
+        async () =>
+          new Promise<void>((resolve, reject) => {
+            pack.entry({ name, size: data.length }, data, (err) => (err ? reject(err) : resolve()));
+          })
+      ),
+    Promise.resolve()
+  );
+  pack.finalize();
+
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    pack.on('data', (chunk: unknown) => chunks.push(chunk as Buffer));
+    pack.on('end', () => resolve(gzipSync(Buffer.concat(chunks))));
+    pack.on('error', reject);
+  });
 }
 
 describe('computeBundle.packageComputeBundle', () => {
@@ -155,5 +177,119 @@ describe('computeBundle.packageComputeBundle', () => {
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
     expect(Object.keys(source).sort()).to.deep.equal(['src/app.js']);
+  });
+});
+
+describe('computeBundle.unpackComputeBundle', () => {
+  let outputDir: string;
+
+  beforeEach(async () => {
+    outputDir = await mkdtemp(join(tmpdir(), 'plugin-compute-unbundle-'));
+  });
+
+  afterEach(async () => {
+    await rm(outputDir, { recursive: true, force: true });
+  });
+
+  it('round-trips packageComputeBundle output into api-spec.yaml and the source files', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'plugin-compute-bundle-src-'));
+    try {
+      const appDir = join(projectRoot, 'force-app/main/default/compute/CreditRatingScorer');
+      await mkdir(join(appDir, 'src'), { recursive: true });
+      await writeFile(join(appDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
+      await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');
+      await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
+      await writeFile(join(appDir, 'project.toml'), '[_]\nschema-version = "0.2"\n');
+      await writeFile(join(appDir, 'src', 'app.js'), 'console.log("hi");\n');
+      const { buffer } = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
+
+      const { fileCount } = await unpackComputeBundle(buffer, outputDir);
+
+      expect(fileCount).to.equal(3); // Procfile, src/app.js, plus api-spec.yaml
+      expect(await readFile(join(outputDir, 'api-spec.yaml'), 'utf8')).to.equal('openapi: 3.0.0\n');
+      expect(await readFile(join(outputDir, 'Procfile'), 'utf8')).to.equal('web: node src/app.js\n');
+      expect(await readFile(join(outputDir, 'src', 'app.js'), 'utf8')).to.equal('console.log("hi");\n');
+    } finally {
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('recreates nested directories for nested source paths', async () => {
+    const sourceTarGz = await buildTarGz([{ name: 'lib/nested/util.js', data: Buffer.from('module.exports = {};\n') }]);
+    const outer = await buildTarGz([
+      { name: 'api-spec.yaml', data: Buffer.from('openapi: 3.0.0\n') },
+      { name: 'source.tar.gz', data: sourceTarGz },
+    ]);
+
+    const { fileCount } = await unpackComputeBundle(outer, outputDir);
+
+    expect(fileCount).to.equal(2); // lib/nested/util.js, plus api-spec.yaml
+    expect(await readFile(join(outputDir, 'lib', 'nested', 'util.js'), 'utf8')).to.equal('module.exports = {};\n');
+  });
+
+  it('throws error.sourceBundleMalformed when the outer bundle is missing api-spec.yaml', async () => {
+    const sourceTarGz = await buildTarGz([{ name: 'Procfile', data: Buffer.from('web: node src/app.js\n') }]);
+    const outer = await buildTarGz([{ name: 'source.tar.gz', data: sourceTarGz }]);
+
+    try {
+      await unpackComputeBundle(outer, outputDir);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('api-spec.yaml');
+    }
+  });
+
+  it('throws error.sourceBundleMalformed when the outer bundle is missing source.tar.gz', async () => {
+    const outer = await buildTarGz([{ name: 'api-spec.yaml', data: Buffer.from('openapi: 3.0.0\n') }]);
+
+    try {
+      await unpackComputeBundle(outer, outputDir);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('source.tar.gz');
+    }
+  });
+
+  it('rejects a source entry whose name would tar-slip outside appDir, without writing it', async () => {
+    const sourceTarGz = await buildTarGz([{ name: '../evil.txt', data: Buffer.from('pwned') }]);
+    const outer = await buildTarGz([
+      { name: 'api-spec.yaml', data: Buffer.from('openapi: 3.0.0\n') },
+      { name: 'source.tar.gz', data: sourceTarGz },
+    ]);
+
+    try {
+      await unpackComputeBundle(outer, outputDir);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('unsafe entry path');
+    }
+
+    let escaped = true;
+    try {
+      await readFile(join(outputDir, '..', 'evil.txt'), 'utf8');
+    } catch {
+      escaped = false;
+    }
+    expect(escaped, 'evil.txt must not have been written outside outputDir').to.be.false;
+  });
+
+  it('throws error.sourceBundleMalformed instead of a raw zlib error when the download is not a valid gzip stream', async () => {
+    try {
+      await unpackComputeBundle(Buffer.from('not a gzip archive'), outputDir);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('not a valid gzip archive');
+    }
+  });
+
+  it('throws error.sourceBundleMalformed instead of a raw tar-stream error when the outer archive is gzip but not a valid tar', async () => {
+    const notATar = gzipSync(Buffer.from('just some gzipped bytes, not a tar archive'));
+
+    try {
+      await unpackComputeBundle(notATar, outputDir);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('not a valid tar archive');
+    }
   });
 });

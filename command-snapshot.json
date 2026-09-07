@@ -86,5 +86,13 @@
     "flagChars": ["n", "o"],
     "flags": ["flags-dir", "json", "name", "target-org"],
     "plugin": "@salesforce/plugin-compute"
+  },
+  {
+    "alias": [],
+    "command": "compute:source:retrieve",
+    "flagAliases": [],
+    "flagChars": ["d", "n", "o"],
+    "flags": ["flags-dir", "json", "name", "output-dir", "target-org"],
+    "plugin": "@salesforce/plugin-compute"
   }
 ]

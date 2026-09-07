@@ -11,7 +11,11 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /**
+     * Download a Compute app's deployed source
+     * @description Downloads the same nested deployment bundle (OpenAPI spec plus application source tarball) most recently deployed for a named Compute app -- the GET counterpart to the upload above, used by `sf compute source retrieve` alongside a Metadata API retrieve of the app's compute-meta.xml. Requires the `DeployCompute` or `ManageCompute` user permission.
+     */
+    get: operations['downloadComputeSource'];
     put?: never;
     /**
      * Upload a Compute deployment bundle source
@@ -271,6 +275,35 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  downloadComputeSource: {
+    parameters: {
+      query: {
+        /**
+         * @description DeveloperName of the PlatformComputeApp to download source for.
+         * @example CreditRatingScorer
+         */
+        name: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deployment bundle tarball (deployment-bundle.tar.gz) most recently deployed for the app. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/gzip': string;
+        };
+      };
+      400: components['responses']['BadRequest'];
+      403: components['responses']['Forbidden'];
+      404: components['responses']['NotFound'];
+    };
+  };
   uploadComputeSource: {
     parameters: {
       query?: never;

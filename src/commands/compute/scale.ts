@@ -27,11 +27,36 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.sc
 
 // Matches Heroku's own `heroku ps:scale` target syntax: TYPE[=COUNT][:SIZE]. TYPE follows
 // Heroku's process-type pattern (salesforce-connect-compute.yaml's Formation.type: ^[-\w]{1,128}$).
-const TARGET_PATTERN = /^([-\w]+)(?:=(\d+))?(?::([-\w]+))?$/;
+// The SIZE group additionally allows `.` (unlike TYPE/COUNT) because Fir's Classic-family dyno
+// sizes use fractional GB, e.g. dyno-1c-0.5gb.
+const TARGET_PATTERN = /^([-\w]+)(?:=(\d+))?(?::([-\w.]+))?$/;
 
-// Closed enum per the CLI UX spec -- validated client-side so a typo surfaces immediately with
-// the full valid list, instead of round-tripping to the org/Heroku first.
-const VALID_SIZES = ['eco', 'basic', 'standard-1x', 'standard-2x', 'performance-m', 'performance-l'];
+// Fir dyno-size identifiers (dyno-<vCPUs>c-<RAM>gb). Full union of all 4 Fir dyno families --
+// product hasn't yet decided which families Compute apps may provision on for GA, so this is a
+// deliberately permissive default, not a final allow-list. Narrow once that's decided.
+const VALID_SIZES = [
+  // Classic
+  'dyno-1c-0.5gb',
+  'dyno-2c-1gb',
+  // General Purpose
+  'dyno-1c-4gb',
+  'dyno-2c-8gb',
+  'dyno-4c-16gb',
+  'dyno-8c-32gb',
+  'dyno-16c-64gb',
+  // Compute
+  'dyno-2c-4gb',
+  'dyno-4c-8gb',
+  'dyno-8c-16gb',
+  'dyno-16c-32gb',
+  'dyno-32c-64gb',
+  // Memory
+  'dyno-1c-8gb',
+  'dyno-2c-16gb',
+  'dyno-4c-32gb',
+  'dyno-8c-64gb',
+  'dyno-16c-128gb',
+];
 
 type ScaleTarget = { processType: string; quantity?: number; dynoSize?: string };
 

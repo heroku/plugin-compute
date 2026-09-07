@@ -153,3 +153,29 @@ Couldn't update the compute app's config vars: %s
 # error.configVarNotFound.actions
 
 - Run sf compute config --name <name> --target-org <org> to see the app's current config vars.
+
+# error.metadataRetrieveFailed
+
+Couldn't retrieve metadata for compute app %s: %s
+
+# error.metadataRetrieveFailed.actions
+
+- Confirm the app has been deployed to this org (run sf compute deploy first).
+- Check that --name matches the DeveloperName used when it was deployed.
+
+# error.sourceDownloadFailed
+
+Couldn't download the compute app's source: %s
+
+# error.sourceDownloadFailed.actions
+
+- Confirm the target org has compute apps enabled and that you have the DeployCompute or ManageCompute permission.
+- Confirm the app has been deployed to this org (run sf compute deploy first).
+
+# error.sourceBundleMalformed
+
+The downloaded deployment bundle is invalid: %s.
+
+# error.sourceBundleMalformed.actions
+
+- Run sf compute source retrieve again; if it still fails, contact your Salesforce admin.

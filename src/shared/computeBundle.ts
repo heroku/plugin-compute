@@ -14,13 +14,17 @@
  * limitations under the License.
  */
 
-import { readdir, readFile } from 'node:fs/promises';
-import { join, relative, sep } from 'node:path';
-import { createGzip } from 'node:zlib';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import { createGzip, gunzipSync } from 'node:zlib';
 import { buffer as streamToBuffer } from 'node:stream/consumers';
 import tarStream from 'tar-stream';
 import ignore, { type Ignore } from 'ignore';
+import { Messages } from '@salesforce/core';
 import { pathExists } from './computeApp.js';
+
+Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
+const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
 
 export type PackagedBundle = {
   buffer: Buffer;
@@ -55,6 +59,78 @@ export async function packageComputeBundle(appDir: string, name: string, project
   return { buffer, fileCount: sourceEntries.length + 1 };
 }
 
+export type UnpackedBundle = {
+  fileCount: number;
+};
+
+// Inverse of packageComputeBundle above -- given the same outer tar.gz shape (api-spec.yaml plus
+// a nested source.tar.gz), writes api-spec.yaml and every source file into appDir. Used by
+// sf compute source retrieve, the only caller that needs to go this direction.
+export async function unpackComputeBundle(buffer: Buffer, appDir: string): Promise<UnpackedBundle> {
+  const outer = await untarGzip(buffer);
+  const apiSpec = outer['api-spec.yaml'];
+  const sourceTarGz = outer['source.tar.gz'];
+  if (!apiSpec || !sourceTarGz) {
+    throw messages.createError('error.sourceBundleMalformed', [
+      `missing ${[!apiSpec && 'api-spec.yaml', !sourceTarGz && 'source.tar.gz'].filter(Boolean).join(', ')}`,
+    ]);
+  }
+
+  await writeFile(join(appDir, 'api-spec.yaml'), apiSpec);
+
+  const sourceEntries = await untarGzip(sourceTarGz);
+  const resolvedAppDir = resolve(appDir);
+  await Promise.all(
+    Object.entries(sourceEntries).map(async ([relativePath, data]) => {
+      const filePath = resolve(appDir, relativePath);
+      // Guards against a tar-slip: a malicious (or corrupted) entry name like "../../etc/foo"
+      // must not be allowed to write outside appDir. The bundle comes from the org's most
+      // recently deployed source, which this plugin doesn't otherwise validate the shape of.
+      if (filePath !== resolvedAppDir && !filePath.startsWith(resolvedAppDir + sep)) {
+        throw messages.createError('error.sourceBundleMalformed', [`unsafe entry path "${relativePath}"`]);
+      }
+      await mkdir(dirname(filePath), { recursive: true });
+      await writeFile(filePath, data);
+    })
+  );
+
+  // Mirrors packageComputeBundle's own counting convention: source-entry count, plus 1 for
+  // api-spec.yaml.
+  return { fileCount: Object.keys(sourceEntries).length + 1 };
+}
+
+// Inverse of tarGzip below -- decompress and read every tar entry into memory, keyed by name.
+// Wraps decompression/parse failures as error.sourceBundleMalformed rather than letting a raw
+// zlib/tar-stream error (e.g. "incorrect header check") reach the user -- a truncated download
+// or an HTTP error page returned with a 200 status both land here.
+function untarGzip(buffer: Buffer): Promise<Record<string, Buffer>> {
+  return new Promise((resolveEntries, reject) => {
+    let decompressed: Buffer;
+    try {
+      decompressed = gunzipSync(buffer);
+    } catch {
+      reject(messages.createError('error.sourceBundleMalformed', ['not a valid gzip archive']));
+      return;
+    }
+
+    const entries: Record<string, Buffer> = {};
+    const extract = tarStream.extract();
+    extract.on('entry', (header, stream, next) => {
+      const chunks: Buffer[] = [];
+      stream.on('data', (chunk: unknown) => chunks.push(chunk as Buffer));
+      stream.on('end', () => {
+        entries[header.name] = Buffer.concat(chunks);
+        next();
+      });
+      stream.on('error', reject);
+      stream.resume();
+    });
+    extract.on('finish', () => resolveEntries(entries));
+    extract.on('error', () => reject(messages.createError('error.sourceBundleMalformed', ['not a valid tar archive'])));
+    extract.end(decompressed);
+  });
+}
+
 async function tarGzip(entries: ReadonlyArray<{ name: string; data: Buffer }>): Promise<Buffer> {
   const pack = tarStream.pack();
   // Entries share one pack stream and must be written one at a time, in order.
@@ -62,8 +138,8 @@ async function tarGzip(entries: ReadonlyArray<{ name: string; data: Buffer }>): 
     (previous, { name, data }) =>
       previous.then(
         async () =>
-          new Promise<void>((resolve, reject) => {
-            pack.entry({ name, size: data.length }, data, (err) => (err ? reject(err) : resolve()));
+          new Promise<void>((resolveEntry, reject) => {
+            pack.entry({ name, size: data.length }, data, (err) => (err ? reject(err) : resolveEntry()));
           })
       ),
     Promise.resolve()

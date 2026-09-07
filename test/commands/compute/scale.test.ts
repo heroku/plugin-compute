@@ -52,7 +52,7 @@ describe('compute scale', () => {
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
     /* eslint-disable camelcase -- dyno_size mirrors Heroku's Formation field name */
-    requestStub = sinon.stub().resolves({ type: 'web', dyno_size: { name: 'standard-1x' }, quantity: 2 });
+    requestStub = sinon.stub().resolves({ type: 'web', dyno_size: { name: 'dyno-1c-4gb' }, quantity: 2 });
     /* eslint-enable camelcase */
     $$.fakeConnectionRequest = requestStub;
   });
@@ -67,11 +67,11 @@ describe('compute scale', () => {
 
   it('scales dyno size via the Connect API by default', async () => {
     /* eslint-disable camelcase -- dyno_size mirrors Heroku's Formation field name */
-    requestStub.resolves({ type: 'web', dyno_size: { name: 'standard-1x' }, quantity: 1 });
+    requestStub.resolves({ type: 'web', dyno_size: { name: 'dyno-1c-4gb' }, quantity: 1 });
     /* eslint-enable camelcase */
 
     const result = await Scale.run([
-      'web:standard-1x',
+      'web:dyno-1c-4gb',
       '--name',
       'CreditRatingScorer',
       '--target-org',
@@ -80,7 +80,7 @@ describe('compute scale', () => {
 
     expect(result).to.deep.equal({
       name: 'CreditRatingScorer',
-      formation: [{ type: 'web', dynoSize: 'standard-1x', quantity: 1 }],
+      formation: [{ type: 'web', dynoSize: 'dyno-1c-4gb', quantity: 1 }],
     });
     const call = findFormationCall(requestStub);
     expect(call, 'expected a PATCH to /connect/compute/{app}/formation/{type}').to.not.be.undefined;
@@ -88,7 +88,52 @@ describe('compute scale', () => {
     expect(request.method).to.equal('PATCH');
     expect(request.url).to.equal('/connect/compute/CreditRatingScorer/formation/web');
     /* eslint-disable-next-line camelcase -- dyno_size mirrors Heroku's FormationUpdateRequest field name */
-    expect(JSON.parse(request.body)).to.deep.equal({ dyno_size: { name: 'standard-1x' } });
+    expect(JSON.parse(request.body)).to.deep.equal({ dyno_size: { name: 'dyno-1c-4gb' } });
+  });
+
+  it('accepts a mixed-case size and normalizes it to lowercase before sending', async () => {
+    /* eslint-disable camelcase -- dyno_size mirrors Heroku's Formation field name */
+    requestStub.resolves({ type: 'web', dyno_size: { name: 'dyno-1c-4gb' }, quantity: 1 });
+    /* eslint-enable camelcase */
+
+    await Scale.run(['web:DYNO-1C-4GB', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    const call = findFormationCall(requestStub);
+    /* eslint-disable-next-line camelcase -- dyno_size mirrors Heroku's FormationUpdateRequest field name */
+    expect(JSON.parse((call!.args[0] as { body: string }).body)).to.deep.equal({ dyno_size: { name: 'dyno-1c-4gb' } });
+  });
+
+  it('rejects the whole invocation, without calling the Connect API for any target, when one of several targets has an invalid size', async () => {
+    try {
+      await Scale.run([
+        'web=2:dyno-4c-16gb',
+        'worker:xl',
+        '--name',
+        'CreditRatingScorer',
+        '--target-org',
+        testOrg.username,
+      ]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('"xl" is not a valid size');
+    }
+    expect(findFormationCall(requestStub)).to.be.undefined;
+  });
+
+  it('accepts a size containing a decimal point (Classic dyno-1c-0.5gb)', async () => {
+    /* eslint-disable camelcase -- dyno_size mirrors Heroku's Formation field name */
+    requestStub.resolves({ type: 'web', dyno_size: { name: 'dyno-1c-0.5gb' }, quantity: 1 });
+    /* eslint-enable camelcase */
+
+    const result = await Scale.run([
+      'web:dyno-1c-0.5gb',
+      '--name',
+      'CreditRatingScorer',
+      '--target-org',
+      testOrg.username,
+    ]);
+
+    expect(result.formation).to.deep.equal([{ type: 'web', dynoSize: 'dyno-1c-0.5gb', quantity: 1 }]);
   });
 
   it('scales quantity (including 0) via the Connect API', async () => {
@@ -106,15 +151,15 @@ describe('compute scale', () => {
 
   it('scales dyno size and quantity together via the Connect API', async () => {
     /* eslint-disable camelcase -- dyno_size mirrors Heroku's Formation field name */
-    requestStub.resolves({ type: 'web', dyno_size: { name: 'standard-2x' }, quantity: 2 });
+    requestStub.resolves({ type: 'web', dyno_size: { name: 'dyno-4c-16gb' }, quantity: 2 });
     /* eslint-enable camelcase */
 
-    await Scale.run(['web=2:standard-2x', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    await Scale.run(['web=2:dyno-4c-16gb', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     const call = findFormationCall(requestStub);
     /* eslint-disable camelcase -- dyno_size mirrors Heroku's FormationUpdateRequest field name */
     expect(JSON.parse((call!.args[0] as { body: string }).body)).to.deep.equal({
-      dyno_size: { name: 'standard-2x' },
+      dyno_size: { name: 'dyno-4c-16gb' },
       quantity: 2,
     });
     /* eslint-enable camelcase */
@@ -127,18 +172,18 @@ describe('compute scale', () => {
     /* eslint-disable camelcase -- dyno_size mirrors Heroku's Formation field name */
     requestStub.callsFake(async (req: { url?: string }) => {
       if (req.url?.endsWith('/formation/web')) {
-        return { type: 'web', dyno_size: { name: 'standard-2x' }, quantity: 2 };
+        return { type: 'web', dyno_size: { name: 'dyno-4c-16gb' }, quantity: 2 };
       }
       if (req.url?.endsWith('/formation/worker')) {
-        return { type: 'worker', dyno_size: { name: 'eco' }, quantity: 1 };
+        return { type: 'worker', dyno_size: { name: 'dyno-1c-0.5gb' }, quantity: 1 };
       }
       return { type: 'connect-api-path-not-used', quantity: 0 };
     });
     /* eslint-enable camelcase */
 
     const result = await Scale.run([
-      'web=2:standard-2x',
-      'worker=1:eco',
+      'web=2:dyno-4c-16gb',
+      'worker=1:dyno-1c-0.5gb',
       '--name',
       'CreditRatingScorer',
       '--target-org',
@@ -148,8 +193,8 @@ describe('compute scale', () => {
     expect(result).to.deep.equal({
       name: 'CreditRatingScorer',
       formation: [
-        { type: 'web', dynoSize: 'standard-2x', quantity: 2 },
-        { type: 'worker', dynoSize: 'eco', quantity: 1 },
+        { type: 'web', dynoSize: 'dyno-4c-16gb', quantity: 2 },
+        { type: 'worker', dynoSize: 'dyno-1c-0.5gb', quantity: 1 },
       ],
     });
   });
@@ -207,7 +252,11 @@ describe('compute scale', () => {
       expect.fail('expected an error');
     } catch (e) {
       expect((e as Error).message).to.include('"xl" is not a valid size');
-      expect((e as Error).message).to.include('eco, basic, standard-1x, standard-2x, performance-m, performance-l');
+      expect((e as Error).message).to.include(
+        'dyno-1c-0.5gb, dyno-2c-1gb, dyno-1c-4gb, dyno-2c-8gb, dyno-4c-16gb, dyno-8c-32gb, dyno-16c-64gb, ' +
+          'dyno-2c-4gb, dyno-4c-8gb, dyno-8c-16gb, dyno-16c-32gb, dyno-32c-64gb, dyno-1c-8gb, dyno-2c-16gb, ' +
+          'dyno-4c-32gb, dyno-8c-64gb, dyno-16c-128gb'
+      );
     }
     expect(findFormationCall(requestStub)).to.be.undefined;
   });
@@ -225,15 +274,15 @@ describe('compute scale', () => {
 
   it('returns the flattened result under --json, not the full status envelope', async () => {
     /* eslint-disable camelcase -- dyno_size mirrors Heroku's Formation field name */
-    requestStub.resolves({ type: 'web', dyno_size: { name: 'standard-1x' }, quantity: 1 });
+    requestStub.resolves({ type: 'web', dyno_size: { name: 'dyno-1c-4gb' }, quantity: 1 });
     /* eslint-enable camelcase */
 
-    await Scale.run(['web:standard-1x', '--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
+    await Scale.run(['web:dyno-1c-4gb', '--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
 
     const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as { result: unknown };
     expect(jsonOutput.result).to.deep.equal({
       name: 'CreditRatingScorer',
-      formation: [{ type: 'web', dynoSize: 'standard-1x', quantity: 1 }],
+      formation: [{ type: 'web', dynoSize: 'dyno-1c-4gb', quantity: 1 }],
     });
   });
 
@@ -332,14 +381,14 @@ describe('compute scale with HEROKU_API_TOKEN set', () => {
 
   it('scales via Heroku directly, using --name as the Heroku app Id/name, without calling Connect', async () => {
     /* eslint-disable camelcase -- dyno_size is Heroku's Formation field name */
-    fetchStub.resolves(jsonResponse({ type: 'web', quantity: 2, dyno_size: { id: 'sz1', name: 'Standard-1X' } }));
+    fetchStub.resolves(jsonResponse({ type: 'web', quantity: 2, dyno_size: { id: 'sz1', name: 'Dyno-2C-8GB' } }));
     /* eslint-enable camelcase */
 
-    const result = await Scale.run(['web=2:standard-1x', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
+    const result = await Scale.run(['web=2:dyno-2c-8gb', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
 
     expect(result).to.deep.equal({
       name: 'my-heroku-app',
-      formation: [{ type: 'web', dynoSize: 'Standard-1X', quantity: 2 }],
+      formation: [{ type: 'web', dynoSize: 'Dyno-2C-8GB', quantity: 2 }],
     });
     expect(findFormationCall(requestStub)).to.be.undefined;
     const request = fetchStub.firstCall.args[0] as Request;

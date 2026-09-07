@@ -100,6 +100,7 @@ sf plugins
 - [`sf compute list`](#sf-compute-list)
 - [`sf compute logs`](#sf-compute-logs)
 - [`sf compute scale [TARGET]`](#sf-compute-scale-target)
+- [`sf compute source retrieve`](#sf-compute-source-retrieve)
 
 ## `sf compute build output`
 
@@ -566,7 +567,8 @@ DESCRIPTION
 
   Updates one or more process types' dyno size and/or quantity for a deployed
   compute app. Pass one target per process type in the form
-  type[=count][:size], for example web=2 or web:eco or web=2:eco. By default
+  type[=count][:size], for example web=2 or web:dyno-1c-4gb or
+  web=2:dyno-1c-4gb. By default
   this goes through the target org's Salesforce Connect API, which calls
   Heroku on your behalf. If HEROKU_API_TOKEN is set, the command bypasses the
   org and calls the Heroku Platform API directly instead, using --name as the
@@ -575,7 +577,7 @@ DESCRIPTION
 EXAMPLES
   Change a process type's dyno size:
 
-    $ sf compute scale web:standard-1x --name CreditRatingScorer --target-org my-org
+    $ sf compute scale web:dyno-2c-8gb --name CreditRatingScorer --target-org my-org
 
   Scale a process type's dyno count:
 
@@ -583,11 +585,11 @@ EXAMPLES
 
   Change size and quantity together:
 
-    $ sf compute scale web=2:standard-2x --name CreditRatingScorer --target-org my-org
+    $ sf compute scale web=2:dyno-4c-16gb --name CreditRatingScorer --target-org my-org
 
   Scale multiple process types in one command:
 
-    $ sf compute scale web=2:standard-2x worker=1:eco --name CreditRatingScorer --target-org my-org
+    $ sf compute scale web=2:dyno-4c-16gb worker=1:dyno-1c-0.5gb --name CreditRatingScorer --target-org my-org
 
   Stop all dynos of a process type:
 
@@ -595,5 +597,45 @@ EXAMPLES
 ```
 
 _See code: [src/commands/compute/scale.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/scale.ts)_
+
+## `sf compute source retrieve`
+
+Retrieve a compute app's source and metadata from an org into your local Salesforce DX project.
+
+```
+USAGE
+  $ sf compute source retrieve -n <value> -o <value> [--json] [--flags-dir <value>] [-d <value>]
+
+FLAGS
+  -d, --output-dir=<value>  [default: force-app/main/default/compute] Directory to create the app in.
+  -n, --name=<value>        (required) Name of the compute app to retrieve.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Retrieve a compute app's source and metadata from an org into your local Salesforce DX project.
+
+  Creates the compute app's directory under force-app/main/default/compute/<name>/
+  (or --output-dir), retrieves its <name>.compute-meta.xml through the Metadata
+  API, then downloads its source code through the Connect API and extracts it
+  into that same directory. This is the inverse of sf compute deploy.
+
+EXAMPLES
+  Retrieve a compute app's source and metadata from an org:
+
+    $ sf compute source retrieve --name CreditRatingScorer --target-org my-org
+
+FLAG DESCRIPTIONS
+  -d, --output-dir=<value>  Directory to create the app in.
+
+    Defaults to force-app/main/default/compute. The app itself is created in a
+    subdirectory named after --name.
+```
+
+_See code: [src/commands/compute/source/retrieve.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/source/retrieve.ts)_
 
 <!-- commandsstop -->

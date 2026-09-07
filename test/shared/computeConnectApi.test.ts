@@ -18,6 +18,7 @@ import sinon from 'sinon';
 import type { Connection } from '@salesforce/core';
 import {
   uploadComputeSource,
+  downloadComputeSource,
   createComputeLogSession,
   updateComputeFormation,
   fetchComputeConfigVars,
@@ -62,6 +63,52 @@ describe('computeConnectApi.uploadComputeSource', () => {
     } catch (err) {
       expect((err as Error).message).to.include('socket hang up');
       expect((err as Error).message).to.include('Connect API');
+    }
+  });
+});
+
+describe('computeConnectApi.downloadComputeSource', () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('GETs /connect/compute/source with { encoding: binary } and returns the exact original bytes', async () => {
+    // Bytes >0x7F are where UTF-8 decoding would corrupt a binary gzip payload -- this is a
+    // real byte-content round-trip assertion, not just a "was called" assertion.
+    const original = Buffer.from([0x1f, 0x8b, 0x00, 0xff, 0x80, 0x41, 0x00, 0xde, 0xad, 0xbe, 0xef]);
+    const request = sinon.stub().resolves(original.toString('binary'));
+    const connection = { request } as unknown as Connection;
+
+    const result = await downloadComputeSource(connection, { name: 'CreditRatingScorer' });
+
+    expect(Buffer.compare(result, original)).to.equal(0);
+    expect(request.calledOnce).to.be.true;
+    const [httpRequest, options] = request.firstCall.args as [{ method: string; url: string }, { encoding: string }];
+    expect(httpRequest.method).to.equal('GET');
+    expect(httpRequest.url).to.equal('/connect/compute/source?name=CreditRatingScorer');
+    expect(options).to.deep.equal({ encoding: 'binary' });
+  });
+
+  it('URL-encodes the name query param', async () => {
+    const request = sinon.stub().resolves('');
+    const connection = { request } as unknown as Connection;
+
+    await downloadComputeSource(connection, { name: 'my app/1' });
+
+    const [httpRequest] = request.firstCall.args as [{ url: string }];
+    expect(httpRequest.url).to.equal('/connect/compute/source?name=my%20app%2F1');
+  });
+
+  it('translates a failed request into a createError-style message', async () => {
+    const request = sinon.stub().rejects(new Error('socket hang up'));
+    const connection = { request } as unknown as Connection;
+
+    try {
+      await downloadComputeSource(connection, { name: 'CreditRatingScorer' });
+      expect.fail('expected downloadComputeSource to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include('socket hang up');
+      expect((err as Error).message).to.include('source');
     }
   });
 });

@@ -13,11 +13,6 @@ org creates a log session with Heroku on your behalf and hands back a
 short-lived, pre-authorized URL that the CLI reads from directly. It doesn't
 read from or require a local Salesforce DX project.
 
-If the HEROKU_API_TOKEN environment variable is set, this command creates
-the log session by calling the Heroku Platform API directly instead, using
---name as the Heroku app name. Reading the resulting log session URL works
-the same either way.
-
 By default this prints the most recent log lines and exits. Pass --tail to
 keep the session open and print new lines as they arrive, until you stop it
 with Ctrl-C or the session ends on its own.

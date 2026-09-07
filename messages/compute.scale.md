@@ -7,11 +7,8 @@ Resize or rescale a compute app's dyno formation.
 Updates one or more process types' dyno size and/or quantity for a deployed
 compute app. Pass one target per process type in the form
 type[=count][:size], for example web=2 or web:dyno-1c-4gb or
-web=2:dyno-1c-4gb. By default
-this goes through the target org's Salesforce Connect API, which calls
-Heroku on your behalf. If HEROKU_API_TOKEN is set, the command bypasses the
-org and calls the Heroku Platform API directly instead, using --name as the
-Heroku app Id or name.
+web=2:dyno-1c-4gb. This goes through the target org's Salesforce Connect API,
+which calls Heroku on your behalf.
 
 # args.target.summary
 
@@ -21,10 +18,9 @@ process types in one command.
 
 # flags.name.summary
 
-PlatformComputeApp Id or DeveloperName of the compute app to scale (or the
-Heroku app Id/name, when HEROKU_API_TOKEN is set). Defaults to the
-COMPUTE_APP_NAME environment variable, or the current directory's app name
-if that isn't set either.
+PlatformComputeApp Id or DeveloperName of the compute app to scale. Defaults
+to the COMPUTE_APP_NAME environment variable, or the current directory's app
+name if that isn't set either.
 
 # examples
 

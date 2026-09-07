@@ -85,6 +85,25 @@ sf plugins link .
 sf plugins
 ```
 
+## HEROKU_API_TOKEN (advanced)
+
+`compute display`, `compute logs`, `compute build output`, and `compute scale`
+normally go through the target org's Salesforce Connect API, which calls the
+Heroku Platform API on your behalf. If the `HEROKU_API_TOKEN` environment
+variable is set, these four commands instead call the Heroku Platform API
+directly, using `--name` as the Heroku app Id or name rather than the
+PlatformComputeApp Id/DeveloperName.
+
+- `compute display` -- additionally shows the app's dyno formation (process
+  type, dyno size, and count) alongside the usual org-side status. A failure
+  to reach Heroku only produces a warning; the org-side status is always
+  shown.
+- `compute logs`, `compute build output`, `compute scale` -- bypass the org
+  entirely and call Heroku directly.
+
+Get a token with `heroku auth:token`. Unset `HEROKU_API_TOKEN` to fall back
+to the normal org-mediated path.
+
 ## Commands
 
 <!-- commands -->
@@ -133,9 +152,6 @@ DESCRIPTION
   This is a read-only, org-mediated lookup by --name (the app's DeveloperName)
   -- the org calls Heroku's Build Info API on your behalf. It doesn't read from
   or require a local Salesforce DX project.
-
-  If the HEROKU_API_TOKEN environment variable is set, this command calls the
-  Heroku Platform API directly instead, using --name as the Heroku app name.
 
 EXAMPLES
   Print the latest build's log:
@@ -377,11 +393,6 @@ DESCRIPTION
   This is a read-only, live lookup by --name (the app's DeveloperName) -- it
   doesn't read from or require a local Salesforce DX project.
 
-  If the HEROKU_API_TOKEN environment variable is set, this command also calls
-  the Heroku Platform API directly to show the app's dyno formation (process
-  type, dyno size, and count) alongside the org-side status above. A failure
-  to reach Heroku only produces a warning -- the org-side status is always shown.
-
 EXAMPLES
   Show the current status of a compute app:
 
@@ -513,11 +524,6 @@ DESCRIPTION
   short-lived, pre-authorized URL that the CLI reads from directly. It doesn't
   read from or require a local Salesforce DX project.
 
-  If the HEROKU_API_TOKEN environment variable is set, this command creates
-  the log session by calling the Heroku Platform API directly instead, using
-  --name as the Heroku app name. Reading the resulting log session URL works
-  the same either way.
-
   By default this prints the most recent log lines and exits. Pass --tail to
   keep the session open and print new lines as they arrive, until you stop it
   with Ctrl-C or the session ends on its own.
@@ -550,11 +556,10 @@ USAGE
   $ sf compute scale [TARGET...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] PlatformComputeApp Id or DeveloperName of the compute app to scale
-                            (or the
-                            Heroku app Id/name, when HEROKU_API_TOKEN is set). Defaults to the
-                            COMPUTE_APP_NAME environment variable, or the current directory's app name
-                            if that isn't set either.
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] PlatformComputeApp Id or DeveloperName of the compute app to scale.
+                            Defaults
+                            to the COMPUTE_APP_NAME environment variable, or the current directory's app
+                            name if that isn't set either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
 
@@ -568,11 +573,8 @@ DESCRIPTION
   Updates one or more process types' dyno size and/or quantity for a deployed
   compute app. Pass one target per process type in the form
   type[=count][:size], for example web=2 or web:dyno-1c-4gb or
-  web=2:dyno-1c-4gb. By default
-  this goes through the target org's Salesforce Connect API, which calls
-  Heroku on your behalf. If HEROKU_API_TOKEN is set, the command bypasses the
-  org and calls the Heroku Platform API directly instead, using --name as the
-  Heroku app Id or name.
+  web=2:dyno-1c-4gb. This goes through the target org's Salesforce Connect API,
+  which calls Heroku on your behalf.
 
 EXAMPLES
   Change a process type's dyno size:

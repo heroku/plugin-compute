@@ -14,9 +14,6 @@ This is a read-only, org-mediated lookup by --name (the app's DeveloperName)
 -- the org calls Heroku's Build Info API on your behalf. It doesn't read from
 or require a local Salesforce DX project.
 
-If the HEROKU_API_TOKEN environment variable is set, this command calls the
-Heroku Platform API directly instead, using --name as the Heroku app name.
-
 # flags.name.summary
 
 Name of the compute app to fetch build output for. Defaults to the

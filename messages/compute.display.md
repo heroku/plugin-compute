@@ -12,11 +12,6 @@ plus the phase, timestamps, and error detail of its current build.
 This is a read-only, live lookup by --name (the app's DeveloperName) -- it
 doesn't read from or require a local Salesforce DX project.
 
-If the HEROKU_API_TOKEN environment variable is set, this command also calls
-the Heroku Platform API directly to show the app's dyno formation (process
-type, dyno size, and count) alongside the org-side status above. A failure
-to reach Heroku only produces a warning -- the org-side status is always shown.
-
 # flags.name.summary
 
 Name of the compute app to show status for. Defaults to the COMPUTE_APP_NAME

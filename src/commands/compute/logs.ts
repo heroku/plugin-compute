@@ -42,7 +42,6 @@ function splitLines(text: string): string[] {
 }
 
 export default class Logs extends SfCommand<ComputeLogsResult> {
-  public static readonly state = 'beta';
   public static readonly summary = messages.getMessage('summary');
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');

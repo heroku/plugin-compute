@@ -18,7 +18,6 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
 import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
 import { queryComputeApp, toComputeAppSummary, type ComputeAppSummary } from '../../shared/computeQuery.js';
-import { useBorderlessTables } from '../../shared/tableStyle.js';
 import { getHerokuApiToken } from '../../shared/herokuApi.js';
 import { fetchComputeFormationViaHeroku, type HerokuFormationSummary } from '../../shared/herokuComputeApi.js';
 
@@ -30,7 +29,6 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.di
 export type ComputeDisplayResult = ComputeAppSummary & { formation?: HerokuFormationSummary };
 
 export default class Display extends SfCommand<ComputeDisplayResult> {
-  public static readonly state = 'beta';
   public static readonly summary = messages.getMessage('summary');
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
@@ -69,7 +67,6 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
       }
     }
 
-    useBorderlessTables();
     this.styledHeader('Compute App');
     this.table({
       data: [

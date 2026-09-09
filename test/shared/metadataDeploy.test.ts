@@ -40,18 +40,26 @@ describe('metadataDeploy.deployComputeMetadata', () => {
     details: { componentFailures: Array<{ problem?: string }> };
   }) {
     const complete = sinon.stub().resolves(deployResult);
-    const deploy = sinon.stub().returns({ complete });
+    const on = sinon.stub();
+    const deploy = sinon.stub().returns({ complete, on });
     const connection = {
       getApiVersion: () => '62.0',
-      metadata: { deploy },
+      metadata: { deploy, pollTimeout: 10_000, pollInterval: 1000 },
     } as unknown as Connection;
-    return { connection, deploy, complete };
+    return { connection, deploy, complete, on };
   }
 
   it('builds a package.xml + compute/<name>/<name>.compute-meta.xml zip and deploys it', async () => {
-    const { connection, deploy, complete } = stubConnection({ success: true, details: { componentFailures: [] } });
+    const { connection, deploy, complete, on } = stubConnection({ success: true, details: { componentFailures: [] } });
 
     await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
+
+    // Regression guard: jsforce's DeployResultLocator emits 'error' on poll timeout/failure,
+    // and an unhandled 'error' event crashes the whole process (EventEmitter default behavior)
+    // -- a listener must always be attached before complete() is awaited.
+    expect(on.calledOnceWith('error')).to.be.true;
+    // jsforce's 10s default pollTimeout is too short for a real metadata deploy.
+    expect(connection.metadata.pollTimeout).to.be.greaterThan(10_000);
 
     expect(deploy.calledOnce).to.be.true;
     const [zipBuffer, options] = deploy.firstCall.args as [Buffer, { singlePackage: boolean }];

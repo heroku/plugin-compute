@@ -36,7 +36,6 @@ export type ComputeGenerateResult = {
 };
 
 export default class Generate extends SfCommand<ComputeGenerateResult> {
-  public static readonly state = 'beta';
   public static readonly summary = messages.getMessage('summary');
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
@@ -47,10 +46,6 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
       char: 'n',
       required: true,
       summary: messages.getMessage('flags.name.summary'),
-    }),
-    'target-org': Flags.optionalOrg({
-      char: 'o',
-      summary: messages.getMessage('flags.target-org.summary'),
     }),
     'output-dir': Flags.directory({
       char: 'd',
@@ -96,7 +91,6 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
 
     this.log('');
     this.logSuccess(messages.getMessage('info.done', [name]));
-    this.log(messages.getMessage('info.next', [appDir, flags['target-org']?.getUsername() ?? '<org>']));
 
     return { name, path: appDir, language, files: writtenFiles };
   }

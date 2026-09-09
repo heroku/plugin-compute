@@ -411,14 +411,13 @@ Scaffold a new compute app into your Salesforce DX project.
 
 ```
 USAGE
-  $ sf compute generate -n <value> [--json] [--flags-dir <value>] [-o <value>] [-d <value>] [-l node|python]
+  $ sf compute generate -n <value> [--json] [--flags-dir <value>] [-d <value>] [-l node|python]
 
 FLAGS
   -d, --output-dir=<value>  [default: force-app/main/default/compute] Directory to create the app in.
   -l, --language=<option>   [default: node] Language to scaffold the starter project in.
                             <options: node|python>
   -n, --name=<value>        (required) Name for the new compute app.
-  -o, --target-org=<value>  Org to associate the app with (username or alias).
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -437,9 +436,9 @@ EXAMPLES
 
     $ sf compute generate --name CreditRatingScorer
 
-  Scaffold a Python compute app and associate it with an org:
+  Scaffold a Python compute app into a custom directory:
 
-    $ sf compute generate --name ReceiptOcr --language python --target-org my-org
+    $ sf compute generate --name ReceiptOcr --language python --output-dir force-app/main/default/compute/scorers
 
 FLAG DESCRIPTIONS
   -d, --output-dir=<value>  Directory to create the app in.

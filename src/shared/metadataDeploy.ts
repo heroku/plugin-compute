@@ -19,9 +19,13 @@ import { join } from 'node:path';
 import JSZip from 'jszip';
 import type { Connection } from '@salesforce/core';
 import { Messages } from '@salesforce/core';
+import { getLogger } from '@oclif/core';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
+
+// Gated by DEBUG=sf:compute:metadataDeploy (or DEBUG=*).
+const debug = getLogger('sf:compute:metadataDeploy').debug;
 
 // Deploying <name>.compute-meta.xml is what actually triggers the build server-side (sets
 // CurrentBuild + Status=DEPLOYING and kicks off the async worker) -- source upload alone does
@@ -52,6 +56,26 @@ export async function deployComputeMetadata(connection: Connection, appDir: stri
   const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
 
   const deployResult = connection.metadata.deploy(zipBuffer, { singlePackage: true });
+
+  // jsforce's DeployResultLocator emits 'error' AND rejects complete()'s promise on the same
+  // timeout/failure path. With zero 'error' listeners, Node's EventEmitter throws *synchronously*
+  // inside the poll timer callback -- crashing the whole process before that reject() is ever
+  // awaited or caught. This listener is a no-op; reject(err) on the same line is what actually
+  // surfaces the failure to our caller below.
+  deployResult.on('error', () => {});
+
+  // jsforce's default pollTimeout is 10s, which is far too short for a real metadata deploy
+  // (routinely takes 1-2+ minutes org-side). Without this, a slow-but-healthy deploy times out
+  // and (pre-fix, above) crashed the CLI outright.
+  connection.metadata.pollTimeout = 10 * 60 * 1000; // 10 minutes
+  connection.metadata.pollInterval = 2000;
+  debug(
+    'polling deploy status for %s every %dms, up to %dms',
+    name,
+    connection.metadata.pollInterval,
+    connection.metadata.pollTimeout
+  );
+
   const result = await deployResult.complete(true);
 
   if (!result.success) {

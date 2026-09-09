@@ -32,7 +32,6 @@ export type ComputeDeployResult = {
 };
 
 export default class Deploy extends SfCommand<ComputeDeployResult> {
-  public static readonly state = 'beta';
   public static readonly summary = messages.getMessage('summary');
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
@@ -76,6 +75,7 @@ export default class Deploy extends SfCommand<ComputeDeployResult> {
     if (!(await pathExists(`${appDir}/api-spec.yaml`))) {
       throw messages.createError('error.noApiSpec', [appDir]);
     }
+    this.debug('resolved app %s from %s', name, appDir);
 
     const connection = flags['target-org'].getConnection();
 
@@ -84,12 +84,16 @@ export default class Deploy extends SfCommand<ComputeDeployResult> {
     // requiresProject = true guarantees the framework has already resolved and assigned
     // this.project before run() is called.
     const projectRoot = this.project!.getPath();
+    this.debug('packaging bundle from %s (project root %s)', appDir, projectRoot);
     const { buffer, fileCount } = await packageComputeBundle(appDir, name, projectRoot);
+    this.debug('packaged %d files, %d bytes', fileCount, buffer.length);
     this.log(messages.getMessage('info.packaging', [fileCount, `${Math.round(buffer.length / 1024)}kb`]));
 
     // Source upload only inserts a pending PlatformComputeAppBuild row -- it does not
     // start a build. The metadata deploy below is what actually triggers it.
+    this.debug('uploading %d-byte bundle for %s', buffer.length, name);
     const upload = await uploadComputeSource(connection, { name, bundle: buffer });
+    this.debug('uploaded: platformComputeId=%s buildId=%s', upload.platformComputeId, upload.buildId);
     this.log(messages.getMessage('info.uploading'));
 
     this.log(
@@ -97,7 +101,9 @@ export default class Deploy extends SfCommand<ComputeDeployResult> {
         connection.getUsername() ?? flags['target-org'].getUsername() ?? '<org>',
       ])
     );
+    this.debug('deploying metadata for %s to %s', name, connection.getUsername() ?? '<org>');
     await deployComputeMetadata(connection, appDir, name);
+    this.debug('metadata deploy complete for %s', name);
     this.log(messages.getMessage('info.deployedMetaFile', [`${name}.compute-meta.xml`]));
 
     this.logSuccess(messages.getMessage('info.buildEnqueued'));

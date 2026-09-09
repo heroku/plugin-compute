@@ -13,10 +13,6 @@ entirely locally; no org is contacted.
 
 Name for the new compute app.
 
-# flags.target-org.summary
-
-Org to associate the app with (username or alias).
-
 # flags.output-dir.summary
 
 Directory to create the app in.
@@ -41,9 +37,9 @@ scaffolds starters for node and python only.
 
   <%= config.bin %> <%= command.id %> --name CreditRatingScorer
 
-- Scaffold a Python compute app and associate it with an org:
+- Scaffold a Python compute app into a custom directory:
 
-  <%= config.bin %> <%= command.id %> --name ReceiptOcr --language python --target-org my-org
+  <%= config.bin %> <%= command.id %> --name ReceiptOcr --language python --output-dir force-app/main/default/compute/scorers
 
 # error.appAlreadyExists
 
@@ -65,7 +61,3 @@ created %s
 # info.done
 
 Created compute app %s.
-
-# info.next
-
-Next: cd %s && sf compute deploy --target-org %s

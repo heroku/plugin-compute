@@ -104,7 +104,10 @@ describe('compute deploy', () => {
     const org = await Org.create({ aliasOrUsername: testOrg.username });
     const connection = org.getConnection();
     completeStub = sinon.stub().resolves({ success: true, details: { componentFailures: [] } });
-    metadataDeployStub = $$.SANDBOX.stub(connection.metadata, 'deploy').returns({ complete: completeStub } as never);
+    metadataDeployStub = $$.SANDBOX.stub(connection.metadata, 'deploy').returns({
+      complete: completeStub,
+      on: sinon.stub(),
+    } as never);
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
     originalCwd = process.cwd();

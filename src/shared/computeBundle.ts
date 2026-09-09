@@ -20,11 +20,16 @@ import { createGzip, gunzipSync } from 'node:zlib';
 import { buffer as streamToBuffer } from 'node:stream/consumers';
 import tarStream from 'tar-stream';
 import ignore, { type Ignore } from 'ignore';
+import { getLogger } from '@oclif/core';
 import { Messages } from '@salesforce/core';
 import { pathExists } from './computeApp.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
+
+// Gated by DEBUG=sf:compute:bundle (or DEBUG=*) -- see @oclif/core's Command#debug, which this
+// mirrors for code that isn't a command instance.
+const debug = getLogger('sf:compute:bundle').debug;
 
 export type PackagedBundle = {
   buffer: Buffer;
@@ -41,6 +46,12 @@ export async function packageComputeBundle(appDir: string, name: string, project
 
   const allFiles = await listFilesRecursive(appDir);
   const sourceRelativePaths = allFiles.filter((f) => !excluded.has(f) && !isForceIgnored(f));
+  debug(
+    'packaging %s: %d of %d files after exclusions/.forceignore',
+    appDir,
+    sourceRelativePaths.length,
+    allFiles.length
+  );
 
   const sourceEntries = await Promise.all(
     sourceRelativePaths.map(async (relativePath) => ({
@@ -55,6 +66,7 @@ export async function packageComputeBundle(appDir: string, name: string, project
     { name: 'api-spec.yaml', data: apiSpec },
     { name: 'source.tar.gz', data: sourceTarGz },
   ]);
+  debug('packaged %s into %d bytes (%d files)', appDir, buffer.length, sourceEntries.length + 1);
 
   return { buffer, fileCount: sourceEntries.length + 1 };
 }
@@ -133,6 +145,20 @@ function untarGzip(buffer: Buffer): Promise<Record<string, Buffer>> {
 
 async function tarGzip(entries: ReadonlyArray<{ name: string; data: Buffer }>): Promise<Buffer> {
   const pack = tarStream.pack();
+
+  // Pipe (i.e. attach a consumer) BEFORE writing any entries. pack is a streamx Readable with a
+  // 16KB highWaterMark; each pack.entry() write below only resolves its callback once
+  // backpressure clears. With no consumer attached, once buffered-but-unread bytes cross 16KB,
+  // push() returns false and the callback is deferred to the next _read() -- which never comes,
+  // since nothing is piping yet. That deadlocked every real app whose combined source exceeded
+  // ~16KB (small unit-test fixtures never hit the threshold, which is why this went unnoticed).
+  const gzippedBufferPromise = streamToBuffer(pack.pipe(createGzip()));
+  debug(
+    'tarGzip: %d entries, %d total bytes',
+    entries.length,
+    entries.reduce((sum, e) => sum + e.data.length, 0)
+  );
+
   // Entries share one pack stream and must be written one at a time, in order.
   await entries.reduce(
     (previous, { name, data }) =>
@@ -145,7 +171,7 @@ async function tarGzip(entries: ReadonlyArray<{ name: string; data: Buffer }>): 
     Promise.resolve()
   );
   pack.finalize();
-  return streamToBuffer(pack.pipe(createGzip()));
+  return gzippedBufferPromise;
 }
 
 // A leading "/" in a .forceignore pattern anchors it to the directory that file lives in, so

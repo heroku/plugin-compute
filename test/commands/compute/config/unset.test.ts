@@ -141,14 +141,14 @@ describe('compute config unset', () => {
     expect(findConfigVarsCall(requestStub)).to.be.undefined;
   });
 
-  it('rejects an invalid --name before calling the Connect API', async () => {
-    try {
-      await ConfigUnset.run(['LOG_LEVEL', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("isn't valid");
-    }
-    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+  // --name is never joined into a filesystem path (unlike other commands' --name), so a
+  // hyphenated value -- invalid as a DeveloperName, but a shape Heroku app Ids/names commonly
+  // take -- must pass through untouched rather than being rejected by a path-traversal guard.
+  it('passes a hyphenated --name through untouched to the Connect API call', async () => {
+    await ConfigUnset.run(['LOG_LEVEL', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
+
+    const patchCall = findConfigVarsCall(requestStub, 'PATCH');
+    expect(patchCall!.args[0]).to.have.property('url', '/connect/compute/my-heroku-style-app/config-vars');
   });
 
   it('omits release from the result when the Connect response has none', async () => {
@@ -238,5 +238,88 @@ describe('compute config unset', () => {
       await rm(tmp, { recursive: true, force: true });
     }
     expect(findConfigVarsCall(requestStub)).to.be.undefined;
+  });
+});
+
+describe('compute config unset with HEROKU_API_TOKEN set', () => {
+  const $$ = new TestContext();
+  const testOrg = new MockTestOrgData();
+  let spinnerStubs: ReturnType<typeof stubSpinner>;
+  let fetchStub: sinon.SinonStub;
+
+  beforeEach(async () => {
+    stubSfCommandUx($$.SANDBOX);
+    spinnerStubs = stubSpinner($$.SANDBOX);
+    await $$.stubAuths(testOrg);
+
+    const org = await Org.create({ aliasOrUsername: testOrg.username });
+    const connection = org.getConnection();
+    $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
+
+    process.env.HEROKU_API_TOKEN = 'shh-secret-token';
+    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch');
+  });
+
+  afterEach(() => {
+    delete process.env.HEROKU_API_TOKEN;
+    process.exitCode = 0;
+    $$.restore();
+  });
+
+  function jsonResponse(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  }
+
+  it('unsets via Heroku directly (GET then PATCH) and omits release, since Heroku returns none', async () => {
+    fetchStub.onFirstCall().resolves(jsonResponse({ STRIPE_KEY: 'sk_live_abc123', LOG_LEVEL: 'info' }));
+    fetchStub.onSecondCall().resolves(jsonResponse({ STRIPE_KEY: 'sk_live_abc123' }));
+
+    const result = await ConfigUnset.run(['LOG_LEVEL', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
+
+    expect(result).to.deep.equal({ name: 'my-heroku-app', unset: ['LOG_LEVEL'] });
+    expect(spinnerStubs.stop.firstCall.args[0]).to.equal('done');
+    const getRequest = fetchStub.firstCall.args[0] as Request;
+    expect(getRequest.url).to.equal('https://api.heroku.com/apps/my-heroku-app/config-vars');
+    expect(getRequest.method).to.equal('GET');
+    const patchRequest = fetchStub.secondCall.args[0] as Request;
+    expect(patchRequest.method).to.equal('PATCH');
+    expect(await patchRequest.clone().json()).to.deep.equal({ LOG_LEVEL: null });
+  });
+
+  it('errors on a key that was never set, without issuing a PATCH', async () => {
+    fetchStub.resolves(jsonResponse({ STRIPE_KEY: 'sk_live_abc123' }));
+
+    try {
+      await ConfigUnset.run(['MISSING', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.equal('my-heroku-app has no config var named "MISSING".');
+    }
+    expect(fetchStub.calledOnce).to.be.true;
+  });
+
+  it('surfaces error.herokuAuthFailed on a 401/403 from the existence-check GET, never leaking the token', async () => {
+    fetchStub.resolves(new Response('forbidden', { status: 403 }));
+
+    try {
+      await ConfigUnset.run(['LOG_LEVEL', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('rejected the request');
+      expect((e as Error).message).to.not.include('shh-secret-token');
+    }
+  });
+
+  it('surfaces error.herokuApiRequestFailed on any other Heroku failure from the PATCH', async () => {
+    fetchStub.onFirstCall().resolves(jsonResponse({ LOG_LEVEL: 'info' }));
+    fetchStub.onSecondCall().resolves(new Response('server error', { status: 500 }));
+
+    try {
+      await ConfigUnset.run(['LOG_LEVEL', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("Couldn't reach the Heroku Platform API");
+    }
+    expect(spinnerStubs.stop.firstCall.args[0]).to.equal('failed');
   });
 });

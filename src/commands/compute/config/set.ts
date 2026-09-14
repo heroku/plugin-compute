@@ -17,8 +17,10 @@
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Args } from '@oclif/core';
 import { Messages } from '@salesforce/core';
-import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
+import { requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
 import { updateComputeConfigVars } from '../../../shared/computeConnectApi.js';
+import { getHerokuApiToken } from '../../../shared/herokuApi.js';
+import { updateComputeConfigVarsViaHeroku } from '../../../shared/herokuComputeApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.config.set');
@@ -59,9 +61,11 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
   public async run(): Promise<ComputeConfigSetResult> {
     const { args, flags } = await this.parse(ConfigSet);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
-    // Unlike scale.ts's --name, config has no Heroku-direct escape hatch to hedge against, so
-    // --name is always a PlatformComputeApp Id/DeveloperName, never a hyphenated Heroku app name.
-    validateName(name);
+
+    // --name is never interpolated into SOQL (unlike display.ts/list.ts) -- both the Connect and
+    // Heroku-direct paths below URL-encode it as a REST path segment, and a PlatformComputeApp
+    // Id/DeveloperName and a Heroku app Id/name (conventionally hyphenated) must both pass
+    // through untouched -- so this skips validateName, matching scale.ts.
 
     // A declarative `required: true`/minimum-count arg would enforce this earlier, during
     // this.parse() -- deliberately not used so the error can carry
@@ -85,11 +89,18 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
 
     // No existence check first, unlike get/unset -- set is also how a brand-new config var gets
     // created, so a nonexistent key here isn't an error, it's the normal creation path.
+    const herokuToken = getHerokuApiToken();
     this.spinner.start(`Setting config vars and restarting ${name}`);
     let release: number | undefined;
     try {
-      const result = await updateComputeConfigVars(flags['target-org'].getConnection(), { app: name, updates });
-      release = result.release;
+      if (herokuToken) {
+        // Heroku's own PATCH response carries no release number -- see
+        // updateComputeConfigVarsViaHeroku's comment in herokuComputeApi.ts.
+        await updateComputeConfigVarsViaHeroku(herokuToken, { name, updates });
+      } else {
+        const result = await updateComputeConfigVars(flags['target-org'].getConnection(), { app: name, updates });
+        release = result.release;
+      }
     } catch (err) {
       this.spinner.stop('failed');
       throw err;

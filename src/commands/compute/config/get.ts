@@ -17,9 +17,11 @@
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Args } from '@oclif/core';
 import { Messages } from '@salesforce/core';
-import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
+import { requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
 import { fetchComputeConfigVars } from '../../../shared/computeConnectApi.js';
 import { formatConfigVarLines, requireConfigVar } from '../../../shared/computeConfig.js';
+import { getHerokuApiToken } from '../../../shared/herokuApi.js';
+import { fetchComputeConfigVarsViaHeroku } from '../../../shared/herokuComputeApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.config.get');
@@ -55,9 +57,6 @@ export default class ConfigGet extends SfCommand<ComputeConfigGetResult> {
   public async run(): Promise<ComputeConfigGetResult> {
     const { args, flags } = await this.parse(ConfigGet);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
-    // Unlike scale.ts's --name, config has no Heroku-direct escape hatch to hedge against, so
-    // --name is always a PlatformComputeApp Id/DeveloperName, never a hyphenated Heroku app name.
-    validateName(name);
 
     // A declarative `required: true`/minimum-count arg would enforce this earlier, during
     // this.parse() -- deliberately not used so the error can carry
@@ -68,8 +67,14 @@ export default class ConfigGet extends SfCommand<ComputeConfigGetResult> {
     }
     const keys = [...new Set(tokens)];
 
-    const connection = flags['target-org'].getConnection();
-    const configVars = await fetchComputeConfigVars(connection, { app: name });
+    // --name is never interpolated into SOQL (unlike display.ts/list.ts) -- both the Connect and
+    // Heroku-direct paths below URL-encode it as a REST path segment, and a PlatformComputeApp
+    // Id/DeveloperName and a Heroku app Id/name (conventionally hyphenated) must both pass
+    // through untouched -- so this skips validateName, matching scale.ts.
+    const herokuToken = getHerokuApiToken();
+    const configVars = herokuToken
+      ? await fetchComputeConfigVarsViaHeroku(herokuToken, { name })
+      : await fetchComputeConfigVars(flags['target-org'].getConnection(), { app: name });
 
     const values: Record<string, string> = {};
     for (const key of keys) {

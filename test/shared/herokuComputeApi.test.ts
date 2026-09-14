@@ -20,6 +20,8 @@ import {
   fetchComputeBuildOutputViaHeroku,
   scaleComputeFormationViaHeroku,
   createComputeLogSessionViaHeroku,
+  fetchComputeConfigVarsViaHeroku,
+  updateComputeConfigVarsViaHeroku,
 } from '../../src/shared/herokuComputeApi.js';
 
 const TOKEN = 'shh-secret-token';
@@ -399,6 +401,144 @@ describe('herokuComputeApi.createComputeLogSessionViaHeroku', () => {
       expect.fail('expected createComputeLogSessionViaHeroku to throw');
     } catch (err) {
       expect((err as Error).message).to.include('boom');
+    }
+  });
+});
+
+describe('herokuComputeApi.fetchComputeConfigVarsViaHeroku', () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('returns the config var map as-is', async () => {
+    stubFetchByUrl([['/config-vars', jsonResponse({ STRIPE_KEY: 'sk_live_xyz789', LOG_LEVEL: 'debug' })]]);
+
+    const result = await fetchComputeConfigVarsViaHeroku(TOKEN, { name: 'my-app' });
+
+    expect(result).to.deep.equal({ STRIPE_KEY: 'sk_live_xyz789', LOG_LEVEL: 'debug' });
+  });
+
+  it('throws error.herokuAppNotFound on a 404', async () => {
+    stubFetchByUrl([['/config-vars', jsonResponse({ id: 'not_found', message: "Couldn't find that app." }, 404)]]);
+
+    try {
+      await fetchComputeConfigVarsViaHeroku(TOKEN, { name: 'missing-app' });
+      expect.fail('expected fetchComputeConfigVarsViaHeroku to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include('missing-app');
+      expect((err as Error).message).to.not.include(TOKEN);
+    }
+  });
+
+  it('throws error.herokuAuthFailed on a 401/403', async () => {
+    stubFetchByUrl([['/config-vars', new Response('forbidden', { status: 403 })]]);
+
+    try {
+      await fetchComputeConfigVarsViaHeroku(TOKEN, { name: 'my-app' });
+      expect.fail('expected fetchComputeConfigVarsViaHeroku to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include('rejected the request');
+      expect((err as Error).message).to.not.include(TOKEN);
+    }
+  });
+
+  it('throws error.herokuApiRequestFailed on any other failure', async () => {
+    stubFetchByUrl([['/config-vars', new Response('server error', { status: 500 })]]);
+
+    try {
+      await fetchComputeConfigVarsViaHeroku(TOKEN, { name: 'my-app' });
+      expect.fail('expected fetchComputeConfigVarsViaHeroku to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include("Couldn't reach the Heroku Platform API");
+      expect((err as Error).message).to.not.include(TOKEN);
+    }
+  });
+
+  // Mirrors the "network failure" tests on the sibling functions above -- a raw fetch rejection
+  // (not a HerokuApiError) must fall through cleanly to error.herokuApiRequestFailed.
+  it('throws error.herokuApiRequestFailed when the underlying fetch rejects (network failure), not just on a non-2xx response', async () => {
+    sinon.stub(globalThis, 'fetch').rejects(new TypeError('fetch failed'));
+
+    try {
+      await fetchComputeConfigVarsViaHeroku(TOKEN, { name: 'my-app' });
+      expect.fail('expected fetchComputeConfigVarsViaHeroku to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include("Couldn't reach the Heroku Platform API");
+      expect((err as Error).message).to.include('fetch failed');
+      expect((err as Error).message).to.not.include(TOKEN);
+    }
+  });
+});
+
+describe('herokuComputeApi.updateComputeConfigVarsViaHeroku', () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('PATCHes the updates and returns the full updated config var map', async () => {
+    const fetchStub = sinon.stub(globalThis, 'fetch').callsFake(async (input) => {
+      const request = input as Request;
+      expect(request.method).to.equal('PATCH');
+      const body = await request.clone().json();
+      expect(body).to.deep.equal({ STRIPE_KEY: 'sk_live_new', LOG_LEVEL: null });
+      return jsonResponse({ STRIPE_KEY: 'sk_live_new' });
+    });
+
+    const result = await updateComputeConfigVarsViaHeroku(TOKEN, {
+      name: 'my-app',
+      updates: { STRIPE_KEY: 'sk_live_new', LOG_LEVEL: null },
+    });
+
+    expect(result).to.deep.equal({ STRIPE_KEY: 'sk_live_new' });
+    expect(fetchStub.calledOnce).to.equal(true);
+  });
+
+  it('throws error.herokuAppNotFound on a 404', async () => {
+    stubFetchByUrl([['/config-vars', jsonResponse({ id: 'not_found', message: "Couldn't find that app." }, 404)]]);
+
+    try {
+      await updateComputeConfigVarsViaHeroku(TOKEN, { name: 'missing-app', updates: { FOO: 'bar' } });
+      expect.fail('expected updateComputeConfigVarsViaHeroku to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include('missing-app');
+      expect((err as Error).message).to.not.include(TOKEN);
+    }
+  });
+
+  it('throws error.herokuAuthFailed on a 401/403', async () => {
+    stubFetchByUrl([['/config-vars', new Response('forbidden', { status: 403 })]]);
+
+    try {
+      await updateComputeConfigVarsViaHeroku(TOKEN, { name: 'my-app', updates: { FOO: 'bar' } });
+      expect.fail('expected updateComputeConfigVarsViaHeroku to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include('rejected the request');
+      expect((err as Error).message).to.not.include(TOKEN);
+    }
+  });
+
+  it('throws error.herokuApiRequestFailed on any other failure', async () => {
+    stubFetchByUrl([['/config-vars', new Response('server error', { status: 500 })]]);
+
+    try {
+      await updateComputeConfigVarsViaHeroku(TOKEN, { name: 'my-app', updates: { FOO: 'bar' } });
+      expect.fail('expected updateComputeConfigVarsViaHeroku to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include("Couldn't reach the Heroku Platform API");
+      expect((err as Error).message).to.not.include(TOKEN);
+    }
+  });
+
+  it('throws error.herokuApiRequestFailed when the underlying fetch rejects (network failure), not just on a non-2xx response', async () => {
+    sinon.stub(globalThis, 'fetch').rejects(new TypeError('fetch failed'));
+
+    try {
+      await updateComputeConfigVarsViaHeroku(TOKEN, { name: 'my-app', updates: { FOO: 'bar' } });
+      expect.fail('expected updateComputeConfigVarsViaHeroku to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include("Couldn't reach the Heroku Platform API");
+      expect((err as Error).message).to.include('fetch failed');
+      expect((err as Error).message).to.not.include(TOKEN);
     }
   });
 });

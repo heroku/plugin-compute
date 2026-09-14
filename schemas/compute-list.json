@@ -11,6 +11,9 @@
     "ComputeAppSummary": {
       "type": "object",
       "properties": {
+        "id": {
+          "type": "string"
+        },
         "name": {
           "type": "string"
         },
@@ -27,6 +30,9 @@
         "statusReason": {
           "type": "string"
         },
+        "externalServiceId": {
+          "type": "string"
+        },
         "externalServiceRegistered": {
           "type": "boolean"
         },
@@ -36,6 +42,9 @@
         "currentBuild": {
           "type": "object",
           "properties": {
+            "id": {
+              "type": "string"
+            },
             "buildStatus": {
               "type": "string",
               "enum": ["PENDING", "BUILDING", "SUCCEEDED", "FAILED"]
@@ -56,11 +65,11 @@
               "type": "string"
             }
           },
-          "required": ["buildStatus"],
+          "required": ["id", "buildStatus"],
           "additionalProperties": false
         }
       },
-      "required": ["name", "masterLabel", "status", "externalServiceRegistered"],
+      "required": ["id", "name", "masterLabel", "status", "externalServiceRegistered"],
       "additionalProperties": false
     }
   }

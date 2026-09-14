@@ -267,3 +267,76 @@ describe('compute config set', () => {
     expect(findConfigVarsCall(requestStub)).to.be.undefined;
   });
 });
+
+describe('compute config set with HEROKU_API_TOKEN set', () => {
+  const $$ = new TestContext();
+  const testOrg = new MockTestOrgData();
+  let spinnerStubs: ReturnType<typeof stubSpinner>;
+  let fetchStub: sinon.SinonStub;
+
+  beforeEach(async () => {
+    stubSfCommandUx($$.SANDBOX);
+    spinnerStubs = stubSpinner($$.SANDBOX);
+    await $$.stubAuths(testOrg);
+
+    const org = await Org.create({ aliasOrUsername: testOrg.username });
+    const connection = org.getConnection();
+    $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
+
+    process.env.HEROKU_API_TOKEN = 'shh-secret-token';
+    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch');
+  });
+
+  afterEach(() => {
+    delete process.env.HEROKU_API_TOKEN;
+    process.exitCode = 0;
+    $$.restore();
+  });
+
+  function jsonResponse(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  }
+
+  it('sets config vars via Heroku directly and omits release, since Heroku returns none', async () => {
+    fetchStub.resolves(jsonResponse({ STRIPE_KEY: 'sk_live_xyz789' }));
+
+    const result = await ConfigSet.run([
+      'STRIPE_KEY=sk_live_xyz789',
+      '--name',
+      'my-heroku-app',
+      '--target-org',
+      testOrg.username,
+    ]);
+
+    expect(result).to.deep.equal({ name: 'my-heroku-app', configVars: { STRIPE_KEY: 'sk_live_xyz789' } });
+    expect(spinnerStubs.stop.firstCall.args[0]).to.equal('done');
+    const request = fetchStub.firstCall.args[0] as Request;
+    expect(request.url).to.equal('https://api.heroku.com/apps/my-heroku-app/config-vars');
+    expect(request.method).to.equal('PATCH');
+    expect(await request.clone().json()).to.deep.equal({ STRIPE_KEY: 'sk_live_xyz789' });
+  });
+
+  it('surfaces error.herokuAuthFailed on a 401/403, never leaking the token', async () => {
+    fetchStub.resolves(new Response('forbidden', { status: 403 }));
+
+    try {
+      await ConfigSet.run(['FOO=bar', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('rejected the request');
+      expect((e as Error).message).to.not.include('shh-secret-token');
+    }
+    expect(spinnerStubs.stop.firstCall.args[0]).to.equal('failed');
+  });
+
+  it('surfaces error.herokuApiRequestFailed on any other Heroku failure', async () => {
+    fetchStub.resolves(new Response('server error', { status: 500 }));
+
+    try {
+      await ConfigSet.run(['FOO=bar', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("Couldn't reach the Heroku Platform API");
+    }
+  });
+});

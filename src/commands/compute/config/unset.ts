@@ -17,9 +17,11 @@
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Args } from '@oclif/core';
 import { Messages } from '@salesforce/core';
-import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
+import { requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
 import { fetchComputeConfigVars, updateComputeConfigVars } from '../../../shared/computeConnectApi.js';
 import { requireConfigVar } from '../../../shared/computeConfig.js';
+import { getHerokuApiToken } from '../../../shared/herokuApi.js';
+import { fetchComputeConfigVarsViaHeroku, updateComputeConfigVarsViaHeroku } from '../../../shared/herokuComputeApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.config.unset');
@@ -56,9 +58,6 @@ export default class ConfigUnset extends SfCommand<ComputeConfigUnsetResult> {
   public async run(): Promise<ComputeConfigUnsetResult> {
     const { args, flags } = await this.parse(ConfigUnset);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
-    // Unlike scale.ts's --name, config has no Heroku-direct escape hatch to hedge against, so
-    // --name is always a PlatformComputeApp Id/DeveloperName, never a hyphenated Heroku app name.
-    validateName(name);
 
     // A declarative `required: true`/minimum-count arg would enforce this earlier, during
     // this.parse() -- deliberately not used so the error can carry
@@ -69,12 +68,18 @@ export default class ConfigUnset extends SfCommand<ComputeConfigUnsetResult> {
     }
     const keys = [...new Set(tokens)];
 
-    const connection = flags['target-org'].getConnection();
+    // --name is never interpolated into SOQL (unlike display.ts/list.ts) -- both the Connect and
+    // Heroku-direct paths below URL-encode it as a REST path segment, and a PlatformComputeApp
+    // Id/DeveloperName and a Heroku app Id/name (conventionally hyphenated) must both pass
+    // through untouched -- so this skips validateName, matching scale.ts.
+    const herokuToken = getHerokuApiToken();
 
     // Heroku's own PATCH is idempotent about unsetting a key that's already absent -- it
     // wouldn't error -- but the CLI UX wants a hard error for that case, so it's checked
     // client-side against a fresh fetch rather than relying on the PATCH to catch it.
-    const configVars = await fetchComputeConfigVars(connection, { app: name });
+    const configVars = herokuToken
+      ? await fetchComputeConfigVarsViaHeroku(herokuToken, { name })
+      : await fetchComputeConfigVars(flags['target-org'].getConnection(), { app: name });
     for (const key of keys) {
       requireConfigVar(configVars, name, key);
     }
@@ -87,8 +92,14 @@ export default class ConfigUnset extends SfCommand<ComputeConfigUnsetResult> {
     this.spinner.start(`Unsetting ${keys.join(', ')} and restarting ${name}`);
     let release: number | undefined;
     try {
-      const result = await updateComputeConfigVars(connection, { app: name, updates });
-      release = result.release;
+      if (herokuToken) {
+        // Heroku's own PATCH response carries no release number -- see
+        // updateComputeConfigVarsViaHeroku's comment in herokuComputeApi.ts.
+        await updateComputeConfigVarsViaHeroku(herokuToken, { name, updates });
+      } else {
+        const result = await updateComputeConfigVars(flags['target-org'].getConnection(), { app: name, updates });
+        release = result.release;
+      }
     } catch (err) {
       this.spinner.stop('failed');
       throw err;

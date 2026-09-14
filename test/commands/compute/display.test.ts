@@ -72,14 +72,17 @@ describe('compute display', () => {
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).to.deep.equal({
+      id: '0abEE0000004CqYYAU',
       name: 'CreditRatingScorer',
       masterLabel: 'Lease Agreement Parser',
       description: 'Parses lease agreements.',
       status: 'ACTIVE',
       statusReason: undefined,
+      externalServiceId: '0ES0x00000ABC456',
       externalServiceRegistered: true,
       externalServiceActive: true,
       currentBuild: {
+        id: '0acEE0000004D1ZYAU',
         buildStatus: 'SUCCEEDED',
         buildStartedAt: '2026-08-04T14:23:50.000Z',
         buildCompletedAt: '2026-08-04T14:25:32.000Z',
@@ -87,6 +90,7 @@ describe('compute display', () => {
         deployedBy: 'dev@mycompany.com',
         error: undefined,
       },
+      orgId: testOrg.orgId,
       formation: undefined,
     });
 
@@ -106,9 +110,20 @@ describe('compute display', () => {
         .flatMap((c) => c.args)
         .join('\n') ?? '';
     expect(output).to.not.include('Current Build');
+    expect(output).to.not.include('Latest Deployment');
+    expect(output).to.not.include('External Service');
   });
 
-  it('renders External Service and Current Build sections under --verbose', async () => {
+  it('always renders the Heroku App section, verbose or not', async () => {
+    resolveWith([activeRecord]);
+
+    await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
+    expect(headers).to.include('Heroku App');
+  });
+
+  it('renders External Service, Current Build, and Latest Deployment sections under --verbose', async () => {
     resolveWith([activeRecord]);
 
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--verbose']);
@@ -116,6 +131,27 @@ describe('compute display', () => {
     const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
     expect(headers).to.include('External Service');
     expect(headers).to.include('Current Build');
+    expect(headers).to.include('Latest Deployment');
+  });
+
+  // Header presence alone doesn't confirm the row *contents* -- Build ID and Build Duration are
+  // computed/mapped fields (formatBuildDuration in particular), not passed through verbatim, so
+  // assert the actual table() call args the way list.test.ts does for its columns.
+  it('renders the Compute App ID/Org ID rows and the computed Build ID/Build Duration rows under --verbose', async () => {
+    resolveWith([activeRecord]);
+
+    await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--verbose']);
+
+    const tableCalls = sfCommandStubs.table.getCalls() as unknown as Array<{
+      args: [{ data: Array<{ key: string; value: string }> }];
+    }>;
+    const allRows = tableCalls.flatMap((c) => c.args[0].data);
+
+    expect(allRows).to.deep.include({ key: 'Compute App ID', value: '0abEE0000004CqYYAU' });
+    expect(allRows).to.deep.include({ key: 'Org ID', value: testOrg.orgId });
+    expect(allRows).to.deep.include({ key: 'Build ID', value: '0acEE0000004D1ZYAU' });
+    // BuildStartedAt 14:23:50 -> BuildCompletedAt 14:25:32 is 1m 42s.
+    expect(allRows).to.deep.include({ key: 'Build Duration', value: '1m 42s' });
   });
 
   it('handles an app that has never had a successful build or external service registration', async () => {
@@ -131,6 +167,7 @@ describe('compute display', () => {
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result.currentBuild).to.be.undefined;
+    expect(result.externalServiceId).to.be.undefined;
     expect(result.externalServiceRegistered).to.be.false;
     expect(result.externalServiceActive).to.be.undefined;
   });
@@ -313,7 +350,7 @@ describe('compute display with HEROKU_API_TOKEN set', () => {
     $$.restore();
   });
 
-  it('supplements the org-side result with the dyno formation and renders a Dyno Formation table', async () => {
+  it('supplements the org-side result with the dyno formation and renders it in the Heroku App table', async () => {
     fetchStub.resolves(
       // eslint-disable-next-line camelcase -- dyno_size is Heroku's Formation field name
       new Response(JSON.stringify([{ type: 'web', quantity: 2, dyno_size: { id: 'sz1', name: 'Standard-1X' } }]), {
@@ -326,10 +363,16 @@ describe('compute display with HEROKU_API_TOKEN set', () => {
 
     expect(result.formation).to.deep.equal([{ type: 'web', dynoSize: 'Standard-1X', quantity: 2 }]);
     const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
-    expect(headers).to.include('Dyno Formation');
+    expect(headers).to.include('Heroku App');
+
+    const tableCalls = sfCommandStubs.table.getCalls() as unknown as Array<{
+      args: [{ data: Array<{ key: string; value: string }> }];
+    }>;
+    const allRows = tableCalls.flatMap((c) => c.args[0].data);
+    expect(allRows).to.deep.include({ key: 'Formation', value: 'web=2:Standard-1X' });
   });
 
-  it('omits the Dyno Formation table when the formation is empty', async () => {
+  it('still renders the Heroku App table (with a placeholder Formation row) when the formation is empty', async () => {
     fetchStub.resolves(
       new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
     );
@@ -338,7 +381,7 @@ describe('compute display with HEROKU_API_TOKEN set', () => {
 
     expect(result.formation).to.deep.equal([]);
     const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
-    expect(headers).to.not.include('Dyno Formation');
+    expect(headers).to.include('Heroku App');
   });
 
   it('warns and still returns the org-side result when the Heroku call fails, without formation in the result', async () => {

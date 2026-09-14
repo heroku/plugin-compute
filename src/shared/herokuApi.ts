@@ -112,6 +112,38 @@ export async function updateHerokuFormation(
   return data;
 }
 
+export async function getHerokuConfigVars(
+  client: HerokuClient,
+  appIdOrName: string
+): Promise<components['schemas']['ConfigVars']> {
+  const { data, error, response } = await client.GET('/apps/{app_id_or_name}/config-vars', {
+    // app_id_or_name is openapi-typescript's generated path-param key name, fixed by the spec.
+    // eslint-disable-next-line camelcase
+    params: { path: { app_id_or_name: appIdOrName }, header: { Accept: HEROKU_ACCEPT_HEADER } },
+  });
+  if (error) {
+    throw toHerokuApiError(response.status, error);
+  }
+  return data;
+}
+
+export async function updateHerokuConfigVars(
+  client: HerokuClient,
+  appIdOrName: string,
+  body: components['schemas']['ConfigVarsUpdate']
+): Promise<components['schemas']['ConfigVars']> {
+  const { data, error, response } = await client.PATCH('/apps/{app_id_or_name}/config-vars', {
+    // app_id_or_name is openapi-typescript's generated path-param key name, fixed by the spec.
+    // eslint-disable-next-line camelcase
+    params: { path: { app_id_or_name: appIdOrName }, header: { Accept: HEROKU_ACCEPT_HEADER } },
+    body,
+  });
+  if (error) {
+    throw toHerokuApiError(response.status, error);
+  }
+  return data;
+}
+
 // "Oldest first" per the spec -- there's no Heroku build UUID available on the Salesforce side
 // to look up a specific build by id (PlatformComputeAppBuild.ExternalBuildIdentifier has the
 // same isSfdcInternal restriction as the app identifier), so callers take the last element as

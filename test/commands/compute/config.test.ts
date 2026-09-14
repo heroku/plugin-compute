@@ -94,14 +94,14 @@ describe('compute config', () => {
     expect(sfCommandStubs.log.called).to.be.false;
   });
 
-  it('rejects an invalid --name before calling the Connect API', async () => {
-    try {
-      await Config.run(['--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("isn't valid");
-    }
-    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+  // --name is never joined into a filesystem path (unlike other commands' --name), so a
+  // hyphenated value -- invalid as a DeveloperName, but a shape Heroku app Ids/names commonly
+  // take -- must pass through untouched rather than being rejected by a path-traversal guard.
+  it('passes a hyphenated --name through untouched to the Connect API call', async () => {
+    await Config.run(['--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
+
+    const call = findConfigVarsCall(requestStub, 'GET');
+    expect(call!.args[0]).to.have.property('url', '/connect/compute/my-heroku-style-app/config-vars');
   });
 
   it('wraps a Connect API failure as error.configVarsFetchFailed', async () => {
@@ -171,5 +171,87 @@ describe('compute config', () => {
       await rm(tmp, { recursive: true, force: true });
     }
     expect(findConfigVarsCall(requestStub)).to.be.undefined;
+  });
+});
+
+describe('compute config with HEROKU_API_TOKEN set', () => {
+  const $$ = new TestContext();
+  const testOrg = new MockTestOrgData();
+  let requestStub: sinon.SinonStub;
+  let fetchStub: sinon.SinonStub;
+
+  beforeEach(async () => {
+    stubSfCommandUx($$.SANDBOX);
+    await $$.stubAuths(testOrg);
+
+    const org = await Org.create({ aliasOrUsername: testOrg.username });
+    const connection = org.getConnection();
+    $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
+
+    // Distinct from the Heroku config-vars call below so a stray Connect call is easy to notice.
+    requestStub = sinon.stub().resolves({ 'connect-api-path-not-used': true });
+    $$.fakeConnectionRequest = requestStub;
+
+    process.env.HEROKU_API_TOKEN = 'shh-secret-token';
+    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch');
+  });
+
+  afterEach(() => {
+    delete process.env.HEROKU_API_TOKEN;
+    process.exitCode = 0;
+    $$.restore();
+  });
+
+  function jsonResponse(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  }
+
+  it('fetches config vars via Heroku directly, using --name as the Heroku app Id/name, without calling Connect', async () => {
+    fetchStub.resolves(jsonResponse({ STRIPE_KEY: 'sk_live_abc123', LOG_LEVEL: 'info' }));
+
+    const result = await Config.run(['--name', 'my-heroku-app', '--target-org', testOrg.username]);
+
+    expect(result).to.deep.equal({
+      name: 'my-heroku-app',
+      configVars: { LOG_LEVEL: 'info', STRIPE_KEY: 'sk_live_abc123' },
+    });
+    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+    const request = fetchStub.firstCall.args[0] as Request;
+    expect(request.url).to.equal('https://api.heroku.com/apps/my-heroku-app/config-vars');
+  });
+
+  it('surfaces error.herokuAppNotFound on a 404', async () => {
+    fetchStub.resolves(jsonResponse({ id: 'not_found', message: "Couldn't find that app." }, 404));
+
+    try {
+      await Config.run(['--name', 'missing-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('missing-app');
+    }
+    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+  });
+
+  it('surfaces error.herokuAuthFailed on a 401/403, never leaking the token', async () => {
+    fetchStub.resolves(new Response('forbidden', { status: 403 }));
+
+    try {
+      await Config.run(['--name', 'my-heroku-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('rejected the request');
+      expect((e as Error).message).to.not.include('shh-secret-token');
+    }
+  });
+
+  it('surfaces error.herokuApiRequestFailed on any other Heroku failure', async () => {
+    fetchStub.resolves(new Response('server error', { status: 500 }));
+
+    try {
+      await Config.run(['--name', 'my-heroku-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("Couldn't reach the Heroku Platform API");
+    }
   });
 });

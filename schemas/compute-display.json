@@ -6,8 +6,14 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "orgId": {
+          "type": "string"
+        },
         "formation": {
           "$ref": "#/definitions/HerokuFormationSummary"
+        },
+        "id": {
+          "type": "string"
         },
         "name": {
           "type": "string"
@@ -25,6 +31,9 @@
         "statusReason": {
           "type": "string"
         },
+        "externalServiceId": {
+          "type": "string"
+        },
         "externalServiceRegistered": {
           "type": "boolean"
         },
@@ -34,6 +43,9 @@
         "currentBuild": {
           "type": "object",
           "properties": {
+            "id": {
+              "type": "string"
+            },
             "buildStatus": {
               "type": "string",
               "enum": ["PENDING", "BUILDING", "SUCCEEDED", "FAILED"]
@@ -54,11 +66,11 @@
               "type": "string"
             }
           },
-          "required": ["buildStatus"],
+          "required": ["id", "buildStatus"],
           "additionalProperties": false
         }
       },
-      "required": ["externalServiceRegistered", "masterLabel", "name", "status"]
+      "required": ["externalServiceRegistered", "id", "masterLabel", "name", "orgId", "status"]
     },
     "HerokuFormationSummary": {
       "type": "array",

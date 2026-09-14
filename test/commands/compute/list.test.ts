@@ -81,14 +81,17 @@ describe('compute list', () => {
 
     expect(result).to.deep.equal([
       {
+        id: '0abEE0000004CqYYAU',
         name: 'CreditRatingScorer',
         masterLabel: 'Lease Agreement Parser',
         description: 'Parses lease agreements.',
         status: 'ACTIVE',
         statusReason: undefined,
+        externalServiceId: '0ES0x00000ABC456',
         externalServiceRegistered: true,
         externalServiceActive: true,
         currentBuild: {
+          id: '0acEE0000004D1ZYAU',
           buildStatus: 'SUCCEEDED',
           buildStartedAt: '2026-08-04T14:23:50.000Z',
           buildCompletedAt: '2026-08-04T14:25:32.000Z',
@@ -98,11 +101,13 @@ describe('compute list', () => {
         },
       },
       {
+        id: '0abEE0000004CqZYAU',
         name: 'InvoiceMatcher',
         masterLabel: 'Invoice Matcher',
         description: undefined,
         status: 'DEPLOYING',
         statusReason: undefined,
+        externalServiceId: undefined,
         externalServiceRegistered: false,
         externalServiceActive: undefined,
         currentBuild: undefined,

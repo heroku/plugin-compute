@@ -21,6 +21,8 @@ import {
   HerokuApiError,
   listHerokuFormation,
   updateHerokuFormation,
+  getHerokuConfigVars,
+  updateHerokuConfigVars,
   listHerokuBuilds,
   createHerokuLogSession,
   fetchHerokuBuildOutputStream,
@@ -168,6 +170,102 @@ describe('herokuApi.updateHerokuFormation', () => {
     try {
       await updateHerokuFormation(client, 'my-app', 'web', { quantity: 2 });
       expect.fail('expected updateHerokuFormation to throw');
+    } catch (err) {
+      expect((err as Error).message).to.equal('HTTP 403');
+      expect((err as Error).message).to.not.include(TOKEN);
+    }
+  });
+});
+
+describe('herokuApi.getHerokuConfigVars', () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('GETs /apps/{app_id_or_name}/config-vars with the Bearer token and Accept header', async () => {
+    const configVars = { STRIPE_KEY: 'sk_live_abc123', LOG_LEVEL: 'info' };
+    const { getRequest } = stubFetchCapturingRequest(jsonResponse(configVars));
+    const client = createHerokuClient(TOKEN);
+
+    const result = await getHerokuConfigVars(client, 'my-app');
+
+    expect(result).to.deep.equal(configVars);
+    const request = getRequest();
+    expect(request?.url).to.equal('https://api.heroku.com/apps/my-app/config-vars');
+    expect(request?.method).to.equal('GET');
+    expect(request?.headers.get('authorization')).to.equal(`Bearer ${TOKEN}`);
+    expect(request?.headers.get('accept')).to.equal('application/vnd.heroku+json; version=3');
+  });
+
+  it('throws a HerokuApiError built from the HerokuError body on a non-2xx response', async () => {
+    stubFetchCapturingRequest(jsonResponse({ id: 'not_found', message: "Couldn't find that app." }, 404));
+    const client = createHerokuClient(TOKEN);
+
+    try {
+      await getHerokuConfigVars(client, 'missing-app');
+      expect.fail('expected getHerokuConfigVars to throw');
+    } catch (err) {
+      expect(err).to.be.instanceOf(HerokuApiError);
+      expect((err as HerokuApiError).status).to.equal(404);
+      expect((err as HerokuApiError).message).to.equal("Couldn't find that app.");
+    }
+  });
+
+  it('falls back to a bare HTTP {status} message and never leaks the bearer token when the body is not a HerokuError', async () => {
+    stubFetchCapturingRequest(new Response('unauthorized', { status: 401 }));
+    const client = createHerokuClient(TOKEN);
+
+    try {
+      await getHerokuConfigVars(client, 'my-app');
+      expect.fail('expected getHerokuConfigVars to throw');
+    } catch (err) {
+      expect((err as Error).message).to.equal('HTTP 401');
+      expect((err as Error).message).to.not.include(TOKEN);
+    }
+  });
+});
+
+describe('herokuApi.updateHerokuConfigVars', () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('PATCHes /apps/{app_id_or_name}/config-vars with the request body', async () => {
+    const updated = { STRIPE_KEY: 'sk_live_xyz789' };
+    const { getRequest } = stubFetchCapturingRequest(jsonResponse(updated));
+    const client = createHerokuClient(TOKEN);
+
+    const result = await updateHerokuConfigVars(client, 'my-app', { STRIPE_KEY: 'sk_live_xyz789', LOG_LEVEL: null });
+
+    expect(result).to.deep.equal(updated);
+    const request = getRequest();
+    expect(request?.url).to.equal('https://api.heroku.com/apps/my-app/config-vars');
+    expect(request?.method).to.equal('PATCH');
+    expect(request?.headers.get('authorization')).to.equal(`Bearer ${TOKEN}`);
+    expect(request?.headers.get('accept')).to.equal('application/vnd.heroku+json; version=3');
+    expect(await request?.clone().json()).to.deep.equal({ STRIPE_KEY: 'sk_live_xyz789', LOG_LEVEL: null });
+  });
+
+  it('throws a HerokuApiError built from the HerokuError body on a non-2xx response', async () => {
+    stubFetchCapturingRequest(jsonResponse({ id: 'not_found', message: "Couldn't find that app." }, 404));
+    const client = createHerokuClient(TOKEN);
+
+    try {
+      await updateHerokuConfigVars(client, 'missing-app', { FOO: 'bar' });
+      expect.fail('expected updateHerokuConfigVars to throw');
+    } catch (err) {
+      expect(err).to.be.instanceOf(HerokuApiError);
+      expect((err as HerokuApiError).status).to.equal(404);
+    }
+  });
+
+  it('falls back to a bare HTTP {status} message and never leaks the bearer token when the body is not a HerokuError', async () => {
+    stubFetchCapturingRequest(new Response('forbidden', { status: 403 }));
+    const client = createHerokuClient(TOKEN);
+
+    try {
+      await updateHerokuConfigVars(client, 'my-app', { FOO: 'bar' });
+      expect.fail('expected updateHerokuConfigVars to throw');
     } catch (err) {
       expect((err as Error).message).to.equal('HTTP 403');
       expect((err as Error).message).to.not.include(TOKEN);

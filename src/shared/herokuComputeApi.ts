@@ -23,6 +23,8 @@ import {
   createHerokuLogSession,
   fetchHerokuBuildOutputStream,
   updateHerokuFormation,
+  getHerokuConfigVars,
+  updateHerokuConfigVars,
   HerokuApiError,
 } from './herokuApi.js';
 
@@ -152,4 +154,35 @@ export async function createComputeLogSessionViaHeroku(
     throw messages.createError('error.herokuApiRequestFailed', ["Heroku's response was missing a logplex_url"]);
   }
   return { logplexUrl: session.logplex_url };
+}
+
+// Like scale.ts's formation calls, every `sf compute config*` command falls back to the
+// org-mediated Connect API path (fetchComputeConfigVars in computeConnectApi.ts) -- unsetting
+// HEROKU_API_TOKEN switches back to it.
+export async function fetchComputeConfigVarsViaHeroku(
+  accessToken: string,
+  params: { name: string }
+): Promise<Record<string, string>> {
+  const client = createHerokuClient(accessToken);
+  try {
+    return await getHerokuConfigVars(client, params.name);
+  } catch (err) {
+    throwHerokuComputeError(err, params.name);
+  }
+}
+
+// Heroku's own PATCH /config-vars response is just the full, updated config var map -- unlike
+// the Connect resource's UpdateComputeConfigVarsResult, it carries no release number, so callers
+// in Heroku-direct mode never get one back (see computeConnectApi.ts's updateComputeConfigVars
+// comment for why the Connect resource bundles one in anyway).
+export async function updateComputeConfigVarsViaHeroku(
+  accessToken: string,
+  params: { name: string; updates: Record<string, string | null> }
+): Promise<Record<string, string>> {
+  const client = createHerokuClient(accessToken);
+  try {
+    return await updateHerokuConfigVars(client, params.name, params.updates);
+  } catch (err) {
+    throwHerokuComputeError(err, params.name);
+  }
 }

@@ -47,7 +47,11 @@ describe('computeQuery.queryComputeApp', () => {
     expect(soql).to.include("WHERE DeveloperName = 'CreditRatingScorer'");
     expect(soql).to.include('CurrentBuild.BuildStatus');
     expect(soql).to.include('CurrentBuild.DeployedBy.Username');
-    expect(soql).to.include('ExternalServiceRegistration.IsActive');
+    expect(soql).to.include('ExternalServiceRegistration.Id');
+    // IsActive is deliberately not queried -- the Tooling API rejects that column at parse time
+    // even with the SfdcInternalQA client override applied (see ComputeAppRecord.
+    // ExternalServiceRegistration.IsActive's comment in computeQuery.ts).
+    expect(soql).to.not.include('ExternalServiceRegistration.IsActive');
     expect(options).to.deep.equal({ tooling: true });
   });
 
@@ -179,14 +183,17 @@ describe('computeQuery.toComputeAppSummary', () => {
     });
 
     expect(result).to.deep.equal({
+      id: '0abEE0000004CqYYAU',
       name: 'CreditRatingScorer',
       masterLabel: 'Lease Agreement Parser',
       description: 'Parses lease agreements.',
       status: 'ACTIVE',
       statusReason: undefined,
+      externalServiceId: '0ES0x00000ABC456',
       externalServiceRegistered: true,
       externalServiceActive: true,
       currentBuild: {
+        id: '0acEE0000004D1ZYAU',
         buildStatus: 'SUCCEEDED',
         buildStartedAt: '2026-08-04T14:23:50.000Z',
         buildCompletedAt: '2026-08-04T14:25:32.000Z',
@@ -201,6 +208,7 @@ describe('computeQuery.toComputeAppSummary', () => {
     const result = toComputeAppSummary(activeRecord);
 
     expect(result.currentBuild).to.be.undefined;
+    expect(result.externalServiceId).to.be.undefined;
     expect(result.externalServiceRegistered).to.be.false;
     expect(result.externalServiceActive).to.be.undefined;
   });

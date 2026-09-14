@@ -47,7 +47,13 @@ export type ComputeAppRecord = {
   } | null;
   ExternalServiceRegistration: {
     Id: string;
-    IsActive: boolean;
+    // Not queried below (see SOQL_FIELDS) -- Tooling API rejects this column at parse time even
+    // with the SfdcInternalQA client override applied. This is a field-level restriction on
+    // ExternalServiceRegistration itself, separate from PlatformComputeApp/PlatformComputeAppBuild's
+    // entity-level isSfdcInternal restriction (tracked by W-24176390). Optional until that
+    // field-level restriction is separately resolved with the ExternalServiceRegistration owning
+    // team -- see W-24176390's description for the split.
+    IsActive?: boolean;
   } | null;
 };
 
@@ -66,12 +72,35 @@ export const SOQL_FIELDS = [
   'CurrentBuild.DeployedBy.Username',
   'CurrentBuild.Error',
   'ExternalServiceRegistration.Id',
-  'ExternalServiceRegistration.IsActive',
 ].join(', ');
+
+// Internal engineering workaround, not a customer-facing feature -- do not document in README
+// alongside HEROKU_API_TOKEN. PlatformComputeApp/PlatformComputeAppBuild currently ship with
+// Tooling API access gated behind apiAccess="isSfdcInternal" (W-23426078 opened first-party-only
+// access; W-24176390 tracks removing the restriction so any customer org can query these entities
+// without this workaround). Until W-24176390 ships, this lets internal testing exercise the CLI's
+// Tooling queries against a pilot org: jsforce's http-api sets the Sforce-Call-Options header from
+// connection._callOptions on every REST request (incl. Tooling API query); this sets the
+// SfdcInternalQA/ client identifier, which requires the target org's "Allow Salesforce Internal
+// QA Clients" (SfdcInternalQAClients) org perm to be enabled. Gated behind
+// SALESFORCE_INTERNAL_QA_CLIENT=true (opt-in, never silently applied). Note this does NOT unblock
+// ExternalServiceRegistration.IsActive, which has its own separate field-level restriction --
+// see the comment on ComputeAppRecord.ExternalServiceRegistration.IsActive above.
+// Remove this function and its call sites once W-24176390 ships and public access is confirmed.
+function setSfdcInternalQaCallOptions(connection: Connection): void {
+  if (process.env.SALESFORCE_INTERNAL_QA_CLIENT !== 'true') {
+    return;
+  }
+  // eslint-disable-next-line no-underscore-dangle
+  (connection as unknown as { _callOptions?: Record<string, string> })._callOptions = {
+    client: 'SfdcInternalQA/plugin-compute',
+  };
+}
 
 // Callers must call validateName(name) first -- name is interpolated directly into SOQL, and
 // that regex (letters/digits/underscore, no quotes or spaces) is the injection guard.
 export async function queryComputeApp(connection: Connection, name: string): Promise<ComputeAppRecord> {
+  setSfdcInternalQaCallOptions(connection);
   const soql = `SELECT ${SOQL_FIELDS} FROM PlatformComputeApp WHERE DeveloperName = '${name}'`;
   try {
     return await connection.singleRecordQuery<ComputeAppRecord>(soql, { tooling: true });
@@ -94,6 +123,7 @@ export async function queryComputeApp(connection: Connection, name: string): Pro
 // No --name filter -- lists every PlatformComputeApp in the org. autoFetchQuery auto-paginates
 // (10,000-record default fetch size), which comfortably covers any realistic org's compute-app count.
 export async function listComputeApps(connection: Connection): Promise<ComputeAppRecord[]> {
+  setSfdcInternalQaCallOptions(connection);
   const soql = `SELECT ${SOQL_FIELDS} FROM PlatformComputeApp ORDER BY DeveloperName ASC`;
   try {
     // autoFetchQuery's type param is bounded to jsforce's Schema (org-wide SObject map), not the
@@ -111,14 +141,17 @@ export async function listComputeApps(connection: Connection): Promise<ComputeAp
 }
 
 export type ComputeAppSummary = {
+  id: string;
   name: string;
   masterLabel: string;
   description?: string;
   status: 'DEPLOYING' | 'ACTIVE' | 'FAILED';
   statusReason?: string;
+  externalServiceId?: string;
   externalServiceRegistered: boolean;
   externalServiceActive?: boolean;
   currentBuild?: {
+    id: string;
     buildStatus: 'PENDING' | 'BUILDING' | 'SUCCEEDED' | 'FAILED';
     buildStartedAt?: string;
     buildCompletedAt?: string;
@@ -132,15 +165,18 @@ export type ComputeAppSummary = {
 // there's no confirmed Salesforce-queryable source for it yet. Open item, not yet resolved.
 export function toComputeAppSummary(record: ComputeAppRecord): ComputeAppSummary {
   return {
+    id: record.Id,
     name: record.DeveloperName,
     masterLabel: record.MasterLabel,
     description: record.Description ?? undefined,
     status: record.Status,
     statusReason: record.StatusReason ?? undefined,
+    externalServiceId: record.ExternalServiceRegistration?.Id,
     externalServiceRegistered: record.ExternalServiceRegistration !== null,
     externalServiceActive: record.ExternalServiceRegistration?.IsActive,
     currentBuild: record.CurrentBuild
       ? {
+          id: record.CurrentBuild.Id,
           buildStatus: record.CurrentBuild.BuildStatus,
           buildStartedAt: record.CurrentBuild.BuildStartedAt ?? undefined,
           buildCompletedAt: record.CurrentBuild.BuildCompletedAt ?? undefined,

@@ -57,6 +57,19 @@ tags:
       second round trip to list releases the way Heroku's own CLI does
       internally. Confirm this composed shape with the core team / GUS
       before treating it as final, same as any other net-new resource.
+      GET /connect/compute/{app_id_or_name} and GET
+      /connect/compute/{app_id_or_name}/formation below are also drafted
+      speculatively ahead of core landing them, tracked by W-24154928 ("[API]
+      Fetch compute app metadata and dyno formation via Connect API (display
+      command)"). They mirror Heroku's own GET /apps/{app_id_or_name} and GET
+      /apps/{app_id_or_name}/formation field names and nesting (snake_case,
+      nested id/name objects for generation/region/space) rather than a
+      Connect-idiomatic shape, for the same wire-compatibility reason as the
+      formation PATCH above. `sf compute display` calls both to fill in the
+      Heroku App table's App Name/Region/Generation/Formation rows, replacing
+      the HEROKU_API_TOKEN escape hatch and the permanent placeholder dashes.
+      Confirm this shape with the core team / GUS before treating it as
+      final, same as any other net-new resource.
 paths:
   /connect/compute/source:
     post:
@@ -228,6 +241,75 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ConnectError'
+  /connect/compute/{app_id_or_name}:
+    get:
+      operationId: fetchComputeAppMetadata
+      summary: Get a Compute app's Heroku-side metadata
+      description: >-
+        Returns Heroku-side app metadata (region, space, generation) for a
+        Compute app. Org calls Heroku's Get App Info API on the customer's
+        behalf; the CLI never talks to Heroku directly unless
+        HEROKU_API_TOKEN is set, in which case `sf compute display` bypasses
+        the org and calls Heroku directly instead. Requires the
+        `DeployCompute` or `ManageCompute` user permission.
+      tags: [Compute]
+      parameters:
+        - name: app_id_or_name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: PlatformComputeApp Id or DeveloperName.
+          example: CreditRatingScorer
+      responses:
+        '200':
+          description: The app's Heroku-side metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeAppMetadata'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /connect/compute/{app_id_or_name}/formation:
+    get:
+      operationId: fetchComputeFormation
+      summary: Get a Compute app's full dyno formation
+      description: >-
+        Returns the dyno formation (size and quantity per process type) for a
+        Compute app. Org calls Heroku's List Formation API on the customer's
+        behalf; the CLI never talks to Heroku directly unless
+        HEROKU_API_TOKEN is set, in which case `sf compute display` bypasses
+        the org and calls Heroku directly instead. Requires the
+        `DeployCompute` or `ManageCompute` user permission. This is the
+        collection-level GET counterpart to the per-process-type PATCH below.
+      tags: [Compute]
+      parameters:
+        - name: app_id_or_name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: PlatformComputeApp Id or DeveloperName.
+          example: CreditRatingScorer
+      responses:
+        '200':
+          description: The app's current dyno formation, one entry per process type.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ComputeFormation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /connect/compute/{app_id_or_name}/formation/{formation_id_or_type}:
     patch:
       operationId: updateComputeFormation
@@ -403,6 +485,42 @@ components:
             runtime logs from directly.
           example: >-
             https://logplex.heroku.com/sessions/01234567-89ab-cdef-0123-456789abcdef?srv=1325419200
+    ComputeAppMetadata:
+      type: object
+      description: >-
+        A Compute app's Heroku-side metadata. Field names and nesting
+        deliberately mirror Heroku's own App resource (snake_case, nested
+        id/name objects) -- see the Compute tag description above. Includes
+        name in addition to the region/generation/space W-24154928's subject
+        line calls out, since `sf compute display`'s Heroku App table has an
+        App Name row backed by Heroku's app name (distinct from the Compute
+        App Name row above it, which is the Salesforce DeveloperName).
+      required: [name, region, generation]
+      properties:
+        name:
+          type: string
+          description: Heroku app name (distinct from the PlatformComputeApp DeveloperName).
+          example: creditratingscorer-a1b2c3
+        region:
+          type: object
+          description: Heroku region the app runs in.
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string, example: us }
+        generation:
+          type: object
+          description: Heroku generation (e.g. fir, cedar) the app runs on.
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string, example: fir }
+        space:
+          type: object
+          nullable: true
+          description: Private space the app runs in, if any.
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            shield: { type: boolean }
     ComputeFormationUpdate:
       type: object
       description: >-

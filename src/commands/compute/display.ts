@@ -117,10 +117,12 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     });
   }
 
-  // App Name/Region/Generation have no Salesforce- or Heroku-side source wired up yet (Heroku's
-  // GET /apps/{app_id_or_name} is still (proposed) per the CLI design doc's APIs table) --
-  // placeholder dashes until that lands. Formation is real: it's already fetched from Heroku
-  // above whenever HEROKU_API_TOKEN is set.
+  // App Name/Region/Generation have no Salesforce- or Heroku-side source wired up yet --
+  // placeholder dashes until W-24154928 ("[API] Fetch compute app metadata and dyno formation
+  // via Connect API (display command)") ships. That same story also covers Formation via an
+  // org-mediated Connect API call; until then, Formation is only populated via the
+  // HEROKU_API_TOKEN Heroku-direct escape hatch fetched above -- once W-24154928 lands, replace
+  // that HEROKU_API_TOKEN branch here with the new Connect API call for all four rows.
   private renderHerokuAppTable(formation: HerokuFormationSummary | undefined): void {
     this.log('');
     this.styledHeader('Heroku App');
@@ -135,22 +137,23 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     });
   }
 
-  // AppLink Add-on / API Spec Published have no source yet -- placeholder dashes.
+  // API Spec Published has no source yet -- placeholder dash. AppLink Add-on was removed --
+  // it's redundant with External Service ID (both are set together by deploy's first-time
+  // provisioning flow; there's no state where one exists without the other).
   private renderExternalServiceTable(result: ComputeAppSummary): void {
     this.log('');
     this.styledHeader('External Service');
     this.table({
       data: [
         { key: 'External Service ID', value: result.externalServiceId ?? '-' },
-        { key: 'AppLink Add-on', value: '-' },
         { key: 'API Spec Published', value: '-' },
       ],
       columns: ['key', 'value'],
     });
   }
 
-  // Slug has no source yet -- placeholder dash. Build Duration is computed client-side from the
-  // two timestamps we do have, rather than sourced from anywhere new.
+  // Build Duration is computed client-side from the two timestamps we do have, rather than
+  // sourced from anywhere new.
   private renderCurrentBuildTable(result: ComputeAppSummary): void {
     this.log('');
     this.styledHeader('Current Build');
@@ -158,7 +161,6 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
       data: [
         { key: 'Build ID', value: result.currentBuild?.id ?? '-' },
         { key: 'Build Status', value: result.currentBuild?.buildStatus ?? '-' },
-        { key: 'Slug', value: '-' },
         { key: 'Build Started', value: result.currentBuild?.buildStartedAt ?? '-' },
         { key: 'Build Completed', value: result.currentBuild?.buildCompletedAt ?? '-' },
         {
@@ -170,7 +172,6 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     });
   }
 
-  // Deploy ID / Release have no source yet -- placeholder dashes.
   private renderLatestDeploymentTable(result: ComputeAppSummary): void {
     this.log('');
     this.styledHeader('Latest Deployment');
@@ -178,8 +179,6 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
       data: [
         { key: 'Deployed At', value: result.currentBuild?.deployedAt ?? '-' },
         { key: 'Deployed By', value: result.currentBuild?.deployedBy ?? '-' },
-        { key: 'Deploy ID', value: '-' },
-        { key: 'Release', value: '-' },
       ],
       columns: ['key', 'value'],
     });

@@ -154,6 +154,26 @@ describe('compute display', () => {
     expect(allRows).to.deep.include({ key: 'Build Duration', value: '1m 42s' });
   });
 
+  // Slug, Deploy ID, and Release had no wired-up source (Salesforce or Heroku) and no GA scope
+  // to justify them -- cut rather than left as permanent placeholder dashes. AppLink Add-on was
+  // cut too -- it's redundant with External Service ID (both set together by deploy's
+  // first-time provisioning).
+  it('omits the unsourced Slug, Deploy ID, Release, and AppLink Add-on rows under --verbose', async () => {
+    resolveWith([activeRecord]);
+
+    await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--verbose']);
+
+    const tableCalls = sfCommandStubs.table.getCalls() as unknown as Array<{
+      args: [{ data: Array<{ key: string; value: string }> }];
+    }>;
+    const allKeys = tableCalls.flatMap((c) => c.args[0].data.map((row) => row.key));
+
+    expect(allKeys).to.not.include('AppLink Add-on');
+    expect(allKeys).to.not.include('Slug');
+    expect(allKeys).to.not.include('Deploy ID');
+    expect(allKeys).to.not.include('Release');
+  });
+
   it('handles an app that has never had a successful build or external service registration', async () => {
     resolveWith([
       {

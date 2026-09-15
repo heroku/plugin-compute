@@ -11,17 +11,39 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /**
-     * Download a Compute app's deployed source
-     * @description Downloads the same nested deployment bundle (OpenAPI spec plus application source tarball) most recently deployed for a Compute app -- the GET counterpart to the upload above, used by `sf compute source retrieve` alongside a Metadata API retrieve of the app's compute-meta.xml. Also accepts a C2C JWT (minted for the `sfdc.salesforce-compute` Core CASC integration) for Heroku Builds' own inbound fetch, in addition to a standard org access token. Requires the `DeployCompute` or `ManageCompute` user permission on the standard-token path. See W-23502012.
-     */
-    get: operations['downloadComputeSource'];
+    get?: never;
     put?: never;
     /**
      * Upload a Compute deployment bundle source
      * @description Uploads a Heroku Compute deployment bundle (OpenAPI spec plus application source tarball) for a named Compute app. This only creates a pending PlatformComputeAppBuild record -- it does not start a build by itself. Deploying the app's compute-meta.xml through the Metadata API is what triggers the build. Requires the `DeployCompute` user permission. This is an Expensive-cost Connect resource -- callers should avoid polling it and should instead poll build status separately.
      */
     post: operations['uploadComputeSource'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/connect/compute/{app_id_or_name}/source': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /**
+         * @description PlatformComputeApp Id or DeveloperName.
+         * @example CreditRatingScorer
+         */
+        app_id_or_name: string;
+      };
+      cookie?: never;
+    };
+    /**
+     * Download a Compute app's deployed source
+     * @description Downloads the same nested deployment bundle (OpenAPI spec plus application source tarball) most recently deployed for a Compute app -- the GET counterpart to the upload above, used by `sf compute source retrieve` alongside a Metadata API retrieve of the app's compute-meta.xml. Also accepts a C2C JWT (minted for the `sfdc.salesforce-compute` Core CASC integration) for Heroku Builds' own inbound fetch, in addition to a standard org access token. Requires the `DeployCompute` or `ManageCompute` user permission on the standard-token path. Speculative resource -- see the Compute tag description above; not yet built in core. See W-23502012.
+     */
+    get: operations['downloadComputeSource'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -277,15 +299,15 @@ export type $defs = Record<string, never>;
 export interface operations {
   downloadComputeSource: {
     parameters: {
-      query: {
+      query?: never;
+      header?: never;
+      path: {
         /**
-         * @description PlatformComputeApp Id or DeveloperName to download source for.
+         * @description PlatformComputeApp Id or DeveloperName.
          * @example CreditRatingScorer
          */
         app_id_or_name: string;
       };
-      header?: never;
-      path?: never;
       cookie?: never;
     };
     requestBody?: never;

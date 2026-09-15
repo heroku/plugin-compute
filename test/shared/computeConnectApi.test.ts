@@ -72,7 +72,7 @@ describe('computeConnectApi.downloadComputeSource', () => {
     sinon.restore();
   });
 
-  it('GETs /connect/compute/source with { encoding: binary } and returns the exact original bytes', async () => {
+  it('GETs /connect/compute/{app_id_or_name}/source with { encoding: binary } and returns the exact original bytes', async () => {
     // Bytes >0x7F are where UTF-8 decoding would corrupt a binary gzip payload -- this is a
     // real byte-content round-trip assertion, not just a "was called" assertion.
     const original = Buffer.from([0x1f, 0x8b, 0x00, 0xff, 0x80, 0x41, 0x00, 0xde, 0xad, 0xbe, 0xef]);
@@ -85,18 +85,18 @@ describe('computeConnectApi.downloadComputeSource', () => {
     expect(request.calledOnce).to.be.true;
     const [httpRequest, options] = request.firstCall.args as [{ method: string; url: string }, { encoding: string }];
     expect(httpRequest.method).to.equal('GET');
-    expect(httpRequest.url).to.equal('/connect/compute/source?app_id_or_name=CreditRatingScorer');
+    expect(httpRequest.url).to.equal('/connect/compute/CreditRatingScorer/source');
     expect(options).to.deep.equal({ encoding: 'binary' });
   });
 
-  it('URL-encodes the app_id_or_name query param', async () => {
+  it('URL-encodes the app_id_or_name path segment', async () => {
     const request = sinon.stub().resolves('');
     const connection = { request } as unknown as Connection;
 
     await downloadComputeSource(connection, { appIdOrName: 'my app/1' });
 
     const [httpRequest] = request.firstCall.args as [{ url: string }];
-    expect(httpRequest.url).to.equal('/connect/compute/source?app_id_or_name=my%20app%2F1');
+    expect(httpRequest.url).to.equal('/connect/compute/my%20app%2F1/source');
   });
 
   it('translates a failed request into a createError-style message', async () => {

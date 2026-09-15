@@ -25,14 +25,21 @@ security:
 tags:
   - name: Compute
     description: >-
-      Resources for deploying and managing Compute apps. The GET on
-      /connect/compute/source below (downloadComputeSource, used by `sf
-      compute source retrieve` alongside a standard Metadata API retrieve of
-      the app's Compute metadata) is a user-confirmed mirror of the existing
-      upload resource above it -- same sanctioned-ahead-of-core-landing
-      status as the formation/config-vars resources documented later in this
-      description, not an invented shape. Update this spec if the real
-      resource's shape differs once it ships.
+      Resources for deploying and managing Compute apps. GET
+      /connect/compute/{app_id_or_name}/source below (downloadComputeSource,
+      used by `sf compute source retrieve` alongside a standard Metadata API
+      retrieve of the app's Compute metadata) is drafted speculatively ahead
+      of core landing it -- only the POST /connect/compute/source upload
+      above it is actually shipped in core (IComputeSourceUploadResource,
+      PostableResource only, no GET). Deliberately placed on its own
+      {app_id_or_name}/source path rather than mirroring the flat upload
+      path, to keep app_id_or_name as a path param per the Connect API
+      path-vs-query convention (it identifies which resource, not a filter),
+      matching /connect/compute/{app_id_or_name},
+      /connect/compute/{app_id_or_name}/formation, and
+      /connect/compute/{app_id_or_name}/config-vars below. Same
+      sanctioned-ahead-of-core-landing status as those resources -- update
+      this spec if the real resource's shape differs once it ships.
       /connect/compute/{app_id_or_name}/formation/{formation_id_or_type}
       below is drafted speculatively ahead of core landing it (sanctioned
       exception to the "confirm with core first" rule above) -- update this
@@ -123,6 +130,7 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /connect/compute/{app_id_or_name}/source:
     get:
       operationId: downloadComputeSource
       summary: Download a Compute app's deployed source
@@ -135,15 +143,16 @@ paths:
         `sfdc.salesforce-compute` Core CASC integration) for Heroku Builds'
         own inbound fetch, in addition to a standard org access token.
         Requires the `DeployCompute` or `ManageCompute` user permission on
-        the standard-token path. See W-23502012.
+        the standard-token path. Speculative resource -- see the Compute tag
+        description above; not yet built in core. See W-23502012.
       tags: [Compute]
       parameters:
         - name: app_id_or_name
-          in: query
+          in: path
           required: true
           schema:
             type: string
-          description: PlatformComputeApp Id or DeveloperName to download source for.
+          description: PlatformComputeApp Id or DeveloperName.
           example: CreditRatingScorer
       responses:
         '200':

@@ -64,14 +64,11 @@ async function buildBundle(): Promise<Buffer> {
   ]);
 }
 
-// The download call is the only one that goes through fakeConnectionRequest with a URL starting
-// with /connect/compute/source -- Org.init()'s own Organization-lookup request rides the same
-// stub, so filter rather than asserting on requestStub directly (mirrors deploy.test.ts's
-// findUploadCall).
+// The download call is the only one that goes through fakeConnectionRequest with a URL ending
+// in /source -- Org.init()'s own Organization-lookup request rides the same stub, so filter
+// rather than asserting on requestStub directly (mirrors deploy.test.ts's findUploadCall).
 function findDownloadCall(stub: sinon.SinonStub): sinon.SinonSpyCall | undefined {
-  return stub
-    .getCalls()
-    .find((call) => (call.args[0] as { url?: string } | undefined)?.url?.startsWith('/connect/compute/source'));
+  return stub.getCalls().find((call) => (call.args[0] as { url?: string } | undefined)?.url?.endsWith('/source'));
 }
 
 describe('compute source retrieve', () => {

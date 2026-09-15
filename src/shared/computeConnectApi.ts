@@ -59,8 +59,8 @@ export async function uploadComputeSource(
 }
 
 export type DownloadComputeSourceParams = {
-  /** DeveloperName of the PlatformComputeApp to download source for. */
-  name: string;
+  /** PlatformComputeApp Id or DeveloperName to download source for. */
+  appIdOrName: string;
 };
 
 // The GET counterpart to uploadComputeSource above -- see the Compute tag description in
@@ -76,7 +76,10 @@ export async function downloadComputeSource(
 ): Promise<Buffer> {
   try {
     const body = await connection.request<string>(
-      { method: 'GET', url: `/connect/compute/source?name=${encodeURIComponent(params.name)}` },
+      {
+        method: 'GET',
+        url: `/connect/compute/source?app_id_or_name=${encodeURIComponent(params.appIdOrName)}`,
+      },
       { encoding: 'binary' }
     );
     return Buffer.from(body, 'binary');

@@ -79,24 +79,24 @@ describe('computeConnectApi.downloadComputeSource', () => {
     const request = sinon.stub().resolves(original.toString('binary'));
     const connection = { request } as unknown as Connection;
 
-    const result = await downloadComputeSource(connection, { name: 'CreditRatingScorer' });
+    const result = await downloadComputeSource(connection, { appIdOrName: 'CreditRatingScorer' });
 
     expect(Buffer.compare(result, original)).to.equal(0);
     expect(request.calledOnce).to.be.true;
     const [httpRequest, options] = request.firstCall.args as [{ method: string; url: string }, { encoding: string }];
     expect(httpRequest.method).to.equal('GET');
-    expect(httpRequest.url).to.equal('/connect/compute/source?name=CreditRatingScorer');
+    expect(httpRequest.url).to.equal('/connect/compute/source?app_id_or_name=CreditRatingScorer');
     expect(options).to.deep.equal({ encoding: 'binary' });
   });
 
-  it('URL-encodes the name query param', async () => {
+  it('URL-encodes the app_id_or_name query param', async () => {
     const request = sinon.stub().resolves('');
     const connection = { request } as unknown as Connection;
 
-    await downloadComputeSource(connection, { name: 'my app/1' });
+    await downloadComputeSource(connection, { appIdOrName: 'my app/1' });
 
     const [httpRequest] = request.firstCall.args as [{ url: string }];
-    expect(httpRequest.url).to.equal('/connect/compute/source?name=my%20app%2F1');
+    expect(httpRequest.url).to.equal('/connect/compute/source?app_id_or_name=my%20app%2F1');
   });
 
   it('translates a failed request into a createError-style message', async () => {
@@ -104,7 +104,7 @@ describe('computeConnectApi.downloadComputeSource', () => {
     const connection = { request } as unknown as Connection;
 
     try {
-      await downloadComputeSource(connection, { name: 'CreditRatingScorer' });
+      await downloadComputeSource(connection, { appIdOrName: 'CreditRatingScorer' });
       expect.fail('expected downloadComputeSource to throw');
     } catch (err) {
       expect((err as Error).message).to.include('socket hang up');

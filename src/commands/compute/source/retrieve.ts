@@ -76,7 +76,7 @@ export default class Retrieve extends SfCommand<ComputeSourceRetrieveResult> {
     this.log(messages.getMessage('info.retrievedMetadata', [`${name}.compute-meta.xml`]));
 
     this.log(messages.getMessage('info.downloadingSource'));
-    const bundle = await downloadComputeSource(connection, { name });
+    const bundle = await downloadComputeSource(connection, { appIdOrName: name });
     const { fileCount } = await unpackComputeBundle(bundle, appDir);
     this.log(messages.getMessage('info.extractedSource', [fileCount]));
 

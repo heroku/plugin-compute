@@ -123,7 +123,7 @@ describe('compute deploy', () => {
     $$.localPathRetriever = async () => projectDir;
     $$.localPathRetrieverSync = () => projectDir;
 
-    const appDir = join(projectDir, 'force-app/main/default/compute/CreditRatingScorer');
+    const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer');
     await mkdir(join(appDir, 'src'), { recursive: true });
     await writeFile(join(appDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
     await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');
@@ -164,7 +164,7 @@ describe('compute deploy', () => {
   });
 
   it('excludes files matching the project-root .forceignore from the uploaded bundle', async () => {
-    const appDir = join(projectDir, 'force-app/main/default/compute/CreditRatingScorer');
+    const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer');
     await writeFile(join(appDir, 'src', 'secret.pem'), 'private key\n');
     await writeFile(join(projectDir, '.forceignore'), '*.pem\n');
 
@@ -209,7 +209,7 @@ describe('compute deploy', () => {
   });
 
   it('fails fast when the current directory has no <name>.compute-meta.xml', async () => {
-    const appDir = join(projectDir, 'force-app/main/default/compute/NotScaffolded');
+    const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/NotScaffolded');
     await mkdir(appDir, { recursive: true });
     await writeFile(join(appDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
     await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');
@@ -225,7 +225,7 @@ describe('compute deploy', () => {
   });
 
   it('reports the missing compute-meta.xml before checking whether the directory name is valid', async () => {
-    const appDir = join(projectDir, 'force-app/main/default/compute/Not-Valid');
+    const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/Not-Valid');
     await mkdir(appDir, { recursive: true });
     process.chdir(appDir);
 
@@ -240,7 +240,7 @@ describe('compute deploy', () => {
   });
 
   it('fails fast when the app has no Procfile', async () => {
-    const appDir = join(projectDir, 'force-app/main/default/compute/NoProcfile');
+    const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/NoProcfile');
     await mkdir(appDir, { recursive: true });
     await writeFile(join(appDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
     await writeFile(join(appDir, 'NoProcfile.compute-meta.xml'), '<PlatformComputeApp/>\n');
@@ -256,7 +256,7 @@ describe('compute deploy', () => {
   });
 
   it('fails fast when the app has no api-spec.yaml', async () => {
-    const appDir = join(projectDir, 'force-app/main/default/compute/NoApiSpec');
+    const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/NoApiSpec');
     await mkdir(appDir, { recursive: true });
     await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');
     await writeFile(join(appDir, 'NoApiSpec.compute-meta.xml'), '<PlatformComputeApp/>\n');
@@ -272,7 +272,7 @@ describe('compute deploy', () => {
   });
 
   it("rejects a directory name that isn't a valid compute app name", async () => {
-    const appDir = join(projectDir, 'force-app/main/default/compute/Not-Valid');
+    const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/Not-Valid');
     await mkdir(appDir, { recursive: true });
     await writeFile(join(appDir, 'Not-Valid.compute-meta.xml'), '<PlatformComputeApp/>\n');
     process.chdir(appDir);
@@ -291,7 +291,7 @@ describe('compute deploy', () => {
 
     const result = await Deploy.run([
       '--source-dir',
-      'force-app/main/default/compute/CreditRatingScorer',
+      'force-app/main/default/platformComputeApps/CreditRatingScorer',
       '--target-org',
       testOrg.username,
     ]);
@@ -305,7 +305,7 @@ describe('compute deploy', () => {
   });
 
   it('resolves a relative --source-dir to an absolute path before deriving the app name', async () => {
-    process.chdir(join(projectDir, 'force-app/main/default/compute'));
+    process.chdir(join(projectDir, 'force-app/main/default/platformComputeApps'));
 
     const result = await Deploy.run(['--source-dir', './CreditRatingScorer', '--target-org', testOrg.username]);
 
@@ -313,14 +313,14 @@ describe('compute deploy', () => {
   });
 
   it('rejects --source-dir when it has no <name>.compute-meta.xml, without falling back to cwd', async () => {
-    const notScaffolded = join(projectDir, 'force-app/main/default/compute/NotScaffolded');
+    const notScaffolded = join(projectDir, 'force-app/main/default/platformComputeApps/NotScaffolded');
     await mkdir(notScaffolded, { recursive: true });
     process.chdir(projectDir);
 
     try {
       await Deploy.run([
         '--source-dir',
-        'force-app/main/default/compute/NotScaffolded',
+        'force-app/main/default/platformComputeApps/NotScaffolded',
         '--target-org',
         testOrg.username,
       ]);
@@ -337,7 +337,7 @@ describe('compute deploy', () => {
     try {
       await Deploy.run([
         '--source-dir',
-        'force-app/main/default/compute/DoesNotExist',
+        'force-app/main/default/platformComputeApps/DoesNotExist',
         '--target-org',
         testOrg.username,
       ]);
@@ -354,7 +354,7 @@ describe('compute deploy', () => {
   // time. Two Deploy.run() calls from two different cwds, neither passing --source-dir, must each
   // resolve their own app name.
   it("re-evaluates --source-dir's default per invocation rather than once at class load", async () => {
-    const otherAppDir = join(projectDir, 'force-app/main/default/compute/OtherApp');
+    const otherAppDir = join(projectDir, 'force-app/main/default/platformComputeApps/OtherApp');
     await mkdir(join(otherAppDir, 'src'), { recursive: true });
     await writeFile(join(otherAppDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
     await writeFile(join(otherAppDir, 'Procfile'), 'web: node src/app.js\n');

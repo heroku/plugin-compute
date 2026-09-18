@@ -124,7 +124,6 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
   // HEROKU_API_TOKEN Heroku-direct escape hatch fetched above -- once W-24154928 lands, replace
   // that HEROKU_API_TOKEN branch here with the new Connect API call for all four rows.
   private renderHerokuAppTable(formation: HerokuFormationSummary | undefined): void {
-    this.log('');
     this.styledHeader('Heroku App');
     this.table({
       data: [
@@ -141,7 +140,6 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
   // it's redundant with External Service ID (both are set together by deploy's first-time
   // provisioning flow; there's no state where one exists without the other).
   private renderExternalServiceTable(result: ComputeAppSummary): void {
-    this.log('');
     this.styledHeader('External Service');
     this.table({
       data: [
@@ -155,7 +153,6 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
   // Build Duration is computed client-side from the two timestamps we do have, rather than
   // sourced from anywhere new.
   private renderCurrentBuildTable(result: ComputeAppSummary): void {
-    this.log('');
     this.styledHeader('Current Build');
     this.table({
       data: [
@@ -173,7 +170,6 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
   }
 
   private renderLatestDeploymentTable(result: ComputeAppSummary): void {
-    this.log('');
     this.styledHeader('Latest Deployment');
     this.table({
       data: [

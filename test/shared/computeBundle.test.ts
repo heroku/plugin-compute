@@ -72,7 +72,7 @@ describe('computeBundle.packageComputeBundle', () => {
 
   beforeEach(async () => {
     projectRoot = await mkdtemp(join(tmpdir(), 'plugin-compute-bundle-'));
-    appDir = join(projectRoot, 'force-app/main/default/compute/CreditRatingScorer');
+    appDir = join(projectRoot, 'force-app/main/default/platformComputeApps/CreditRatingScorer');
     await mkdir(appDir, { recursive: true });
     await writeFile(join(appDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
     await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');
@@ -194,7 +194,7 @@ describe('computeBundle.unpackComputeBundle', () => {
   it('round-trips packageComputeBundle output into api-spec.yaml and the source files', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'plugin-compute-bundle-src-'));
     try {
-      const appDir = join(projectRoot, 'force-app/main/default/compute/CreditRatingScorer');
+      const appDir = join(projectRoot, 'force-app/main/default/platformComputeApps/CreditRatingScorer');
       await mkdir(join(appDir, 'src'), { recursive: true });
       await writeFile(join(appDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
       await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');

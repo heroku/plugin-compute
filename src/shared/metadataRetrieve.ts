@@ -19,6 +19,7 @@ import { join } from 'node:path';
 import JSZip from 'jszip';
 import type { Connection } from '@salesforce/core';
 import { Messages } from '@salesforce/core';
+import { resolveComputeApiVersion } from './metadataApiVersion.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
@@ -27,7 +28,7 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.er
 // deployResult.complete(true): RetrieveResultLocator#complete() takes no argument (unlike
 // DeployResultLocator#complete(includeDetails?)), per @jsforce/jsforce-node's metadata.d.ts.
 export async function retrieveComputeMetadata(connection: Connection, appDir: string, name: string): Promise<void> {
-  const version = connection.getApiVersion();
+  const version = resolveComputeApiVersion(connection);
   const retrieveResult = connection.metadata.retrieve({
     apiVersion: Number(version),
     singlePackage: true,
@@ -46,12 +47,15 @@ export async function retrieveComputeMetadata(connection: Connection, appDir: st
   }
 
   const zip = await JSZip.loadAsync(result.zipFile, { base64: true });
+  // Wire directoryName/suffix -- see the matching comment in metadataDeploy.ts. Our own on-disk
+  // source-format filename (<name>.compute-meta.xml) is independent of the wire filename.
+  const wireFileName = `${name}.compute`;
   const metaFileName = `${name}.compute-meta.xml`;
-  const metaEntry = zip.file(`compute/${name}/${metaFileName}`);
+  const metaEntry = zip.file(`platformComputeApps/${wireFileName}`);
   if (!metaEntry) {
     throw messages.createError('error.metadataRetrieveFailed', [
       name,
-      `the retrieved metadata is missing compute/${name}/${metaFileName}`,
+      `the retrieved metadata is missing platformComputeApps/${wireFileName}`,
     ]);
   }
 

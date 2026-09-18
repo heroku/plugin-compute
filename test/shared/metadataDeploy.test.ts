@@ -49,7 +49,7 @@ describe('metadataDeploy.deployComputeMetadata', () => {
     return { connection, deploy, complete, on };
   }
 
-  it('builds a package.xml + compute/<name>/<name>.compute-meta.xml zip and deploys it', async () => {
+  it('builds a package.xml + platformComputeApps/<name>.compute zip and deploys it', async () => {
     const { connection, deploy, complete, on } = stubConnection({ success: true, details: { componentFailures: [] } });
 
     await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
@@ -70,10 +70,41 @@ describe('metadataDeploy.deployComputeMetadata', () => {
     expect(packageXml).to.include('<members>CreditRatingScorer</members>');
     expect(packageXml).to.include('<name>PlatformComputeApp</name>');
 
-    const metaXml = await zip.file('compute/CreditRatingScorer/CreditRatingScorer.compute-meta.xml')?.async('string');
+    const metaXml = await zip.file('platformComputeApps/CreditRatingScorer.compute')?.async('string');
     expect(metaXml).to.equal('<PlatformComputeApp/>\n');
 
     expect(complete.calledOnceWith(true)).to.be.true;
+  });
+
+  // Regression guard: PlatformComputeApp was only registered as a metadata type in API 68.0.
+  // Emitting a package.xml with a lower version (e.g. an org's negotiated default, or a lower
+  // sourceApiVersion) makes the server fail to resolve the type before it even inspects the zip
+  // contents -- surfacing as a misleading "was named in package.xml, but was not found in zipped
+  // directory" error instead of an explicit unsupported-type error.
+  it('floors the package.xml version at 68.0 even when the connection reports a lower API version', async () => {
+    const { connection, deploy, complete, on } = stubConnection({ success: true, details: { componentFailures: [] } });
+    connection.getApiVersion = () => '62.0';
+
+    await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
+
+    expect(on.calledOnceWith('error')).to.be.true;
+    expect(complete.calledOnceWith(true)).to.be.true;
+    const [zipBuffer] = deploy.firstCall.args as [Buffer];
+    const zip = await JSZip.loadAsync(zipBuffer);
+    const packageXml = await zip.file('package.xml')?.async('string');
+    expect(packageXml).to.include('<version>68.0</version>');
+  });
+
+  it('uses the connection API version as-is when it is already at or above 68.0', async () => {
+    const { connection, deploy } = stubConnection({ success: true, details: { componentFailures: [] } });
+    connection.getApiVersion = () => '70.0';
+
+    await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
+
+    const [zipBuffer] = deploy.firstCall.args as [Buffer];
+    const zip = await JSZip.loadAsync(zipBuffer);
+    const packageXml = await zip.file('package.xml')?.async('string');
+    expect(packageXml).to.include('<version>70.0</version>');
   });
 
   it('throws with the component failure detail when the deploy fails', async () => {

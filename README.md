@@ -351,12 +351,12 @@ DESCRIPTION
 
 EXAMPLES
   Deploy a compute app to an org, from inside the app's own directory:
-  cd force-app/main/default/compute/CreditRatingScorer
+  cd force-app/main/default/platformComputeApps/CreditRatingScorer
   $ sf compute deploy --target-org my-org
 
   Deploy a compute app to an org, from anywhere, by pointing --source-dir at it:
 
-    $ sf compute deploy --source-dir force-app/main/default/compute/CreditRatingScorer --target-org my-org
+    $ sf compute deploy --source-dir force-app/main/default/platformComputeApps/CreditRatingScorer --target-org my-org
 ```
 
 _See code: [src/commands/compute/deploy.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/deploy.ts)_
@@ -414,7 +414,7 @@ USAGE
   $ sf compute generate -n <value> [--json] [--flags-dir <value>] [-d <value>] [-l node|python]
 
 FLAGS
-  -d, --output-dir=<value>  [default: force-app/main/default/compute] Directory to create the app in.
+  -d, --output-dir=<value>  [default: force-app/main/default/platformComputeApps] Directory to create the app in.
   -l, --language=<option>   [default: node] Language to scaffold the starter project in.
                             <options: node|python>
   -n, --name=<value>        (required) Name for the new compute app.
@@ -426,7 +426,7 @@ GLOBAL FLAGS
 DESCRIPTION
   Scaffold a new compute app into your Salesforce DX project.
 
-  Creates the app directory under force-app/main/default/compute/<name>/ (or
+  Creates the app directory under force-app/main/default/platformComputeApps/<name>/ (or
   --output-dir) with a compute metadata file, a Procfile, a project.toml, and
   starter source in the language you choose with --language. This command runs
   entirely locally; no org is contacted.
@@ -438,12 +438,12 @@ EXAMPLES
 
   Scaffold a Python compute app into a custom directory:
 
-    $ sf compute generate --name ReceiptOcr --language python --output-dir force-app/main/default/compute/scorers
+    $ sf compute generate --name ReceiptOcr --language python --output-dir force-app/main/default/platformComputeApps/scorers
 
 FLAG DESCRIPTIONS
   -d, --output-dir=<value>  Directory to create the app in.
 
-    Defaults to force-app/main/default/compute. The app itself is created in a
+    Defaults to force-app/main/default/platformComputeApps. The app itself is created in a
     subdirectory named after --name.
 
   -l, --language=node|python  Language to scaffold the starter project in.
@@ -608,7 +608,7 @@ USAGE
   $ sf compute source retrieve -n <value> -o <value> [--json] [--flags-dir <value>] [-d <value>]
 
 FLAGS
-  -d, --output-dir=<value>  [default: force-app/main/default/compute] Directory to create the app in.
+  -d, --output-dir=<value>  [default: force-app/main/default/platformComputeApps] Directory to create the app in.
   -n, --name=<value>        (required) Name of the compute app to retrieve.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
@@ -620,7 +620,7 @@ GLOBAL FLAGS
 DESCRIPTION
   Retrieve a compute app's source and metadata from an org into your local Salesforce DX project.
 
-  Creates the compute app's directory under force-app/main/default/compute/<name>/
+  Creates the compute app's directory under force-app/main/default/platformComputeApps/<name>/
   (or --output-dir), retrieves its <name>.compute-meta.xml through the Metadata
   API, then downloads its source code through the Connect API and extracts it
   into that same directory. This is the inverse of sf compute deploy.
@@ -633,7 +633,7 @@ EXAMPLES
 FLAG DESCRIPTIONS
   -d, --output-dir=<value>  Directory to create the app in.
 
-    Defaults to force-app/main/default/compute. The app itself is created in a
+    Defaults to force-app/main/default/platformComputeApps. The app itself is created in a
     subdirectory named after --name.
 ```
 

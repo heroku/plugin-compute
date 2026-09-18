@@ -20,6 +20,7 @@ import JSZip from 'jszip';
 import type { Connection } from '@salesforce/core';
 import { Messages } from '@salesforce/core';
 import { getLogger } from '@oclif/core';
+import { resolveComputeApiVersion } from './metadataApiVersion.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
@@ -44,14 +45,17 @@ export async function deployComputeMetadata(connection: Connection, appDir: stri
       `        <members>${name}</members>`,
       '        <name>PlatformComputeApp</name>',
       '    </types>',
-      `    <version>${connection.getApiVersion()}</version>`,
+      `    <version>${resolveComputeApiVersion(connection)}</version>`,
       '</Package>',
       '',
     ].join('\n')
   );
-  // PlatformComputeApp's mdapi directoryName nests each app in its own subdirectory:
-  // compute/<name>/<name>.compute-meta.xml.
-  zip.file(`compute/${name}/${name}.compute-meta.xml`, metaXml);
+  // PlatformComputeApp is a standard (non-bundle) metadata type -- flat
+  // directoryName/<name>.<suffix>, not a per-component subdirectory like LWC/Aura bundles use.
+  // Wire directoryName is "platformComputeApps" per org describeMetadata (expected to become
+  // "compute" later); suffix is "compute" with metaFile: false, so there's no separate -meta.xml
+  // file on the wire -- that's purely our own on-disk source-format convention.
+  zip.file(`platformComputeApps/${name}.compute`, metaXml);
 
   const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
 

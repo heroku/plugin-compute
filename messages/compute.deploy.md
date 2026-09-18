@@ -24,13 +24,13 @@ Directory containing the compute app to deploy. Defaults to the current director
 
 - Deploy a compute app to an org, from inside the app's own directory:
 
-  cd force-app/main/default/compute/CreditRatingScorer
+  cd force-app/main/default/platformComputeApps/CreditRatingScorer
 
   <%= config.bin %> <%= command.id %> --target-org my-org
 
 - Deploy a compute app to an org, from anywhere, by pointing --source-dir at it:
 
-  <%= config.bin %> <%= command.id %> --source-dir force-app/main/default/compute/CreditRatingScorer --target-org my-org
+  <%= config.bin %> <%= command.id %> --source-dir force-app/main/default/platformComputeApps/CreditRatingScorer --target-org my-org
 
 # error.notAppDir
 
@@ -38,7 +38,7 @@ This directory has no %s.compute-meta.xml. Run this command from inside the comp
 
 # error.notAppDir.actions
 
-- cd into the compute app's directory (e.g. force-app/main/default/compute/<AppName>) and run the command again.
+- cd into the compute app's directory (e.g. force-app/main/default/platformComputeApps/<AppName>) and run the command again.
 - Run sf compute generate first if the app hasn't been scaffolded yet.
 
 # error.noProcfile

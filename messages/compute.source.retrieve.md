@@ -4,7 +4,7 @@ Retrieve a compute app's source and metadata from an org into your local Salesfo
 
 # description
 
-Creates the compute app's directory under force-app/main/default/compute/<name>/
+Creates the compute app's directory under force-app/main/default/platformComputeApps/<name>/
 (or --output-dir), retrieves its <name>.compute-meta.xml through the Metadata
 API, then downloads its source code through the Connect API and extracts it
 into that same directory. This is the inverse of sf compute deploy.
@@ -19,7 +19,7 @@ Directory to create the app in.
 
 # flags.output-dir.description
 
-Defaults to force-app/main/default/compute. The app itself is created in a
+Defaults to force-app/main/default/platformComputeApps. The app itself is created in a
 subdirectory named after --name.
 
 # examples

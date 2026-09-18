@@ -86,7 +86,7 @@ describe('compute source retrieve', () => {
     await $$.stubAuths(testOrg);
 
     const zipFile = await zipBase64({
-      'compute/CreditRatingScorer/CreditRatingScorer.compute-meta.xml': '<PlatformComputeApp/>\n',
+      'platformComputeApps/CreditRatingScorer.compute': '<PlatformComputeApp/>\n',
     });
     const bundle = await buildBundle();
 
@@ -121,7 +121,7 @@ describe('compute source retrieve', () => {
   it('creates the app directory, retrieves metadata, then downloads and extracts source', async () => {
     const result = await Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    const relativeAppDir = join('force-app/main/default/compute', 'CreditRatingScorer');
+    const relativeAppDir = join('force-app/main/default/platformComputeApps', 'CreditRatingScorer');
     const appDir = join(projectDir, relativeAppDir);
     expect(result).to.deep.equal({ name: 'CreditRatingScorer', path: relativeAppDir, files: 2 });
 
@@ -171,7 +171,7 @@ describe('compute source retrieve', () => {
   });
 
   it('fails fast when the app directory already exists, without calling any API', async () => {
-    const appDir = join(projectDir, 'force-app/main/default/compute/CreditRatingScorer');
+    const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer');
     await mkdir(appDir, { recursive: true });
 
     try {
@@ -209,7 +209,7 @@ describe('compute source retrieve', () => {
     }
 
     expect(metadataRetrieveStub.calledOnce).to.be.true;
-    const appDir = join(projectDir, 'force-app/main/default/compute/CreditRatingScorer');
+    const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer');
     expect(await readFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), 'utf8')).to.equal(
       '<PlatformComputeApp/>\n'
     );

@@ -48,7 +48,7 @@ export default class Retrieve extends SfCommand<ComputeSourceRetrieveResult> {
       char: 'd',
       summary: messages.getMessage('flags.output-dir.summary'),
       description: messages.getMessage('flags.output-dir.description'),
-      default: 'force-app/main/default/compute',
+      default: 'force-app/main/default/platformComputeApps',
     }),
   };
 

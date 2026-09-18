@@ -51,7 +51,7 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
       char: 'd',
       summary: messages.getMessage('flags.output-dir.summary'),
       description: messages.getMessage('flags.output-dir.description'),
-      default: 'force-app/main/default/compute',
+      default: 'force-app/main/default/platformComputeApps',
     }),
     language: Flags.string({
       char: 'l',

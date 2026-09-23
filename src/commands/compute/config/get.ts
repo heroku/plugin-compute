@@ -18,10 +18,8 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Args } from '@oclif/core';
 import { Messages } from '@salesforce/core';
 import { requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
-import { fetchComputeConfigVars } from '../../../shared/computeConnectApi.js';
 import { formatConfigVarLines, requireConfigVar } from '../../../shared/computeConfig.js';
-import { getHerokuApiToken } from '../../../shared/herokuApi.js';
-import { fetchComputeConfigVarsViaHeroku } from '../../../shared/herokuComputeApi.js';
+import { fetchComputeConfigVarsViaProxy } from '../../../shared/herokuProxyApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.config.get');
@@ -67,14 +65,11 @@ export default class ConfigGet extends SfCommand<ComputeConfigGetResult> {
     }
     const keys = [...new Set(tokens)];
 
-    // --name is never interpolated into SOQL (unlike display.ts/list.ts) -- both the Connect and
-    // Heroku-direct paths below URL-encode it as a REST path segment, and a PlatformComputeApp
-    // Id/DeveloperName and a Heroku app Id/name (conventionally hyphenated) must both pass
-    // through untouched -- so this skips validateName, matching scale.ts.
-    const herokuToken = getHerokuApiToken();
-    const configVars = herokuToken
-      ? await fetchComputeConfigVarsViaHeroku(herokuToken, { name })
-      : await fetchComputeConfigVars(flags['target-org'].getConnection(), { app: name });
+    // --name is never interpolated into SOQL (unlike display.ts/list.ts) -- the proxy path below
+    // URL-encodes it as a REST path segment, and a PlatformComputeApp Id/DeveloperName and a
+    // Heroku app Id/name (conventionally hyphenated) must both pass through untouched -- so this
+    // skips validateName, matching scale.ts.
+    const configVars = await fetchComputeConfigVarsViaProxy(flags['target-org'].getConnection(), { name });
 
     const values: Record<string, string> = {};
     for (const key of keys) {

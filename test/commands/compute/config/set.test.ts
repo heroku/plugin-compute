@@ -23,14 +23,32 @@ import { Org } from '@salesforce/core';
 import { stubSfCommandUx, stubSpinner } from '@salesforce/sf-plugins-core';
 import ConfigSet from '../../../../src/commands/compute/config/set.js';
 
+// Decode the real Heroku target URL out of the proxy_url query param -- mirrors
+// herokuProxyRequest's proxyUrl construction in herokuProxyApi.ts (see config.test.ts/scale.test.ts).
+function proxyTarget(url: string): string {
+  return new URL(url, 'https://example.com').searchParams.get('proxy_url') ?? '';
+}
+
+// set.ts makes two separate proxy calls (PATCH .../config-vars, then GET .../releases), plus
+// Org.create()/getConnection() issues its own request through this same shared requestStub while
+// resolving --target-org -- so routing must key off both the decoded target and the method.
 function findConfigVarsCall(stub: sinon.SinonStub, method?: string): sinon.SinonSpyCall | undefined {
   return stub.getCalls().find((call) => {
     const req = call.args[0] as { url?: string; method?: string } | undefined;
-    return Boolean(
-      req?.url?.startsWith('/connect/compute/') &&
-        req.url.endsWith('/config-vars') &&
-        (!method || req.method === method)
-    );
+    if (!req?.url) {
+      return false;
+    }
+    return proxyTarget(req.url).endsWith('/config-vars') && (!method || req.method === method);
+  });
+}
+
+function findReleasesCall(stub: sinon.SinonStub, method?: string): sinon.SinonSpyCall | undefined {
+  return stub.getCalls().find((call) => {
+    const req = call.args[0] as { url?: string; method?: string } | undefined;
+    if (!req?.url) {
+      return false;
+    }
+    return proxyTarget(req.url).endsWith('/releases') && (!method || req.method === method);
   });
 }
 
@@ -50,7 +68,20 @@ describe('compute config set', () => {
     const connection = org.getConnection();
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
-    requestStub = sinon.stub().resolves({ configVars: { STRIPE_KEY: 'sk_live_xyz789' }, release: 11 });
+    // PATCH .../config-vars returns Heroku's raw (flat) updated ConfigVars map; the command
+    // doesn't read it back into the result (it echoes `updates` instead), so its exact contents
+    // only matter for tests that assert on it directly. GET .../releases is the second,
+    // independent call set.ts makes to report a release number in its spinner/output.
+    requestStub = sinon.stub().callsFake(async (req: { method?: string; url?: string }) => {
+      const target = req.url ? proxyTarget(req.url) : '';
+      if (target.endsWith('/config-vars') && req.method === 'PATCH') {
+        return { STRIPE_KEY: 'sk_live_xyz789' };
+      }
+      if (target.endsWith('/releases') && req.method === 'GET') {
+        return [{ version: 11 }];
+      }
+      return {};
+    });
     $$.fakeConnectionRequest = requestStub;
   });
 
@@ -76,20 +107,19 @@ describe('compute config set', () => {
     expect(sfCommandStubs.log.args.flat()).to.deep.equal(['STRIPE_KEY=sk_live_xyz789']);
     expect(spinnerStubs.start.firstCall.args[0]).to.equal('Setting config vars and restarting CreditRatingScorer');
     expect(spinnerStubs.stop.firstCall.args[0]).to.equal('done, v11');
-    const call = findConfigVarsCall(requestStub, 'PATCH');
-    expect(call, 'expected a PATCH to /connect/compute/{app}/config-vars').to.not.be.undefined;
-    expect(JSON.parse((call!.args[0] as { body: string }).body)).to.deep.equal({ STRIPE_KEY: 'sk_live_xyz789' });
-    expect(
-      requestStub.getCalls().filter((c) => (c.args[0] as { url?: string })?.url?.endsWith('/config-vars'))
-    ).to.have.length(1);
+    const patchCall = findConfigVarsCall(requestStub, 'PATCH');
+    expect(patchCall, 'expected a PATCH proxied to Heroku config-vars').to.not.be.undefined;
+    expect(proxyTarget((patchCall!.args[0] as { url: string }).url)).to.equal(
+      'https://api.heroku.com/apps/CreditRatingScorer/config-vars'
+    );
+    expect(JSON.parse((patchCall!.args[0] as { body: string }).body)).to.deep.equal({
+      STRIPE_KEY: 'sk_live_xyz789',
+    });
+    const releasesCall = findReleasesCall(requestStub, 'GET');
+    expect(releasesCall, 'expected a GET proxied to Heroku releases').to.not.be.undefined;
   });
 
   it('echoes only the vars just set, in the order typed, not the full response map', async () => {
-    requestStub.resolves({
-      configVars: { STRIPE_KEY: 'sk_live_xyz789', LOG_LEVEL: 'debug', UNRELATED: 'untouched' },
-      release: 11,
-    });
-
     const result = await ConfigSet.run([
       'STRIPE_KEY=sk_live_xyz789',
       'LOG_LEVEL=debug',
@@ -108,8 +138,6 @@ describe('compute config set', () => {
   });
 
   it('splits only on the first =, so a value containing = is preserved whole', async () => {
-    requestStub.resolves({ configVars: { DB_URL: 'postgres://user:pass@host/db?ssl=true' } });
-
     const result = await ConfigSet.run([
       'DB_URL=postgres://user:pass@host/db?ssl=true',
       '--name',
@@ -122,18 +150,14 @@ describe('compute config set', () => {
   });
 
   it('accepts an empty value after the =, setting the key to an empty string', async () => {
-    requestStub.resolves({ configVars: { FOO: '' } });
-
     const result = await ConfigSet.run(['FOO=', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result.configVars).to.deep.equal({ FOO: '' });
-    const call = findConfigVarsCall(requestStub, 'PATCH');
-    expect(JSON.parse((call!.args[0] as { body: string }).body)).to.deep.equal({ FOO: '' });
+    const patchCall = findConfigVarsCall(requestStub, 'PATCH');
+    expect(JSON.parse((patchCall!.args[0] as { body: string }).body)).to.deep.equal({ FOO: '' });
   });
 
   it('preserves whitespace around the key and value verbatim, without trimming', async () => {
-    requestStub.resolves({ configVars: { ' FOO ': ' bar ' } });
-
     const result = await ConfigSet.run([
       ' FOO = bar ',
       '--name',
@@ -146,8 +170,6 @@ describe('compute config set', () => {
   });
 
   it('last-write-wins when the same key is set twice in one invocation', async () => {
-    requestStub.resolves({ configVars: { FOO: '2' } });
-
     const result = await ConfigSet.run([
       'FOO=1',
       'FOO=2',
@@ -158,12 +180,21 @@ describe('compute config set', () => {
     ]);
 
     expect(result.configVars).to.deep.equal({ FOO: '2' });
-    const call = findConfigVarsCall(requestStub, 'PATCH');
-    expect(JSON.parse((call!.args[0] as { body: string }).body)).to.deep.equal({ FOO: '2' });
+    const patchCall = findConfigVarsCall(requestStub, 'PATCH');
+    expect(JSON.parse((patchCall!.args[0] as { body: string }).body)).to.deep.equal({ FOO: '2' });
   });
 
-  it('omits release from the result when the Connect response has none', async () => {
-    requestStub.resolves({ configVars: { FOO: 'bar' } });
+  it('omits release from the result when there are no releases yet', async () => {
+    requestStub.callsFake(async (req: { method?: string; url?: string }) => {
+      const target = req.url ? proxyTarget(req.url) : '';
+      if (target.endsWith('/config-vars') && req.method === 'PATCH') {
+        return { FOO: 'bar' };
+      }
+      if (target.endsWith('/releases') && req.method === 'GET') {
+        return [];
+      }
+      return {};
+    });
 
     const result = await ConfigSet.run(['FOO=bar', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
@@ -172,7 +203,26 @@ describe('compute config set', () => {
     expect(spinnerStubs.stop.firstCall.args[0]).to.equal('done');
   });
 
-  it('rejects a token with no =, without calling the Connect API', async () => {
+  it('omits release, but still succeeds, when the release lookup itself fails (best-effort)', async () => {
+    requestStub.callsFake(async (req: { method?: string; url?: string }) => {
+      const target = req.url ? proxyTarget(req.url) : '';
+      if (target.endsWith('/config-vars') && req.method === 'PATCH') {
+        return { FOO: 'bar' };
+      }
+      if (target.endsWith('/releases') && req.method === 'GET') {
+        throw new Error('socket hang up');
+      }
+      return {};
+    });
+
+    const result = await ConfigSet.run(['FOO=bar', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result).to.deep.equal({ name: 'CreditRatingScorer', configVars: { FOO: 'bar' } });
+    expect(result).to.not.have.property('release');
+    expect(spinnerStubs.stop.firstCall.args[0]).to.equal('done');
+  });
+
+  it('rejects a token with no =, without calling the Heroku proxy', async () => {
     try {
       await ConfigSet.run(['FOO_BAR', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
@@ -182,7 +232,7 @@ describe('compute config set', () => {
     expect(findConfigVarsCall(requestStub)).to.be.undefined;
   });
 
-  it('rejects when no pairs are given, without calling the Connect API', async () => {
+  it('rejects when no pairs are given, without calling the Heroku proxy', async () => {
     try {
       await ConfigSet.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
@@ -192,16 +242,60 @@ describe('compute config set', () => {
     expect(findConfigVarsCall(requestStub)).to.be.undefined;
   });
 
-  it('wraps a Connect API failure as error.configVarsUpdateFailed and prints no echo lines', async () => {
-    requestStub.rejects(new Error('socket hang up'));
+  it('wraps an unrecognized proxy failure as error.herokuApiRequestFailed and prints no echo lines', async () => {
+    requestStub.callsFake(async (req: { method?: string; url?: string }) => {
+      const target = req.url ? proxyTarget(req.url) : '';
+      if (target.endsWith('/config-vars') && req.method === 'PATCH') {
+        throw new Error('socket hang up');
+      }
+      return {};
+    });
 
     try {
       await ConfigSet.run(['FOO=bar', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
-      expect((e as Error).message).to.include("Couldn't update the compute app's config vars: socket hang up");
+      expect((e as Error).message).to.include(
+        "Couldn't reach the Heroku Platform API through Salesforce: socket hang up"
+      );
     }
     expect(sfCommandStubs.log.called).to.be.false;
+    expect(spinnerStubs.stop.firstCall.args[0]).to.equal('failed');
+  });
+
+  it('wraps a proxy-rejection failure as error.herokuProxyRequestFailed', async () => {
+    requestStub.callsFake(async (req: { method?: string; url?: string }) => {
+      const target = req.url ? proxyTarget(req.url) : '';
+      if (target.endsWith('/config-vars') && req.method === 'PATCH') {
+        throw Object.assign(new Error('bad proxy_url'), { errorCode: 'HEROKU_PROXY_ERROR' });
+      }
+      return {};
+    });
+
+    try {
+      await ConfigSet.run(['FOO=bar', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('The Salesforce Heroku API proxy rejected the request: bad proxy_url');
+    }
+    expect(spinnerStubs.stop.firstCall.args[0]).to.equal('failed');
+  });
+
+  it('surfaces error.herokuAppNotFound when Heroku 404s the app', async () => {
+    requestStub.callsFake(async (req: { method?: string; url?: string }) => {
+      const target = req.url ? proxyTarget(req.url) : '';
+      if (target.endsWith('/config-vars') && req.method === 'PATCH') {
+        throw Object.assign(new Error("Couldn't find that app."), { data: { id: 'not_found' } });
+      }
+      return {};
+    });
+
+    try {
+      await ConfigSet.run(['FOO=bar', '--name', 'missing-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('missing-app');
+    }
     expect(spinnerStubs.stop.firstCall.args[0]).to.equal('failed');
   });
 
@@ -228,8 +322,10 @@ describe('compute config set', () => {
     try {
       const result = await ConfigSet.run(['STRIPE_KEY=sk_live_xyz789', '--target-org', testOrg.username]);
       expect(result.name).to.equal('CreditRatingScorer');
-      const call = findConfigVarsCall(requestStub, 'PATCH');
-      expect((call!.args[0] as { url: string }).url).to.equal('/connect/compute/CreditRatingScorer/config-vars');
+      const patchCall = findConfigVarsCall(requestStub, 'PATCH');
+      expect(proxyTarget((patchCall!.args[0] as { url: string }).url)).to.equal(
+        'https://api.heroku.com/apps/CreditRatingScorer/config-vars'
+      );
     } finally {
       delete process.env.COMPUTE_APP_NAME;
     }
@@ -265,78 +361,5 @@ describe('compute config set', () => {
       await rm(tmp, { recursive: true, force: true });
     }
     expect(findConfigVarsCall(requestStub)).to.be.undefined;
-  });
-});
-
-describe('compute config set with HEROKU_API_TOKEN set', () => {
-  const $$ = new TestContext();
-  const testOrg = new MockTestOrgData();
-  let spinnerStubs: ReturnType<typeof stubSpinner>;
-  let fetchStub: sinon.SinonStub;
-
-  beforeEach(async () => {
-    stubSfCommandUx($$.SANDBOX);
-    spinnerStubs = stubSpinner($$.SANDBOX);
-    await $$.stubAuths(testOrg);
-
-    const org = await Org.create({ aliasOrUsername: testOrg.username });
-    const connection = org.getConnection();
-    $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
-
-    process.env.HEROKU_API_TOKEN = 'shh-secret-token';
-    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch');
-  });
-
-  afterEach(() => {
-    delete process.env.HEROKU_API_TOKEN;
-    process.exitCode = 0;
-    $$.restore();
-  });
-
-  function jsonResponse(body: unknown, status = 200): Response {
-    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-  }
-
-  it('sets config vars via Heroku directly and omits release, since Heroku returns none', async () => {
-    fetchStub.resolves(jsonResponse({ STRIPE_KEY: 'sk_live_xyz789' }));
-
-    const result = await ConfigSet.run([
-      'STRIPE_KEY=sk_live_xyz789',
-      '--name',
-      'my-heroku-app',
-      '--target-org',
-      testOrg.username,
-    ]);
-
-    expect(result).to.deep.equal({ name: 'my-heroku-app', configVars: { STRIPE_KEY: 'sk_live_xyz789' } });
-    expect(spinnerStubs.stop.firstCall.args[0]).to.equal('done');
-    const request = fetchStub.firstCall.args[0] as Request;
-    expect(request.url).to.equal('https://api.heroku.com/apps/my-heroku-app/config-vars');
-    expect(request.method).to.equal('PATCH');
-    expect(await request.clone().json()).to.deep.equal({ STRIPE_KEY: 'sk_live_xyz789' });
-  });
-
-  it('surfaces error.herokuAuthFailed on a 401/403, never leaking the token', async () => {
-    fetchStub.resolves(new Response('forbidden', { status: 403 }));
-
-    try {
-      await ConfigSet.run(['FOO=bar', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include('rejected the request');
-      expect((e as Error).message).to.not.include('shh-secret-token');
-    }
-    expect(spinnerStubs.stop.firstCall.args[0]).to.equal('failed');
-  });
-
-  it('surfaces error.herokuApiRequestFailed on any other Heroku failure', async () => {
-    fetchStub.resolves(new Response('server error', { status: 500 }));
-
-    try {
-      await ConfigSet.run(['FOO=bar', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("Couldn't reach the Heroku Platform API");
-    }
   });
 });

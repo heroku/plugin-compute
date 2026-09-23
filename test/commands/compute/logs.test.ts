@@ -23,13 +23,22 @@ import { Org } from '@salesforce/core';
 import { stubSfCommandUx } from '@salesforce/sf-plugins-core';
 import Logs from '../../../src/commands/compute/logs.js';
 
+// Every proxy-bound request lands on the same /services/data/vXX.0/heroku/proxy path with the
+// real Heroku target URL percent-encoded into the proxy_url query param -- decode it to inspect
+// which Heroku path/app a given call actually targeted, mirroring how herokuProxyRequest builds
+// it in herokuProxyApi.ts (see scale.test.ts/build/output.test.ts for the same helper).
+function proxyTarget(url: string): string {
+  return new URL(url, 'https://example.com').searchParams.get('proxy_url') ?? '';
+}
+
 // Org.create()/getConnection() issues its own Organization-lookup request through the same
 // shared requestStub while resolving --target-org, so callCount/called on the stub itself is
-// unreliable -- filter for the specific logs-session call instead (mirrors build/output.test.ts).
+// unreliable -- filter for the specific log-sessions call instead (mirrors build/output.test.ts).
 function findLogSessionCall(stub: sinon.SinonStub): sinon.SinonSpyCall | undefined {
-  return stub
-    .getCalls()
-    .find((call) => (call.args[0] as { url?: string } | undefined)?.url?.includes('/connect/compute/logs/session'));
+  return stub.getCalls().find((call) => {
+    const req = call.args[0] as { url?: string } | undefined;
+    return req?.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions');
+  });
 }
 
 function streamOf(chunks: string[]): ReadableStream<Uint8Array> {
@@ -80,7 +89,9 @@ describe('compute logs', () => {
     toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
-    requestStub = sinon.stub().resolves({ logplexUrl: 'https://logplex.heroku.com/sessions/abc?srv=1' });
+    /* eslint-disable camelcase -- logplex_url mirrors Heroku's LogSession field name */
+    requestStub = sinon.stub().resolves({ logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1' });
+    /* eslint-enable camelcase */
     $$.fakeConnectionRequest = requestStub;
 
     fetchStub = $$.SANDBOX.stub(globalThis, 'fetch').resolves(new Response('line one\nline two\n', { status: 200 }));
@@ -108,12 +119,16 @@ describe('compute logs', () => {
     expect(output).to.include('line two');
 
     const call = findLogSessionCall(requestStub);
-    expect(call, 'expected a POST to /connect/compute/logs/session').to.not.be.undefined;
+    expect(call, 'expected a POST to the Heroku proxy log-sessions path').to.not.be.undefined;
+    expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
+      'https://api.heroku.com/apps/CreditRatingScorer/log-sessions'
+    );
     const body = JSON.parse((call!.args[0] as { body: string }).body);
-    expect(body).to.deep.equal({ name: 'CreditRatingScorer', lines: 100, tail: false });
+    expect(body).to.deep.equal({ lines: 100, tail: false });
+    expect(fetchStub.calledWith('https://logplex.heroku.com/sessions/abc?srv=1')).to.be.true;
   });
 
-  it('reports no builds yet and returns just the name when CurrentBuild is null, without calling Connect or fetch', async () => {
+  it('reports no builds yet and returns just the name when CurrentBuild is null, without calling the proxy or fetch', async () => {
     resolveWith([{ ...deployedRecord, CurrentBuild: null }]);
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
@@ -141,7 +156,7 @@ describe('compute logs', () => {
 
     const call = findLogSessionCall(requestStub);
     const body = JSON.parse((call!.args[0] as { body: string }).body);
-    expect(body).to.deep.equal({ name: 'CreditRatingScorer', lines: 500, tail: false });
+    expect(body).to.deep.equal({ lines: 500, tail: false });
   });
 
   it('streams lines and reports the session ending naturally under --tail', async () => {
@@ -161,7 +176,7 @@ describe('compute logs', () => {
 
     const call = findLogSessionCall(requestStub);
     const body = JSON.parse((call!.args[0] as { body: string }).body);
-    expect(body).to.deep.equal({ name: 'CreditRatingScorer', lines: 100, tail: true });
+    expect(body).to.deep.equal({ lines: 100, tail: true });
   });
 
   it('rejects combining --tail with --json before any org call is made', async () => {
@@ -176,7 +191,7 @@ describe('compute logs', () => {
     expect(toolingQueryStub.called).to.be.false;
   });
 
-  it('propagates the not-found error from the SOQL pre-check without calling Connect or fetch', async () => {
+  it('propagates the not-found error from the SOQL pre-check without calling the proxy or fetch', async () => {
     resolveWith([]);
 
     try {
@@ -189,7 +204,19 @@ describe('compute logs', () => {
     expect(fetchStub.called).to.be.false;
   });
 
-  it('wraps a genuine session-creation failure distinctly', async () => {
+  it('surfaces error.herokuAppNotFound when Heroku 404s the log-session creation', async () => {
+    resolveWith([deployedRecord]);
+    requestStub.rejects(Object.assign(new Error("Couldn't find that app."), { data: { id: 'not_found' } }));
+
+    try {
+      await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("Heroku didn't find an app named CreditRatingScorer");
+    }
+  });
+
+  it('wraps a genuine session-creation transport failure as error.herokuApiRequestFailed', async () => {
     resolveWith([deployedRecord]);
     requestStub.rejects(new Error('socket hang up'));
 
@@ -197,11 +224,13 @@ describe('compute logs', () => {
       await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
-      expect((e as Error).message).to.include("Couldn't create a log session: socket hang up");
+      expect((e as Error).message).to.include(
+        "Couldn't reach the Heroku Platform API through Salesforce: socket hang up"
+      );
     }
   });
 
-  it('preserves the exact case of --name in both the SOQL filter and the Connect API body', async () => {
+  it('preserves the exact case of --name in both the SOQL filter and the Heroku proxy target', async () => {
     resolveWith([deployedRecord]);
 
     await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
@@ -209,11 +238,12 @@ describe('compute logs', () => {
     const soql: string = toolingQueryStub.firstCall.args[0];
     expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
     const call = findLogSessionCall(requestStub);
-    const body: { name: string } = JSON.parse((call!.args[0] as { body: string }).body);
-    expect(body.name).to.equal('CreditRatingScorer');
+    expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
+      'https://api.heroku.com/apps/CreditRatingScorer/log-sessions'
+    );
   });
 
-  it('rejects an invalid --name before querying or calling Connect', async () => {
+  it('rejects an invalid --name before querying or calling the proxy', async () => {
     try {
       await Logs.run(['--name', '../evil', '--target-org', testOrg.username]);
       expect.fail('expected an error');
@@ -278,123 +308,5 @@ describe('compute logs', () => {
 
     expect(JSON.stringify(jsonOutput)).to.not.include('"lines"');
     expect(result).to.deep.equal({ name: 'CreditRatingScorer' });
-  });
-});
-
-describe('compute logs with HEROKU_API_TOKEN set', () => {
-  const $$ = new TestContext();
-  const testOrg = new MockTestOrgData();
-  let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
-  let toolingQueryStub: sinon.SinonStub;
-  let requestStub: sinon.SinonStub;
-  let fetchStub: sinon.SinonStub;
-
-  const deployedRecord = {
-    Id: '0abEE0000004CqYYAU',
-    DeveloperName: 'CreditRatingScorer',
-    MasterLabel: 'Credit Rating Scorer',
-    Description: null,
-    Status: 'ACTIVE',
-    StatusReason: null,
-    CurrentBuild: {
-      Id: '0acEE0000004D1ZYAU',
-      BuildStatus: 'SUCCEEDED',
-      BuildStartedAt: '2026-08-31T14:23:50.000Z',
-      BuildCompletedAt: '2026-08-31T14:25:32.000Z',
-      DeployedAt: '2026-08-31T14:25:32.000Z',
-      DeployedBy: { Username: 'dev@mycompany.com' },
-      Error: null,
-    },
-    ExternalServiceRegistration: null,
-  };
-
-  beforeEach(async () => {
-    sfCommandStubs = stubSfCommandUx($$.SANDBOX);
-    await $$.stubAuths(testOrg);
-
-    const org = await Org.create({ aliasOrUsername: testOrg.username });
-    const connection = org.getConnection();
-    toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
-    $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
-    toolingQueryStub.resolves({ totalSize: 1, records: [deployedRecord], done: true });
-
-    // Distinct from the Heroku log-sessions call below so a stray Connect call is easy to notice.
-    requestStub = sinon.stub().resolves({ logplexUrl: 'https://connect-api-path-not-used.example/sessions/abc' });
-    $$.fakeConnectionRequest = requestStub;
-
-    process.env.HEROKU_API_TOKEN = 'shh-secret-token';
-    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch');
-  });
-
-  afterEach(() => {
-    delete process.env.HEROKU_API_TOKEN;
-    $$.restore();
-  });
-
-  function stubLogSessionAndLogplex(logplexUrl: string, logplexResponse: Response): void {
-    fetchStub.callsFake(async (input: string | Request) => {
-      const url = typeof input === 'string' ? input : input.url;
-      if (url.includes('/log-sessions')) {
-        // eslint-disable-next-line camelcase -- logplex_url is Heroku's LogSession field name
-        return new Response(JSON.stringify({ id: 'sess1', logplex_url: logplexUrl }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-      if (url === logplexUrl) {
-        return logplexResponse;
-      }
-      throw new Error(`Unexpected fetch to ${url}`);
-    });
-  }
-
-  it('creates the log session via Heroku directly and prints backfilled lines, without calling Connect', async () => {
-    stubLogSessionAndLogplex(
-      'https://logplex.heroku.com/sessions/direct?srv=1',
-      new Response('line one\nline two\n', { status: 200 })
-    );
-
-    const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-
-    expect(result).to.deep.equal({ name: 'CreditRatingScorer', lines: ['line one', 'line two'] });
-    expect(findLogSessionCall(requestStub)).to.be.undefined;
-  });
-
-  it('creates the log session via Heroku directly under --tail', async () => {
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(encoder.encode('line one\n'));
-        controller.close();
-      },
-    });
-    stubLogSessionAndLogplex('https://logplex.heroku.com/sessions/direct?srv=1', new Response(stream, { status: 200 }));
-
-    const result = await Logs.run(['--name', 'CreditRatingScorer', '--tail', '--target-org', testOrg.username]);
-
-    expect(result).to.deep.equal({ name: 'CreditRatingScorer' });
-    const output = sfCommandStubs.log
-      .getCalls()
-      .flatMap((c) => c.args)
-      .join('\n');
-    expect(output).to.include('line one');
-    expect(findLogSessionCall(requestStub)).to.be.undefined;
-  });
-
-  it('surfaces a hard herokuAppNotFound error when Heroku 404s the app itself', async () => {
-    fetchStub.resolves(
-      new Response(JSON.stringify({ id: 'not_found', message: "Couldn't find that app." }), {
-        status: 404,
-        headers: { 'content-type': 'application/json' },
-      })
-    );
-
-    try {
-      await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include('CreditRatingScorer');
-    }
-    expect(findLogSessionCall(requestStub)).to.be.undefined;
   });
 });

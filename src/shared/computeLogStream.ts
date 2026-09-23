@@ -19,10 +19,10 @@ import { Messages } from '@salesforce/core';
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
 
-// logplexUrl is itself the auth mechanism (a short-lived, pre-authorized URL) -- these calls are
-// raw fetch against logplex.heroku.com, not connection.request() (wrong host, no Salesforce
-// bearer token applies) and not createHerokuClient() (wrong host, no Heroku bearer token held
-// client-side). See src/shared/herokuApi.ts's header comment for why that client doesn't apply.
+// logplexUrl/outputStreamUrl are themselves the auth mechanism (short-lived, pre-authorized URLs
+// handed back by a Heroku proxy call) -- these calls are raw fetch against the URL Heroku gave
+// us, not connection.request() (wrong host, no Salesforce bearer token applies) and not a
+// Heroku-token-bearing client (wrong host, no Heroku bearer token held client-side).
 
 export async function fetchLogplexOutput(logplexUrl: string): Promise<string> {
   try {
@@ -33,6 +33,21 @@ export async function fetchLogplexOutput(logplexUrl: string): Promise<string> {
     return await response.text();
   } catch (err) {
     throw messages.createError('error.logStreamFailed', [(err as Error).message]);
+  }
+}
+
+// Bounded one-shot fetch, not a stream -- `build output` prints one finished-or-in-progress
+// build's log, unlike `logs --tail`'s ongoing runtime stream. Explicit Accept: output_stream_url
+// serves either text/plain or text/event-stream, and this call wants the plain-text snapshot.
+export async function fetchBuildOutputStream(outputStreamUrl: string): Promise<string> {
+  try {
+    const response = await fetch(outputStreamUrl, { headers: { Accept: 'text/plain' } });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.text();
+  } catch (err) {
+    throw messages.createError('error.buildOutputFetchFailed', [(err as Error).message]);
   }
 }
 

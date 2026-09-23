@@ -76,6 +76,13 @@ paths:
     get:
       operationId: listBuilds
       summary: List builds for an app
+      description: >-
+        Returns builds oldest-first. `sf compute build output` uses this
+        (rather than getBuild by id) to reach the latest build's
+        `output_stream_url`, because the only build identifier the CLI has
+        client-side is PlatformComputeAppBuild's Salesforce record Id, not a
+        Heroku build UUID -- so it lists and takes the last element instead
+        of fetching by id.
       tags: [Build]
       responses:
         '200':
@@ -331,10 +338,11 @@ paths:
       summary: Create a log session
       description: >-
         Creates a reference to an HTTP log stream for the app, to obtain a
-        `logplex_url` for `sf compute logs` to stream or tail from. Normally
-        the org calls this on the customer's behalf (via
-        /connect/compute/logs/session in salesforce-connect-compute.yaml);
-        the CLI calls it directly only when HEROKU_API_TOKEN is set.
+        `logplex_url` for `sf compute logs` to stream or tail from. The CLI
+        calls this directly through the Salesforce Heroku API proxy
+        (/services/data/vXX.0/heroku/proxy, see herokuProxyApi.ts); the
+        returned `logplex_url` is itself pre-authorized, so the CLI then
+        fetches/streams it directly, without going back through the proxy.
       tags: [LogSession]
       requestBody:
         required: false
@@ -363,6 +371,8 @@ paths:
       operationId: listReleases
       summary: List releases for an app
       tags: [Release]
+      parameters:
+        - $ref: '#/components/parameters/HerokuRangeHeader'
       responses:
         '200':
           description: Releases for the app, oldest first.
@@ -513,6 +523,17 @@ components:
         type: string
         enum: ['application/vnd.heroku+json; version=3']
       example: application/vnd.heroku+json; version=3
+    HerokuRangeHeader:
+      name: Range
+      in: header
+      required: false
+      description: >-
+        Heroku's Range-header-based pagination/ordering syntax, e.g.
+        `version ..; max=1; order=desc` to fetch only the single
+        highest-version release.
+      schema:
+        type: string
+      example: 'version ..; max=1; order=desc'
   schemas:
     App:
       type: object

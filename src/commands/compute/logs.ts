@@ -18,10 +18,8 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
 import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
 import { queryComputeApp, toComputeAppSummary } from '../../shared/computeQuery.js';
-import { createComputeLogSession } from '../../shared/computeConnectApi.js';
+import { createComputeLogSessionViaProxy } from '../../shared/herokuProxyApi.js';
 import { fetchLogplexOutput, streamLogplexOutput } from '../../shared/computeLogStream.js';
-import { getHerokuApiToken } from '../../shared/herokuApi.js';
-import { createComputeLogSessionViaHeroku } from '../../shared/herokuComputeApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.logs');
@@ -83,10 +81,7 @@ export default class Logs extends SfCommand<ComputeLogsResult> {
       return { name };
     }
 
-    const herokuToken = getHerokuApiToken();
-    const session = herokuToken
-      ? await createComputeLogSessionViaHeroku(herokuToken, { name, lines: num, tail })
-      : await createComputeLogSession(connection, { name, lines: num, tail });
+    const session = await createComputeLogSessionViaProxy(connection, { name, lines: num, tail });
 
     if (!tail) {
       const output = await fetchLogplexOutput(session.logplexUrl);

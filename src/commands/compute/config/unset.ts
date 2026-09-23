@@ -18,10 +18,12 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Args } from '@oclif/core';
 import { Messages } from '@salesforce/core';
 import { requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
-import { fetchComputeConfigVars, updateComputeConfigVars } from '../../../shared/computeConnectApi.js';
 import { requireConfigVar } from '../../../shared/computeConfig.js';
-import { getHerokuApiToken } from '../../../shared/herokuApi.js';
-import { fetchComputeConfigVarsViaHeroku, updateComputeConfigVarsViaHeroku } from '../../../shared/herokuComputeApi.js';
+import {
+  fetchComputeConfigVarsViaProxy,
+  updateComputeConfigVarsViaProxy,
+  fetchLatestReleaseVersionViaProxy,
+} from '../../../shared/herokuProxyApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.config.unset');
@@ -68,18 +70,16 @@ export default class ConfigUnset extends SfCommand<ComputeConfigUnsetResult> {
     }
     const keys = [...new Set(tokens)];
 
-    // --name is never interpolated into SOQL (unlike display.ts/list.ts) -- both the Connect and
-    // Heroku-direct paths below URL-encode it as a REST path segment, and a PlatformComputeApp
-    // Id/DeveloperName and a Heroku app Id/name (conventionally hyphenated) must both pass
-    // through untouched -- so this skips validateName, matching scale.ts.
-    const herokuToken = getHerokuApiToken();
+    // --name is never interpolated into SOQL (unlike display.ts/list.ts) -- the proxy path below
+    // URL-encodes it as a REST path segment, and a PlatformComputeApp Id/DeveloperName and a
+    // Heroku app Id/name (conventionally hyphenated) must both pass through untouched -- so this
+    // skips validateName, matching scale.ts.
+    const connection = flags['target-org'].getConnection();
 
     // Heroku's own PATCH is idempotent about unsetting a key that's already absent -- it
     // wouldn't error -- but the CLI UX wants a hard error for that case, so it's checked
     // client-side against a fresh fetch rather than relying on the PATCH to catch it.
-    const configVars = herokuToken
-      ? await fetchComputeConfigVarsViaHeroku(herokuToken, { name })
-      : await fetchComputeConfigVars(flags['target-org'].getConnection(), { app: name });
+    const configVars = await fetchComputeConfigVarsViaProxy(connection, { name });
     for (const key of keys) {
       requireConfigVar(configVars, name, key);
     }
@@ -90,19 +90,21 @@ export default class ConfigUnset extends SfCommand<ComputeConfigUnsetResult> {
     }
 
     this.spinner.start(`Unsetting ${keys.join(', ')} and restarting ${name}`);
-    let release: number | undefined;
     try {
-      if (herokuToken) {
-        // Heroku's own PATCH response carries no release number -- see
-        // updateComputeConfigVarsViaHeroku's comment in herokuComputeApi.ts.
-        await updateComputeConfigVarsViaHeroku(herokuToken, { name, updates });
-      } else {
-        const result = await updateComputeConfigVars(flags['target-org'].getConnection(), { app: name, updates });
-        release = result.release;
-      }
+      await updateComputeConfigVarsViaProxy(connection, { name, updates });
     } catch (err) {
       this.spinner.stop('failed');
       throw err;
+    }
+
+    // Heroku's own PATCH response carries no release number, so this is a second, independent
+    // call -- its failure is a best-effort miss (like display.ts's formation/release fetches),
+    // not fatal to the config-unset operation the spinner already reported as done.
+    let release: number | undefined;
+    try {
+      release = await fetchLatestReleaseVersionViaProxy(connection, { name });
+    } catch {
+      // Best-effort -- the config vars were already updated successfully above.
     }
     this.spinner.stop(release === undefined ? 'done' : `done, v${release}`);
 

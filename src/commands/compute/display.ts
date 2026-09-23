@@ -18,15 +18,23 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
 import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
 import { queryComputeApp, toComputeAppSummary, type ComputeAppSummary } from '../../shared/computeQuery.js';
-import { getHerokuApiToken } from '../../shared/herokuApi.js';
-import { fetchComputeFormationViaHeroku, type HerokuFormationSummary } from '../../shared/herokuComputeApi.js';
+import {
+  fetchComputeFormationViaProxy,
+  fetchLatestReleaseVersionViaProxy,
+  type HerokuFormationSummary,
+} from '../../shared/herokuProxyApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.display');
 
-// formation is only populated when HEROKU_API_TOKEN is set and Heroku answers -- it's a
-// best-effort supplement to the org-side ComputeAppSummary fields, never a replacement for them.
-export type ComputeDisplayResult = ComputeAppSummary & { orgId: string; formation?: HerokuFormationSummary };
+// formation/release are best-effort supplements to the org-side ComputeAppSummary fields, fetched
+// from Heroku via the Salesforce proxy -- never a replacement for the org-side fields, and never
+// fatal to the command if either fetch fails.
+export type ComputeDisplayResult = ComputeAppSummary & {
+  orgId: string;
+  formation?: HerokuFormationSummary;
+  release?: number;
+};
 
 // Heroku's own TYPE=COUNT[:SIZE] scale-target shape (see `sf compute scale`), reused here to
 // render the Formation row -- e.g. "web=1:eco", or "web=2, worker=1:standard-1x" for multiple.
@@ -80,25 +88,31 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     const result = toComputeAppSummary(record);
     const orgId = flags['target-org'].getOrgId();
 
+    // Independent try/catch blocks -- a release-fetch failure must never blank out formation
+    // display, and vice versa.
     let formation: HerokuFormationSummary | undefined;
-    const herokuToken = getHerokuApiToken();
-    if (herokuToken) {
-      try {
-        formation = await fetchComputeFormationViaHeroku(herokuToken, { name });
-      } catch (err) {
-        this.warn(messages.getMessage('warning.herokuFormationUnavailable', [(err as Error).message]));
-      }
+    try {
+      formation = await fetchComputeFormationViaProxy(connection, { name });
+    } catch (err) {
+      this.warn(messages.getMessage('warning.herokuFormationUnavailable', [(err as Error).message]));
+    }
+
+    let release: number | undefined;
+    try {
+      release = await fetchLatestReleaseVersionViaProxy(connection, { name });
+    } catch (err) {
+      this.warn(messages.getMessage('warning.herokuReleaseUnavailable', [(err as Error).message]));
     }
 
     this.renderComputeAppTable(result, orgId);
-    this.renderHerokuAppTable(formation);
+    this.renderHerokuAppTable(formation, release);
     if (flags.verbose) {
       this.renderExternalServiceTable(result);
       this.renderCurrentBuildTable(result);
       this.renderLatestDeploymentTable(result);
     }
 
-    return { ...result, orgId, formation };
+    return { ...result, orgId, formation, release };
   }
 
   private renderComputeAppTable(result: ComputeAppSummary, orgId: string): void {
@@ -117,19 +131,18 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     });
   }
 
-  // App Name/Region/Generation have no Salesforce- or Heroku-side source wired up yet --
-  // placeholder dashes until W-24154928 ("[API] Fetch compute app metadata and dyno formation
-  // via Connect API (display command)") ships. That same story also covers Formation via an
-  // org-mediated Connect API call; until then, Formation is only populated via the
-  // HEROKU_API_TOKEN Heroku-direct escape hatch fetched above -- once W-24154928 lands, replace
-  // that HEROKU_API_TOKEN branch here with the new Connect API call for all four rows.
-  private renderHerokuAppTable(formation: HerokuFormationSummary | undefined): void {
+  // App Name/Region have no Salesforce- or Heroku-side source wired up yet -- placeholder dashes
+  // until W-24154928 ("[API] Fetch compute app metadata and dyno formation via Connect API
+  // (display command)") ships. Formation and Release are fetched from Heroku via the Salesforce
+  // proxy above.
+  private renderHerokuAppTable(formation: HerokuFormationSummary | undefined, release: number | undefined): void {
     this.styledHeader('Heroku App');
     this.table({
       data: [
         { key: 'App Name', value: '-' },
         { key: 'Region', value: '-' },
         { key: 'Generation', value: '-' },
+        { key: 'Release', value: release === undefined ? '-' : String(release) },
         { key: 'Formation', value: formatFormation(formation) },
       ],
       columns: ['key', 'value'],

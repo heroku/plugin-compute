@@ -26,6 +26,10 @@ Also show external service registration and current build detail.
 
 Couldn't fetch dyno formation from Heroku: %s
 
+# warning.herokuReleaseUnavailable
+
+Couldn't fetch the latest release from Heroku: %s
+
 # examples
 
 - Show the current status of a compute app:

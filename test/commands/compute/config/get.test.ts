@@ -23,14 +23,21 @@ import { Org } from '@salesforce/core';
 import { stubSfCommandUx } from '@salesforce/sf-plugins-core';
 import ConfigGet from '../../../../src/commands/compute/config/get.js';
 
+// Decode the real Heroku target URL out of the proxy_url query param -- mirrors
+// herokuProxyRequest's proxyUrl construction in herokuProxyApi.ts (see config.test.ts/scale.test.ts).
+function proxyTarget(url: string): string {
+  return new URL(url, 'https://example.com').searchParams.get('proxy_url') ?? '';
+}
+
+// Mirrors config.test.ts's findConfigVarsCall -- Org.create()/getConnection() issues its own
+// request through the same shared requestStub while resolving --target-org.
 function findConfigVarsCall(stub: sinon.SinonStub, method?: string): sinon.SinonSpyCall | undefined {
   return stub.getCalls().find((call) => {
     const req = call.args[0] as { url?: string; method?: string } | undefined;
-    return Boolean(
-      req?.url?.startsWith('/connect/compute/') &&
-        req.url.endsWith('/config-vars') &&
-        (!method || req.method === method)
-    );
+    if (!req?.url) {
+      return false;
+    }
+    return proxyTarget(req.url).endsWith('/config-vars') && (!method || req.method === method);
   });
 }
 
@@ -110,7 +117,42 @@ describe('compute config get', () => {
     }
   });
 
-  it('rejects when no keys are given, without calling the Connect API', async () => {
+  it('surfaces error.herokuAppNotFound when Heroku 404s the app', async () => {
+    requestStub.rejects(Object.assign(new Error("Couldn't find that app."), { data: { id: 'not_found' } }));
+
+    try {
+      await ConfigGet.run(['STRIPE_KEY', '--name', 'missing-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('missing-app');
+    }
+  });
+
+  it('wraps a proxy-rejection failure as error.herokuProxyRequestFailed', async () => {
+    requestStub.rejects(Object.assign(new Error('bad proxy_url'), { errorCode: 'HEROKU_PROXY_ERROR' }));
+
+    try {
+      await ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('The Salesforce Heroku API proxy rejected the request: bad proxy_url');
+    }
+  });
+
+  it('wraps an unrecognized proxy failure as error.herokuApiRequestFailed', async () => {
+    requestStub.rejects(new Error('socket hang up'));
+
+    try {
+      await ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include(
+        "Couldn't reach the Heroku Platform API through Salesforce: socket hang up"
+      );
+    }
+  });
+
+  it('rejects when no keys are given, without calling the Heroku proxy', async () => {
     try {
       await ConfigGet.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
@@ -123,11 +165,13 @@ describe('compute config get', () => {
   // --name is never joined into a filesystem path (unlike other commands' --name), so a
   // hyphenated value -- invalid as a DeveloperName, but a shape Heroku app Ids/names commonly
   // take -- must pass through untouched rather than being rejected by a path-traversal guard.
-  it('passes a hyphenated --name through untouched to the Connect API call', async () => {
+  it('passes a hyphenated --name through untouched to the Heroku proxy call', async () => {
     await ConfigGet.run(['STRIPE_KEY', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
 
     const call = findConfigVarsCall(requestStub, 'GET');
-    expect(call!.args[0]).to.have.property('url', '/connect/compute/my-heroku-style-app/config-vars');
+    expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
+      'https://api.heroku.com/apps/my-heroku-style-app/config-vars'
+    );
   });
 
   it('returns the flattened result under --json, not the full status envelope', async () => {
@@ -146,7 +190,9 @@ describe('compute config get', () => {
       const result = await ConfigGet.run(['STRIPE_KEY', '--target-org', testOrg.username]);
       expect(result.name).to.equal('CreditRatingScorer');
       const call = findConfigVarsCall(requestStub, 'GET');
-      expect((call!.args[0] as { url: string }).url).to.equal('/connect/compute/CreditRatingScorer/config-vars');
+      expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
+        'https://api.heroku.com/apps/CreditRatingScorer/config-vars'
+      );
     } finally {
       delete process.env.COMPUTE_APP_NAME;
     }
@@ -182,84 +228,5 @@ describe('compute config get', () => {
       await rm(tmp, { recursive: true, force: true });
     }
     expect(findConfigVarsCall(requestStub)).to.be.undefined;
-  });
-});
-
-describe('compute config get with HEROKU_API_TOKEN set', () => {
-  const $$ = new TestContext();
-  const testOrg = new MockTestOrgData();
-  let requestStub: sinon.SinonStub;
-  let fetchStub: sinon.SinonStub;
-
-  beforeEach(async () => {
-    stubSfCommandUx($$.SANDBOX);
-    await $$.stubAuths(testOrg);
-
-    const org = await Org.create({ aliasOrUsername: testOrg.username });
-    const connection = org.getConnection();
-    $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
-
-    // Distinct from the Heroku config-vars call below so a stray Connect call is easy to notice.
-    requestStub = sinon.stub().resolves({ 'connect-api-path-not-used': true });
-    $$.fakeConnectionRequest = requestStub;
-
-    process.env.HEROKU_API_TOKEN = 'shh-secret-token';
-    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch');
-  });
-
-  afterEach(() => {
-    delete process.env.HEROKU_API_TOKEN;
-    process.exitCode = 0;
-    $$.restore();
-  });
-
-  function jsonResponse(body: unknown, status = 200): Response {
-    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-  }
-
-  it('fetches config vars via Heroku directly, using --name as the Heroku app Id/name, without calling Connect', async () => {
-    fetchStub.resolves(jsonResponse({ STRIPE_KEY: 'sk_live_abc123' }));
-
-    const result = await ConfigGet.run(['STRIPE_KEY', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
-
-    expect(result).to.deep.equal({ name: 'my-heroku-app', values: { STRIPE_KEY: 'sk_live_abc123' } });
-    expect(findConfigVarsCall(requestStub)).to.be.undefined;
-    const request = fetchStub.firstCall.args[0] as Request;
-    expect(request.url).to.equal('https://api.heroku.com/apps/my-heroku-app/config-vars');
-  });
-
-  it('errors on a missing key without calling the Connect API', async () => {
-    fetchStub.resolves(jsonResponse({ LOG_LEVEL: 'info' }));
-
-    try {
-      await ConfigGet.run(['MISSING', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.equal('my-heroku-app has no config var named "MISSING".');
-    }
-    expect(findConfigVarsCall(requestStub)).to.be.undefined;
-  });
-
-  it('surfaces error.herokuAppNotFound on a 404', async () => {
-    fetchStub.resolves(jsonResponse({ id: 'not_found', message: "Couldn't find that app." }, 404));
-
-    try {
-      await ConfigGet.run(['STRIPE_KEY', '--name', 'missing-app', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include('missing-app');
-    }
-  });
-
-  it('surfaces error.herokuAuthFailed on a 401/403, never leaking the token', async () => {
-    fetchStub.resolves(new Response('forbidden', { status: 403 }));
-
-    try {
-      await ConfigGet.run(['STRIPE_KEY', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include('rejected the request');
-      expect((e as Error).message).to.not.include('shh-secret-token');
-    }
   });
 });

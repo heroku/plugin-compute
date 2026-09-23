@@ -74,8 +74,8 @@ export const SOQL_FIELDS = [
   'ExternalServiceRegistration.Id',
 ].join(', ');
 
-// Internal engineering workaround, not a customer-facing feature -- do not document in README
-// alongside HEROKU_API_TOKEN. PlatformComputeApp/PlatformComputeAppBuild currently ship with
+// Internal engineering workaround, not a customer-facing feature -- do not document in README.
+// PlatformComputeApp/PlatformComputeAppBuild currently ship with
 // Tooling API access gated behind apiAccess="isSfdcInternal" (W-23426078 opened first-party-only
 // access; W-24176390 tracks removing the restriction so any customer org can query these entities
 // without this workaround). Until W-24176390 ships, this lets internal testing exercise the CLI's

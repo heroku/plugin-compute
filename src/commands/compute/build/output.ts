@@ -18,9 +18,8 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
 import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
 import { queryComputeApp, toComputeAppSummary } from '../../../shared/computeQuery.js';
-import { fetchComputeBuildOutput } from '../../../shared/computeConnectApi.js';
-import { getHerokuApiToken } from '../../../shared/herokuApi.js';
-import { fetchComputeBuildOutputViaHeroku } from '../../../shared/herokuComputeApi.js';
+import { fetchLatestBuildOutputStreamUrlViaProxy } from '../../../shared/herokuProxyApi.js';
+import { fetchBuildOutputStream } from '../../../shared/computeLogStream.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.build.output');
@@ -62,16 +61,14 @@ export default class Output extends SfCommand<ComputeBuildOutputResult> {
     }
 
     const { buildStatus } = currentBuild;
-    const herokuToken = getHerokuApiToken();
-    const log = herokuToken
-      ? await fetchComputeBuildOutputViaHeroku(herokuToken, { name })
-      : await fetchComputeBuildOutput(connection, { name });
+    const outputStreamUrl = await fetchLatestBuildOutputStreamUrlViaProxy(connection, { name });
 
-    if (log === undefined) {
+    if (outputStreamUrl === undefined) {
       this.info(messages.getMessage('info.buildOutputNotYetAvailable', [name, buildStatus]));
       return { name, buildStatus };
     }
 
+    const log = await fetchBuildOutputStream(outputStreamUrl);
     this.log(log);
     return { name, buildStatus, log };
   }

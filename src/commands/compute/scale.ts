@@ -18,9 +18,7 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Args } from '@oclif/core';
 import { Messages } from '@salesforce/core';
 import { requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
-import { updateComputeFormation } from '../../shared/computeConnectApi.js';
-import { getHerokuApiToken } from '../../shared/herokuApi.js';
-import { scaleComputeFormationViaHeroku } from '../../shared/herokuComputeApi.js';
+import { scaleComputeFormationViaProxy } from '../../shared/herokuProxyApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.scale');
@@ -126,13 +124,7 @@ export default class Scale extends SfCommand<ComputeScaleResult> {
     }
     const targets = tokens.map((token) => parseScaleTarget(token));
 
-    // Connect API (org-mediated) is the default, matching display/logs/build output --
-    // HEROKU_API_TOKEN switches to calling Heroku directly instead, using --name as the Heroku
-    // app Id/name rather than the PlatformComputeApp Id/DeveloperName the Connect resource
-    // resolves. One call per target process type either way -- Heroku's own per-type Update
-    // Formation API (and the Connect resource mirroring it) takes a dyno size by name, unlike
-    // its batch formation endpoint, which only accepts a dyno size Id the CLI never has.
-    const herokuToken = getHerokuApiToken();
+    const connection = flags['target-org'].getConnection();
 
     this.spinner.start('Scaling dynos');
     const formation: Array<{ type: string; dynoSize?: string; quantity: number }> = [];
@@ -140,9 +132,7 @@ export default class Scale extends SfCommand<ComputeScaleResult> {
       for (const target of targets) {
         // Sequential PATCHes to the same app's formation -- there's nothing to parallelize.
         /* eslint-disable no-await-in-loop */
-        const updated = herokuToken
-          ? await scaleComputeFormationViaHeroku(herokuToken, { name, ...target })
-          : await updateComputeFormation(flags['target-org'].getConnection(), { app: name, ...target });
+        const updated = await scaleComputeFormationViaProxy(connection, { name, ...target });
         /* eslint-enable no-await-in-loop */
         formation.push(updated);
       }

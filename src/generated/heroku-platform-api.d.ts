@@ -52,7 +52,10 @@ export interface paths {
       };
       cookie?: never;
     };
-    /** List builds for an app */
+    /**
+     * List builds for an app
+     * @description Returns builds oldest-first. `sf compute build output` uses this (rather than getBuild by id) to reach the latest build's `output_stream_url`, because the only build identifier the CLI has client-side is PlatformComputeAppBuild's Salesforce record Id, not a Heroku build UUID -- so it lists and takes the last element instead of fetching by id.
+     */
     get: operations['listBuilds'];
     put?: never;
     /**
@@ -250,7 +253,7 @@ export interface paths {
     put?: never;
     /**
      * Create a log session
-     * @description Creates a reference to an HTTP log stream for the app, to obtain a `logplex_url` for `sf compute logs` to stream or tail from. Normally the org calls this on the customer's behalf (via /connect/compute/logs/session in salesforce-connect-compute.yaml); the CLI calls it directly only when HEROKU_API_TOKEN is set.
+     * @description Creates a reference to an HTTP log stream for the app, to obtain a `logplex_url` for `sf compute logs` to stream or tail from. The CLI calls this directly through the Salesforce Heroku API proxy (/services/data/vXX.0/heroku/proxy, see herokuProxyApi.ts); the returned `logplex_url` is itself pre-authorized, so the CLI then fetches/streams it directly, without going back through the proxy.
      */
     post: operations['createLogSession'];
     delete?: never;
@@ -853,6 +856,11 @@ export interface components {
      * @example application/vnd.heroku+json; version=3
      */
     HerokuAcceptHeader: 'application/vnd.heroku+json; version=3';
+    /**
+     * @description Heroku's Range-header-based pagination/ordering syntax, e.g. `version ..; max=1; order=desc` to fetch only the single highest-version release.
+     * @example version ..; max=1; order=desc
+     */
+    HerokuRangeHeader: string;
   };
   requestBodies: never;
   headers: never;
@@ -1327,6 +1335,11 @@ export interface operations {
          * @example application/vnd.heroku+json; version=3
          */
         Accept: components['parameters']['HerokuAcceptHeader'];
+        /**
+         * @description Heroku's Range-header-based pagination/ordering syntax, e.g. `version ..; max=1; order=desc` to fetch only the single highest-version release.
+         * @example version ..; max=1; order=desc
+         */
+        Range?: components['parameters']['HerokuRangeHeader'];
       };
       path: {
         /**

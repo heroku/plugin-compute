@@ -92,6 +92,7 @@ describe('compute display', () => {
       },
       orgId: testOrg.orgId,
       formation: undefined,
+      release: undefined,
     });
 
     const soql: string = toolingQueryStub.firstCall.args[0];
@@ -154,11 +155,13 @@ describe('compute display', () => {
     expect(allRows).to.deep.include({ key: 'Build Duration', value: '1m 42s' });
   });
 
-  // Slug, Deploy ID, and Release had no wired-up source (Salesforce or Heroku) and no GA scope
-  // to justify them -- cut rather than left as permanent placeholder dashes. AppLink Add-on was
-  // cut too -- it's redundant with External Service ID (both set together by deploy's
-  // first-time provisioning).
-  it('omits the unsourced Slug, Deploy ID, Release, and AppLink Add-on rows under --verbose', async () => {
+  // Slug and Deploy ID had no wired-up source (Salesforce or Heroku) and no GA scope to justify
+  // them -- cut rather than left as permanent placeholder dashes. AppLink Add-on was cut too --
+  // it's redundant with External Service ID (both set together by deploy's first-time
+  // provisioning). Release *is* a real row now (sourced from the Heroku proxy's releases
+  // endpoint, see the 'compute display via the Heroku proxy' describe block) -- it's excluded
+  // from this org-only-stub test's assertions on purpose, not because it's unsourced.
+  it('omits the unsourced Slug and Deploy ID rows, and the redundant AppLink Add-on row, under --verbose', async () => {
     resolveWith([activeRecord]);
 
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--verbose']);
@@ -171,7 +174,6 @@ describe('compute display', () => {
     expect(allKeys).to.not.include('AppLink Add-on');
     expect(allKeys).to.not.include('Slug');
     expect(allKeys).to.not.include('Deploy ID');
-    expect(allKeys).to.not.include('Release');
   });
 
   it('handles an app that has never had a successful build or external service registration', async () => {
@@ -325,12 +327,12 @@ describe('compute display', () => {
   });
 });
 
-describe('compute display with HEROKU_API_TOKEN set', () => {
+describe('compute display via the Heroku proxy', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
   let toolingQueryStub: sinon.SinonStub;
-  let fetchStub: sinon.SinonStub;
+  let requestStub: sinon.SinonStub;
 
   const activeRecord = {
     Id: '0abEE0000004CqYYAU',
@@ -361,27 +363,44 @@ describe('compute display with HEROKU_API_TOKEN set', () => {
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
     toolingQueryStub.resolves({ totalSize: 1, records: [activeRecord], done: true });
 
-    process.env.HEROKU_API_TOKEN = 'shh-secret-token';
-    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch');
+    // connection.request is already wrapped by TestContext's own beforeEach (see stubContext in
+    // @salesforce/core/testSetup) and dispatches through $$.fakeConnectionRequest -- stubbing it
+    // again here would throw "Attempted to wrap request which is already wrapped".
+    requestStub = sinon.stub();
+    $$.fakeConnectionRequest = requestStub;
   });
 
   afterEach(() => {
-    delete process.env.HEROKU_API_TOKEN;
     $$.restore();
   });
 
-  it('supplements the org-side result with the dyno formation and renders it in the Heroku App table', async () => {
-    fetchStub.resolves(
-      // eslint-disable-next-line camelcase -- dyno_size is Heroku's Formation field name
-      new Response(JSON.stringify([{ type: 'web', quantity: 2, dyno_size: { id: 'sz1', name: 'Standard-1X' } }]), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })
+  // Both formation and release are fetched via the same connection.request stub -- distinguish
+  // calls by their proxy_url target path rather than call order, since the two fetches in
+  // display.ts run in an order that's an implementation detail, not a contract.
+  function stubProxyResponses(formation: unknown, release: unknown): void {
+    requestStub.callsFake(async (req: { url: string }) => {
+      if (req.url.includes(encodeURIComponent('/formation'))) {
+        return formation;
+      }
+      if (req.url.includes(encodeURIComponent('/releases'))) {
+        return release;
+      }
+      throw new Error(`unexpected proxy request: ${req.url}`);
+    });
+  }
+
+  it('supplements the org-side result with the dyno formation and release, and renders both in the Heroku App table', async () => {
+    /* eslint-disable camelcase -- dyno_size is Heroku's Formation field name */
+    stubProxyResponses(
+      [{ type: 'web', quantity: 2, dyno_size: { id: 'sz1', name: 'Standard-1X' } }],
+      [{ version: 11 }]
     );
+    /* eslint-enable camelcase */
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result.formation).to.deep.equal([{ type: 'web', dynoSize: 'Standard-1X', quantity: 2 }]);
+    expect(result.release).to.equal(11);
     const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
     expect(headers).to.include('Heroku App');
 
@@ -390,53 +409,69 @@ describe('compute display with HEROKU_API_TOKEN set', () => {
     }>;
     const allRows = tableCalls.flatMap((c) => c.args[0].data);
     expect(allRows).to.deep.include({ key: 'Formation', value: 'web=2:Standard-1X' });
+    expect(allRows).to.deep.include({ key: 'Release', value: '11' });
   });
 
   it('still renders the Heroku App table (with a placeholder Formation row) when the formation is empty', async () => {
-    fetchStub.resolves(
-      new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } })
-    );
+    stubProxyResponses([], []);
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result.formation).to.deep.equal([]);
+    expect(result.release).to.be.undefined;
     const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
     expect(headers).to.include('Heroku App');
   });
 
-  it('warns and still returns the org-side result when the Heroku call fails, without formation in the result', async () => {
-    fetchStub.resolves(new Response('server error', { status: 500 }));
+  it('warns and still returns the org-side result when the formation proxy call fails, without formation in the result', async () => {
+    requestStub.callsFake(async (req: { url: string }) => {
+      if (req.url.includes(encodeURIComponent('/formation'))) {
+        throw new Error('socket hang up');
+      }
+      return [];
+    });
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result.formation).to.be.undefined;
+    expect(result.release).to.be.undefined;
     expect(result.status).to.equal('ACTIVE');
-    expect(sfCommandStubs.warn.lastCall.args[0]).to.include("Couldn't fetch dyno formation from Heroku");
-    // this.warn()'s message is built from (err as Error).message -- confirm the token never
-    // makes it into that string via this call site either, not just inside herokuComputeApi.ts.
-    expect(sfCommandStubs.warn.lastCall.args[0]).to.not.include('shh-secret-token');
+    expect(
+      sfCommandStubs.warn
+        .getCalls()
+        .map((c) => c.args[0] as string)
+        .join('\n')
+    ).to.include("Couldn't fetch dyno formation from Heroku");
   });
 
-  // The formation fetch can fail below the HTTP layer too (e.g. a network-level fetch rejection
-  // rather than a non-2xx Response) -- confirm display.ts's catch-and-warn still downgrades that
-  // gracefully instead of letting an unhandled rejection crash the command, and still returns the
-  // org-only data.
-  it('warns and still returns the org-side result when the Heroku call rejects at the network level', async () => {
-    fetchStub.rejects(new TypeError('fetch failed'));
+  it('warns and still returns the org-side result when the release proxy call fails, without release in the result', async () => {
+    requestStub.callsFake(async (req: { url: string }) => {
+      if (req.url.includes(encodeURIComponent('/releases'))) {
+        throw new Error('socket hang up');
+      }
+      return [];
+    });
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.formation).to.be.undefined;
+    expect(result.formation).to.deep.equal([]);
+    expect(result.release).to.be.undefined;
     expect(result.status).to.equal('ACTIVE');
-    expect(sfCommandStubs.warn.lastCall.args[0]).to.include("Couldn't fetch dyno formation from Heroku");
+    expect(
+      sfCommandStubs.warn
+        .getCalls()
+        .map((c) => c.args[0] as string)
+        .join('\n')
+    ).to.include("Couldn't fetch the latest release from Heroku");
   });
 
-  it('drops the formation key from --json output when the Heroku call fails', async () => {
-    fetchStub.resolves(new Response('server error', { status: 500 }));
+  it('drops the formation and release keys from --json output when both proxy calls fail', async () => {
+    requestStub.rejects(new Error('socket hang up'));
 
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
     const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as Record<string, unknown>;
 
     expect(JSON.stringify(jsonOutput)).to.not.include('formation');
+    expect(JSON.stringify(jsonOutput)).to.not.include('"release"');
   });
 });

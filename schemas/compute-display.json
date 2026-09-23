@@ -12,6 +12,9 @@
         "formation": {
           "$ref": "#/definitions/HerokuFormationSummary"
         },
+        "release": {
+          "type": "number"
+        },
         "id": {
           "type": "string"
         },

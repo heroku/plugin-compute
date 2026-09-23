@@ -85,25 +85,6 @@ sf plugins link .
 sf plugins
 ```
 
-## HEROKU_API_TOKEN (advanced)
-
-`compute display`, `compute logs`, `compute build output`, and `compute scale`
-normally go through the target org's Salesforce Connect API, which calls the
-Heroku Platform API on your behalf. If the `HEROKU_API_TOKEN` environment
-variable is set, these four commands instead call the Heroku Platform API
-directly, using `--name` as the Heroku app Id or name rather than the
-PlatformComputeApp Id/DeveloperName.
-
-- `compute display` -- additionally shows the app's dyno formation (process
-  type, dyno size, and count) alongside the usual org-side status. A failure
-  to reach Heroku only produces a warning; the org-side status is always
-  shown.
-- `compute logs`, `compute build output`, `compute scale` -- bypass the org
-  entirely and call Heroku directly.
-
-Get a token with `heroku auth:token`. Unset `HEROKU_API_TOKEN` to fall back
-to the normal org-mediated path.
-
 ## Commands
 
 <!-- commands -->
@@ -356,7 +337,8 @@ EXAMPLES
 
   Deploy a compute app to an org, from anywhere, by pointing --source-dir at it:
 
-    $ sf compute deploy --source-dir force-app/main/default/platformComputeApps/CreditRatingScorer --target-org my-org
+    $ sf compute deploy --source-dir force-app/main/default/platformComputeApps/CreditRatingScorer --target-org \
+      my-org
 ```
 
 _See code: [src/commands/compute/deploy.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/deploy.ts)_
@@ -438,7 +420,8 @@ EXAMPLES
 
   Scaffold a Python compute app into a custom directory:
 
-    $ sf compute generate --name ReceiptOcr --language python --output-dir force-app/main/default/platformComputeApps/scorers
+    $ sf compute generate --name ReceiptOcr --language python --output-dir \
+      force-app/main/default/platformComputeApps/scorers
 
 FLAG DESCRIPTIONS
   -d, --output-dir=<value>  Directory to create the app in.

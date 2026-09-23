@@ -23,17 +23,25 @@ import { Org } from '@salesforce/core';
 import { stubSfCommandUx, stubSpinner } from '@salesforce/sf-plugins-core';
 import Scale from '../../../src/commands/compute/scale.js';
 
+// Every proxy-bound request lands on the same /services/data/vXX.0/heroku/proxy path with the
+// real Heroku target URL percent-encoded into the proxy_url query param -- decode it to inspect
+// which Heroku path/app/type a given call actually targeted, mirroring how herokuProxyRequest
+// builds it in herokuProxyApi.ts.
+function proxyTarget(url: string): string {
+  return new URL(url, 'https://example.com').searchParams.get('proxy_url') ?? '';
+}
+
 // Mirrors logs.test.ts/build/output.test.ts's findLogSessionCall -- Org.create()/getConnection()
 // issues its own request through the same shared requestStub while resolving --target-org, so
 // callCount/called on the stub itself is unreliable.
-function findFormationCall(stub: sinon.SinonStub): sinon.SinonSpyCall | undefined {
-  return stub
-    .getCalls()
-    .find(
-      (call) =>
-        (call.args[0] as { url?: string } | undefined)?.url?.startsWith('/connect/compute/') &&
-        (call.args[0] as { url?: string } | undefined)?.url?.includes('/formation/')
-    );
+function findFormationCall(stub: sinon.SinonStub, method?: string): sinon.SinonSpyCall | undefined {
+  return stub.getCalls().find((call) => {
+    const req = call.args[0] as { url?: string; method?: string } | undefined;
+    if (!req?.url) {
+      return false;
+    }
+    return proxyTarget(req.url).includes('/formation/') && (!method || req.method === method);
+  });
 }
 
 describe('compute scale', () => {
@@ -65,7 +73,7 @@ describe('compute scale', () => {
     $$.restore();
   });
 
-  it('scales dyno size via the Connect API by default', async () => {
+  it('scales dyno size via the Heroku proxy by default', async () => {
     /* eslint-disable camelcase -- dyno_size mirrors Heroku's Formation field name */
     requestStub.resolves({ type: 'web', dyno_size: { name: 'dyno-1c-4gb' }, quantity: 1 });
     /* eslint-enable camelcase */
@@ -82,11 +90,10 @@ describe('compute scale', () => {
       name: 'CreditRatingScorer',
       formation: [{ type: 'web', dynoSize: 'dyno-1c-4gb', quantity: 1 }],
     });
-    const call = findFormationCall(requestStub);
-    expect(call, 'expected a PATCH to /connect/compute/{app}/formation/{type}').to.not.be.undefined;
+    const call = findFormationCall(requestStub, 'PATCH');
+    expect(call, 'expected a PATCH proxied to Heroku formation').to.not.be.undefined;
     const request = call!.args[0] as { method: string; url: string; body: string };
-    expect(request.method).to.equal('PATCH');
-    expect(request.url).to.equal('/connect/compute/CreditRatingScorer/formation/web');
+    expect(proxyTarget(request.url)).to.equal('https://api.heroku.com/apps/CreditRatingScorer/formation/web');
     /* eslint-disable-next-line camelcase -- dyno_size mirrors Heroku's FormationUpdateRequest field name */
     expect(JSON.parse(request.body)).to.deep.equal({ dyno_size: { name: 'dyno-1c-4gb' } });
   });
@@ -98,12 +105,12 @@ describe('compute scale', () => {
 
     await Scale.run(['web:DYNO-1C-4GB', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    const call = findFormationCall(requestStub);
+    const call = findFormationCall(requestStub, 'PATCH');
     /* eslint-disable-next-line camelcase -- dyno_size mirrors Heroku's FormationUpdateRequest field name */
     expect(JSON.parse((call!.args[0] as { body: string }).body)).to.deep.equal({ dyno_size: { name: 'dyno-1c-4gb' } });
   });
 
-  it('rejects the whole invocation, without calling the Connect API for any target, when one of several targets has an invalid size', async () => {
+  it('rejects the whole invocation, without calling the Heroku proxy for any target, when one of several targets has an invalid size', async () => {
     try {
       await Scale.run([
         'web=2:dyno-4c-16gb',
@@ -136,7 +143,7 @@ describe('compute scale', () => {
     expect(result.formation).to.deep.equal([{ type: 'web', dynoSize: 'dyno-1c-0.5gb', quantity: 1 }]);
   });
 
-  it('scales quantity (including 0) via the Connect API', async () => {
+  it('scales quantity (including 0) via the Heroku proxy', async () => {
     requestStub.resolves({ type: 'worker', quantity: 0 });
 
     const result = await Scale.run(['worker=0', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
@@ -145,18 +152,18 @@ describe('compute scale', () => {
       name: 'CreditRatingScorer',
       formation: [{ type: 'worker', dynoSize: undefined, quantity: 0 }],
     });
-    const call = findFormationCall(requestStub);
+    const call = findFormationCall(requestStub, 'PATCH');
     expect(JSON.parse((call!.args[0] as { body: string }).body)).to.deep.equal({ quantity: 0 });
   });
 
-  it('scales dyno size and quantity together via the Connect API', async () => {
+  it('scales dyno size and quantity together via the Heroku proxy', async () => {
     /* eslint-disable camelcase -- dyno_size mirrors Heroku's Formation field name */
     requestStub.resolves({ type: 'web', dyno_size: { name: 'dyno-4c-16gb' }, quantity: 2 });
     /* eslint-enable camelcase */
 
     await Scale.run(['web=2:dyno-4c-16gb', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    const call = findFormationCall(requestStub);
+    const call = findFormationCall(requestStub, 'PATCH');
     /* eslint-disable camelcase -- dyno_size mirrors Heroku's FormationUpdateRequest field name */
     expect(JSON.parse((call!.args[0] as { body: string }).body)).to.deep.equal({
       dyno_size: { name: 'dyno-4c-16gb' },
@@ -165,19 +172,20 @@ describe('compute scale', () => {
     /* eslint-enable camelcase */
   });
 
-  it('scales multiple process types in one invocation, one Connect call per type', async () => {
+  it('scales multiple process types in one invocation, one proxy call per type', async () => {
     // Org.create()/getConnection() issues its own request through this same shared stub while
-    // resolving --target-org (see findFormationCall's comment) -- route by URL substring rather
-    // than call index so that unrelated call doesn't shift which response goes to which PATCH.
+    // resolving --target-org (see findFormationCall's comment) -- route by target substring
+    // rather than call index so that unrelated call doesn't shift which response goes to which PATCH.
     /* eslint-disable camelcase -- dyno_size mirrors Heroku's Formation field name */
     requestStub.callsFake(async (req: { url?: string }) => {
-      if (req.url?.endsWith('/formation/web')) {
+      const target = req.url ? proxyTarget(req.url) : '';
+      if (target.endsWith('/formation/web')) {
         return { type: 'web', dyno_size: { name: 'dyno-4c-16gb' }, quantity: 2 };
       }
-      if (req.url?.endsWith('/formation/worker')) {
+      if (target.endsWith('/formation/worker')) {
         return { type: 'worker', dyno_size: { name: 'dyno-1c-0.5gb' }, quantity: 1 };
       }
-      return { type: 'connect-api-path-not-used', quantity: 0 };
+      return { type: 'heroku-proxy-path-not-used', quantity: 0 };
     });
     /* eslint-enable camelcase */
 
@@ -202,11 +210,13 @@ describe('compute scale', () => {
   it('accepts a PlatformComputeApp Id in place of a DeveloperName for --name', async () => {
     await Scale.run(['web=1', '--name', '0abEE0000004CqYYAU', '--target-org', testOrg.username]);
 
-    const call = findFormationCall(requestStub);
-    expect(call!.args[0]).to.have.property('url', '/connect/compute/0abEE0000004CqYYAU/formation/web');
+    const call = findFormationCall(requestStub, 'PATCH');
+    expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
+      'https://api.heroku.com/apps/0abEE0000004CqYYAU/formation/web'
+    );
   });
 
-  it('rejects when no targets are given, without calling the Connect API', async () => {
+  it('rejects when no targets are given, without calling the Heroku proxy', async () => {
     try {
       await Scale.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
@@ -219,14 +229,16 @@ describe('compute scale', () => {
   // --name is never joined into a filesystem path (unlike other commands' --name), so a
   // hyphenated value -- invalid as a DeveloperName, but a shape Heroku app Ids/names commonly
   // take -- must pass through untouched rather than being rejected by a path-traversal guard.
-  it('passes a hyphenated --name through untouched to the Connect API call', async () => {
+  it('passes a hyphenated --name through untouched to the Heroku proxy call', async () => {
     await Scale.run(['web=1', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
 
-    const call = findFormationCall(requestStub);
-    expect(call!.args[0]).to.have.property('url', '/connect/compute/my-heroku-style-app/formation/web');
+    const call = findFormationCall(requestStub, 'PATCH');
+    expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
+      'https://api.heroku.com/apps/my-heroku-style-app/formation/web'
+    );
   });
 
-  it('rejects a malformed target, without calling the Connect API', async () => {
+  it('rejects a malformed target, without calling the Heroku proxy', async () => {
     try {
       await Scale.run(['web@2', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
@@ -236,7 +248,7 @@ describe('compute scale', () => {
     expect(findFormationCall(requestStub)).to.be.undefined;
   });
 
-  it('rejects a target with neither a count nor a size, without calling the Connect API', async () => {
+  it('rejects a target with neither a count nor a size, without calling the Heroku proxy', async () => {
     try {
       await Scale.run(['web', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
@@ -246,7 +258,7 @@ describe('compute scale', () => {
     expect(findFormationCall(requestStub)).to.be.undefined;
   });
 
-  it('rejects an invalid size, without calling the Connect API', async () => {
+  it('rejects an invalid size, without calling the Heroku proxy', async () => {
     try {
       await Scale.run(['web:xl', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
@@ -261,14 +273,39 @@ describe('compute scale', () => {
     expect(findFormationCall(requestStub)).to.be.undefined;
   });
 
-  it('wraps a Connect API failure as error.formationUpdateFailed', async () => {
+  it('surfaces error.herokuFormationNotFound when Heroku 404s the app or process type', async () => {
+    requestStub.rejects(Object.assign(new Error("Couldn't find that app."), { data: { id: 'not_found' } }));
+
+    try {
+      await Scale.run(['web=1', '--name', 'missing-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('missing-app');
+      expect((e as Error).message).to.include('web');
+    }
+  });
+
+  it('wraps a proxy-rejection failure as error.herokuProxyRequestFailed', async () => {
+    requestStub.rejects(Object.assign(new Error('bad proxy_url'), { errorCode: 'HEROKU_PROXY_ERROR' }));
+
+    try {
+      await Scale.run(['web=1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('The Salesforce Heroku API proxy rejected the request: bad proxy_url');
+    }
+  });
+
+  it('wraps an unrecognized proxy failure as error.herokuApiRequestFailed', async () => {
     requestStub.rejects(new Error('socket hang up'));
 
     try {
       await Scale.run(['web=1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
-      expect((e as Error).message).to.include("Couldn't update the compute app's dyno formation: socket hang up");
+      expect((e as Error).message).to.include(
+        "Couldn't reach the Heroku Platform API through Salesforce: socket hang up"
+      );
     }
   });
 
@@ -291,8 +328,10 @@ describe('compute scale', () => {
     try {
       const result = await Scale.run(['web=1', '--target-org', testOrg.username]);
       expect(result.name).to.equal('CreditRatingScorer');
-      const call = findFormationCall(requestStub);
-      expect(call!.args[0]).to.have.property('url', '/connect/compute/CreditRatingScorer/formation/web');
+      const call = findFormationCall(requestStub, 'PATCH');
+      expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
+        'https://api.heroku.com/apps/CreditRatingScorer/formation/web'
+      );
     } finally {
       delete process.env.COMPUTE_APP_NAME;
     }
@@ -306,8 +345,10 @@ describe('compute scale', () => {
     try {
       const result = await Scale.run(['web=1', '--target-org', testOrg.username]);
       expect(result.name).to.equal('my-heroku-style-app');
-      const call = findFormationCall(requestStub);
-      expect(call!.args[0]).to.have.property('url', '/connect/compute/my-heroku-style-app/formation/web');
+      const call = findFormationCall(requestStub, 'PATCH');
+      expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
+        'https://api.heroku.com/apps/my-heroku-style-app/formation/web'
+      );
     } finally {
       delete process.env.COMPUTE_APP_NAME;
     }
@@ -343,91 +384,5 @@ describe('compute scale', () => {
       await rm(tmp, { recursive: true, force: true });
     }
     expect(findFormationCall(requestStub)).to.be.undefined;
-  });
-});
-
-describe('compute scale with HEROKU_API_TOKEN set', () => {
-  const $$ = new TestContext();
-  const testOrg = new MockTestOrgData();
-  let requestStub: sinon.SinonStub;
-  let fetchStub: sinon.SinonStub;
-
-  beforeEach(async () => {
-    stubSfCommandUx($$.SANDBOX);
-    stubSpinner($$.SANDBOX);
-    await $$.stubAuths(testOrg);
-
-    const org = await Org.create({ aliasOrUsername: testOrg.username });
-    const connection = org.getConnection();
-    $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
-
-    // Distinct from the Heroku formation call below so a stray Connect call is easy to notice.
-    requestStub = sinon.stub().resolves({ type: 'connect-api-path-not-used', quantity: 0 });
-    $$.fakeConnectionRequest = requestStub;
-
-    process.env.HEROKU_API_TOKEN = 'shh-secret-token';
-    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch');
-  });
-
-  afterEach(() => {
-    delete process.env.HEROKU_API_TOKEN;
-    process.exitCode = 0;
-    $$.restore();
-  });
-
-  function jsonResponse(body: unknown, status = 200): Response {
-    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-  }
-
-  it('scales via Heroku directly, using --name as the Heroku app Id/name, without calling Connect', async () => {
-    /* eslint-disable camelcase -- dyno_size is Heroku's Formation field name */
-    fetchStub.resolves(jsonResponse({ type: 'web', quantity: 2, dyno_size: { id: 'sz1', name: 'Dyno-2C-8GB' } }));
-    /* eslint-enable camelcase */
-
-    const result = await Scale.run(['web=2:dyno-2c-8gb', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
-
-    expect(result).to.deep.equal({
-      name: 'my-heroku-app',
-      formation: [{ type: 'web', dynoSize: 'Dyno-2C-8GB', quantity: 2 }],
-    });
-    expect(findFormationCall(requestStub)).to.be.undefined;
-    const request = fetchStub.firstCall.args[0] as Request;
-    expect(request.url).to.equal('https://api.heroku.com/apps/my-heroku-app/formation/web');
-  });
-
-  it('surfaces error.herokuFormationNotFound when Heroku 404s the app or process type', async () => {
-    fetchStub.resolves(jsonResponse({ id: 'not_found', message: "Couldn't find that app." }, 404));
-
-    try {
-      await Scale.run(['web=1', '--name', 'missing-app', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include('missing-app');
-      expect((e as Error).message).to.include('web');
-    }
-    expect(findFormationCall(requestStub)).to.be.undefined;
-  });
-
-  it('surfaces error.herokuAuthFailed (with the fallback-aware actions) on a 401/403, never leaking the token', async () => {
-    fetchStub.resolves(new Response('forbidden', { status: 403 }));
-
-    try {
-      await Scale.run(['web=1', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include('rejected the request');
-      expect((e as Error).message).to.not.include('shh-secret-token');
-    }
-  });
-
-  it('surfaces error.herokuApiRequestFailed on any other Heroku failure', async () => {
-    fetchStub.resolves(new Response('server error', { status: 500 }));
-
-    try {
-      await Scale.run(['web=1', '--name', 'my-heroku-app', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("Couldn't reach the Heroku Platform API");
-    }
   });
 });

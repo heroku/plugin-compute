@@ -115,7 +115,7 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
       }
     }
 
-    this.renderComputeAppTable(result, orgId);
+    this.renderComputeAppTable(result, name, orgId);
     this.renderHerokuAppTable(formation, release);
     if (flags.verbose) {
       this.renderExternalServiceTable(result);
@@ -123,15 +123,18 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
       this.renderLatestDeploymentTable(result);
     }
 
-    return { ...result, orgId, formation, release };
+    return { ...result, name, orgId, formation, release };
   }
 
-  private renderComputeAppTable(result: ComputeAppSummary, orgId: string): void {
+  // Renders the --name value the caller passed in (e.g. myns__CreditRatingScorer), not
+  // result.name (record.DeveloperName, which has the namespace stripped) -- every sibling
+  // migrated command (scale, logs, config*, build/output) echoes the raw --name the same way.
+  private renderComputeAppTable(result: ComputeAppSummary, name: string, orgId: string): void {
     this.styledHeader('Compute App');
     this.table({
       data: [
         { key: 'Compute App ID', value: result.id },
-        { key: 'Compute App Name', value: result.name },
+        { key: 'Compute App Name', value: name },
         { key: 'Master Label', value: result.masterLabel },
         { key: 'Status', value: result.status },
         { key: 'Org ID', value: orgId },

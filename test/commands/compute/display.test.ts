@@ -277,6 +277,17 @@ describe('compute display', () => {
     expect(toolingQueryStub.called).to.be.false;
   });
 
+  it('echoes the namespace-qualified --name value verbatim, not the namespace-stripped DeveloperName', async () => {
+    resolveWith([activeRecord]);
+
+    const result = await Display.run(['--name', 'myns__CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result.name).to.equal('myns__CreditRatingScorer');
+    const soql: string = toolingQueryStub.firstCall.args[0];
+    expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
+    expect(soql).to.include("Namespace = 'myns'");
+  });
+
   it('resolves --name from COMPUTE_APP_NAME when --name is not passed', async () => {
     resolveWith([activeRecord]);
     process.env.COMPUTE_APP_NAME = 'CreditRatingScorer';

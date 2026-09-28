@@ -96,6 +96,14 @@ function soqlFields(): string {
   return fields.join(', ');
 }
 
+// Defense-in-depth for the SOQL string interpolations in queryComputeApp/listComputeApps below --
+// parseName's regexes already reject the characters SOQL string literals need escaped, so this
+// should never actually fire, but it keeps a future NAME_PATTERN/NAMESPACE_PATTERN change from
+// silently reopening injection.
+function escapeSoqlLiteral(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 // Internal engineering workaround, not a customer-facing feature -- do not document in README.
 // PlatformComputeApp/PlatformComputeAppBuild currently ship with
 // Tooling API access gated behind apiAccess="isSfdcInternal" (W-23426078 opened first-party-only
@@ -119,16 +127,19 @@ function setSfdcInternalQaCallOptions(connection: Connection): void {
   };
 }
 
-// Callers must call validateName(name) first -- name is interpolated directly into SOQL (via
-// parseName's own validation below), and that validation (letters/digits/underscore, no quotes or
-// spaces) is the injection guard. Accepts a bare DeveloperName or a namespace-qualified
-// <namespace>__<developerName> value; the latter adds a Namespace filter so it only matches an
-// app deployed under that namespace, since DeveloperName alone isn't unique across namespaces.
+// Accepts a bare DeveloperName or a namespace-qualified <namespace>__<developerName> value; the
+// latter adds a Namespace filter so it only matches an app deployed under that namespace, since
+// DeveloperName alone isn't unique across namespaces.
 export async function queryComputeApp(connection: Connection, name: string): Promise<ComputeAppRecord> {
   setSfdcInternalQaCallOptions(connection);
+  // parseName's NAME_PATTERN/NAMESPACE_PATTERN (letters/digits/underscore, anchored, no quotes or
+  // spaces) are the injection guard for the two interpolations below -- escapeSoqlLiteral is
+  // belt-and-suspenders in case either pattern is ever loosened, not the primary defense.
   const { namespace, developerName } = parseName(name);
-  const namespaceFilter = namespace === undefined ? '' : ` AND Namespace = '${namespace}'`;
-  const soql = `SELECT ${soqlFields()} FROM PlatformComputeApp WHERE DeveloperName = '${developerName}'${namespaceFilter}`;
+  const namespaceFilter = namespace === undefined ? '' : ` AND Namespace = '${escapeSoqlLiteral(namespace)}'`;
+  const soql = `SELECT ${soqlFields()} FROM PlatformComputeApp WHERE DeveloperName = '${escapeSoqlLiteral(
+    developerName
+  )}'${namespaceFilter}`;
   try {
     return await connection.singleRecordQuery<ComputeAppRecord>(soql, { tooling: true });
   } catch (err) {

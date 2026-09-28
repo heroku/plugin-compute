@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { Connection } from '@salesforce/core';
+import type { Connection, SfError } from '@salesforce/core';
 import { Messages } from '@salesforce/core';
 import type { components } from '../generated/heroku-platform-api.js';
 import { resolveComputeApiVersion } from './metadataApiVersion.js';
@@ -104,13 +104,12 @@ async function herokuProxyRequest<T>(connection: Connection, opts: HerokuProxyRe
   }
 }
 
-// If a second no-fallback caller shows up alongside scaleComputeFormationViaProxy below,
-// parameterize this (e.g. an options bag for message-key overrides) instead of copy-pasting its
-// inline not_found branch again -- duplicating the classification logic across call sites risks
-// drift if it ever needs a new herokuErrorId.
-function throwHerokuProxyComputeError(err: unknown, name: string): never {
+// notFoundMessage lets a caller override the not_found classification with a more specific error
+// (e.g. scaleComputeFormationViaProxy's "no such process type" instead of "no such app") without
+// duplicating the origin/herokuErrorId checks at each call site.
+function throwHerokuProxyComputeError(err: unknown, name: string, notFoundMessage?: SfError): never {
   if (err instanceof HerokuProxyError && err.origin === 'heroku' && err.herokuErrorId === 'not_found') {
-    throw messages.createError('error.herokuAppNotFound', [name]);
+    throw notFoundMessage ?? messages.createError('error.herokuAppNotFound', [name]);
   }
   if (err instanceof HerokuProxyError && err.origin === 'proxy') {
     throw messages.createError('error.herokuProxyRequestFailed', [err.message]);
@@ -170,10 +169,11 @@ export async function scaleComputeFormationViaProxy(
       quantity: formation.quantity ?? 0,
     };
   } catch (err) {
-    if (err instanceof HerokuProxyError && err.origin === 'heroku' && err.herokuErrorId === 'not_found') {
-      throw messages.createError('error.herokuFormationNotFound', [params.name, params.processType]);
-    }
-    throwHerokuProxyComputeError(err, params.name);
+    throwHerokuProxyComputeError(
+      err,
+      params.name,
+      messages.createError('error.herokuFormationNotFound', [params.name, params.processType])
+    );
   }
 }
 

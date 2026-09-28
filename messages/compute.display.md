@@ -14,9 +14,10 @@ doesn't read from or require a local Salesforce DX project.
 
 # flags.name.summary
 
-Name of the compute app to show status for. Defaults to the COMPUTE_APP_NAME
-environment variable, or the current directory's app name if that isn't set
-either.
+DeveloperName of the compute app to show status for (or
+<namespace>\_\_<developerName> if it was deployed under a namespace).
+Defaults to the COMPUTE_APP_NAME environment variable, or the current
+directory's app name if that isn't set either.
 
 # flags.verbose.summary
 

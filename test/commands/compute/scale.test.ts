@@ -44,11 +44,24 @@ function findFormationCall(stub: sinon.SinonStub, method?: string): sinon.SinonS
   });
 }
 
+const computeAppRecord = {
+  Id: '0abEE0000004CqYYAU',
+  DeveloperName: 'CreditRatingScorer',
+  MasterLabel: 'Credit Rating Scorer',
+  Description: null,
+  Status: 'ACTIVE',
+  StatusReason: null,
+  CurrentBuild: null,
+  ExternalServiceRegistration: null,
+  ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id',
+};
+
 describe('compute scale', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
   let requestStub: sinon.SinonStub;
+  let toolingQueryStub: sinon.SinonStub;
 
   beforeEach(async () => {
     sfCommandStubs = stubSfCommandUx($$.SANDBOX);
@@ -57,6 +70,8 @@ describe('compute scale', () => {
 
     const org = await Org.create({ aliasOrUsername: testOrg.username });
     const connection = org.getConnection();
+    toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
+    toolingQueryStub.resolves({ totalSize: 1, records: [computeAppRecord], done: true });
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
     /* eslint-disable camelcase -- dyno_size mirrors Heroku's Formation field name */
@@ -93,7 +108,7 @@ describe('compute scale', () => {
     const call = findFormationCall(requestStub, 'PATCH');
     expect(call, 'expected a PATCH proxied to Heroku formation').to.not.be.undefined;
     const request = call!.args[0] as { method: string; url: string; body: string };
-    expect(proxyTarget(request.url)).to.equal('https://api.heroku.com/apps/CreditRatingScorer/formation/web');
+    expect(proxyTarget(request.url)).to.equal('https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/formation/web');
     /* eslint-disable-next-line camelcase -- dyno_size mirrors Heroku's FormationUpdateRequest field name */
     expect(JSON.parse(request.body)).to.deep.equal({ dyno_size: { name: 'dyno-1c-4gb' } });
   });
@@ -207,15 +222,6 @@ describe('compute scale', () => {
     });
   });
 
-  it('accepts a PlatformComputeApp Id in place of a DeveloperName for --name', async () => {
-    await Scale.run(['web=1', '--name', '0abEE0000004CqYYAU', '--target-org', testOrg.username]);
-
-    const call = findFormationCall(requestStub, 'PATCH');
-    expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/0abEE0000004CqYYAU/formation/web'
-    );
-  });
-
   it('rejects when no targets are given, without calling the Heroku proxy', async () => {
     try {
       await Scale.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
@@ -226,16 +232,34 @@ describe('compute scale', () => {
     expect(findFormationCall(requestStub)).to.be.undefined;
   });
 
-  // --name is never joined into a filesystem path (unlike other commands' --name), so a
-  // hyphenated value -- invalid as a DeveloperName, but a shape Heroku app Ids/names commonly
-  // take -- must pass through untouched rather than being rejected by a path-traversal guard.
-  it('passes a hyphenated --name through untouched to the Heroku proxy call', async () => {
-    await Scale.run(['web=1', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
+  // Now that scale.ts always pre-flights a SOQL lookup by DeveloperName before proxying to
+  // Heroku, --name must be a valid DeveloperName -- a hyphenated Heroku-style value is rejected
+  // by validateName rather than passed through, unlike before resolveHerokuAppId existed.
+  it('rejects a hyphenated --name before querying or calling the Heroku proxy', async () => {
+    try {
+      await Scale.run(['web=1', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("isn't valid");
+    }
+    expect(toolingQueryStub.called).to.be.false;
+    expect(findFormationCall(requestStub)).to.be.undefined;
+  });
 
-    const call = findFormationCall(requestStub, 'PATCH');
-    expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/my-heroku-style-app/formation/web'
-    );
+  it('throws error.herokuAppIdentifierUnavailable when the app resolves but has no ExternalAppIdentifier yet, without calling the proxy', async () => {
+    toolingQueryStub.resolves({
+      totalSize: 1,
+      records: [{ ...computeAppRecord, ExternalAppIdentifier: undefined }],
+      done: true,
+    });
+
+    try {
+      await Scale.run(['web=1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("doesn't have a Heroku app identifier yet");
+    }
+    expect(findFormationCall(requestStub)).to.be.undefined;
   });
 
   it('rejects a malformed target, without calling the Heroku proxy', async () => {
@@ -277,10 +301,10 @@ describe('compute scale', () => {
     requestStub.rejects(Object.assign(new Error("Couldn't find that app."), { data: { id: 'not_found' } }));
 
     try {
-      await Scale.run(['web=1', '--name', 'missing-app', '--target-org', testOrg.username]);
+      await Scale.run(['web=1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
-      expect((e as Error).message).to.include('missing-app');
+      expect((e as Error).message).to.include('CreditRatingScorer');
       expect((e as Error).message).to.include('web');
     }
   });
@@ -330,28 +354,28 @@ describe('compute scale', () => {
       expect(result.name).to.equal('CreditRatingScorer');
       const call = findFormationCall(requestStub, 'PATCH');
       expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-        'https://api.heroku.com/apps/CreditRatingScorer/formation/web'
+        'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/formation/web'
       );
     } finally {
       delete process.env.COMPUTE_APP_NAME;
     }
   });
 
-  // Mirrors the explicit-flag "passes a hyphenated --name through untouched" test above --
-  // scale.ts's fallback-resolution line skips validateName just like the explicit-flag path, so a
-  // hyphenated Heroku-style name reaching Scale via COMPUTE_APP_NAME must also pass through untouched.
-  it('passes a hyphenated COMPUTE_APP_NAME through untouched, without validation', async () => {
+  // Mirrors the explicit-flag "rejects a hyphenated --name" test above -- scale.ts's
+  // fallback-resolution line now runs through the same validateName call as the explicit-flag
+  // path, so a hyphenated Heroku-style name reaching Scale via COMPUTE_APP_NAME is rejected too.
+  it('rejects a hyphenated COMPUTE_APP_NAME before querying or calling the Heroku proxy', async () => {
     process.env.COMPUTE_APP_NAME = 'my-heroku-style-app';
     try {
-      const result = await Scale.run(['web=1', '--target-org', testOrg.username]);
-      expect(result.name).to.equal('my-heroku-style-app');
-      const call = findFormationCall(requestStub, 'PATCH');
-      expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-        'https://api.heroku.com/apps/my-heroku-style-app/formation/web'
-      );
+      await Scale.run(['web=1', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("isn't valid");
     } finally {
       delete process.env.COMPUTE_APP_NAME;
     }
+    expect(toolingQueryStub.called).to.be.false;
+    expect(findFormationCall(requestStub)).to.be.undefined;
   });
 
   it("resolves --name from the current directory's <name>.compute-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {

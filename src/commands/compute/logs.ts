@@ -17,7 +17,7 @@
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
 import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
-import { queryComputeApp, toComputeAppSummary } from '../../shared/computeQuery.js';
+import { queryComputeApp, toComputeAppSummary, requireHerokuAppId } from '../../shared/computeQuery.js';
 import { createComputeLogSessionViaProxy } from '../../shared/herokuProxyApi.js';
 import { fetchLogplexOutput, streamLogplexOutput } from '../../shared/computeLogStream.js';
 
@@ -81,7 +81,8 @@ export default class Logs extends SfCommand<ComputeLogsResult> {
       return { name };
     }
 
-    const session = await createComputeLogSessionViaProxy(connection, { name, lines: num, tail });
+    const appId = requireHerokuAppId(record, name);
+    const session = await createComputeLogSessionViaProxy(connection, { name, appId, lines: num, tail });
 
     if (!tail) {
       const output = await fetchLogplexOutput(session.logplexUrl);

@@ -12,7 +12,8 @@ remove them.
 
 # flags.name.summary
 
-PlatformComputeApp Id or DeveloperName of the compute app to show config for.
+DeveloperName of the compute app to show config for (or
+<namespace>\_\_<developerName> if it was deployed under a namespace).
 Defaults to the COMPUTE_APP_NAME environment variable, or the current
 directory's app name if that isn't set either.
 

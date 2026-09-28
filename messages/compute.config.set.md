@@ -17,8 +17,9 @@ treated as the separator, so a value can itself contain one.
 
 # flags.name.summary
 
-PlatformComputeApp Id or DeveloperName of the compute app to change config
-for. Defaults to the COMPUTE_APP_NAME environment variable, or the current
+DeveloperName of the compute app to change config for (or
+<namespace>\_\_<developerName> if it was deployed under a namespace).
+Defaults to the COMPUTE_APP_NAME environment variable, or the current
 directory's app name if that isn't set either.
 
 # examples

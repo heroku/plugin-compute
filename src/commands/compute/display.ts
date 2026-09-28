@@ -17,7 +17,12 @@
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
 import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
-import { queryComputeApp, toComputeAppSummary, type ComputeAppSummary } from '../../shared/computeQuery.js';
+import {
+  queryComputeApp,
+  toComputeAppSummary,
+  pickHerokuAppId,
+  type ComputeAppSummary,
+} from '../../shared/computeQuery.js';
 import {
   fetchComputeFormationViaProxy,
   fetchLatestReleaseVersionViaProxy,
@@ -87,21 +92,27 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     const record = await queryComputeApp(connection, name);
     const result = toComputeAppSummary(record);
     const orgId = flags['target-org'].getOrgId();
+    const appId = pickHerokuAppId(record);
 
-    // Independent try/catch blocks -- a release-fetch failure must never blank out formation
-    // display, and vice versa.
+    // No Heroku app id yet (no successful build) -- skip both proxy calls entirely and let the
+    // Heroku App table render its placeholder dashes below, same as the unsourced App Name/Region
+    // rows. Not a warning-worthy condition: it's the expected state for a brand-new app.
     let formation: HerokuFormationSummary | undefined;
-    try {
-      formation = await fetchComputeFormationViaProxy(connection, { name });
-    } catch (err) {
-      this.warn(messages.getMessage('warning.herokuFormationUnavailable', [(err as Error).message]));
-    }
-
     let release: number | undefined;
-    try {
-      release = await fetchLatestReleaseVersionViaProxy(connection, { name });
-    } catch (err) {
-      this.warn(messages.getMessage('warning.herokuReleaseUnavailable', [(err as Error).message]));
+    if (appId) {
+      // Independent try/catch blocks -- a release-fetch failure must never blank out formation
+      // display, and vice versa.
+      try {
+        formation = await fetchComputeFormationViaProxy(connection, { name, appId });
+      } catch (err) {
+        this.warn(messages.getMessage('warning.herokuFormationUnavailable', [(err as Error).message]));
+      }
+
+      try {
+        release = await fetchLatestReleaseVersionViaProxy(connection, { name, appId });
+      } catch (err) {
+        this.warn(messages.getMessage('warning.herokuReleaseUnavailable', [(err as Error).message]));
+      }
     }
 
     this.renderComputeAppTable(result, orgId);

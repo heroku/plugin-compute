@@ -194,6 +194,16 @@ describe('compute display', () => {
     expect(result.externalServiceActive).to.be.undefined;
   });
 
+  it('skips both Heroku proxy calls and leaves formation/release undefined when ExternalAppIdentifier is missing, without warning', async () => {
+    resolveWith([{ ...activeRecord, ExternalAppIdentifier: undefined }]);
+
+    const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result.formation).to.be.undefined;
+    expect(result.release).to.be.undefined;
+    expect(sfCommandStubs.warn.called).to.be.false;
+  });
+
   it('omits description and reports a status reason when the app has neither a description nor a build', async () => {
     resolveWith([
       {
@@ -351,6 +361,7 @@ describe('compute display via the Heroku proxy', () => {
       Error: null,
     },
     ExternalServiceRegistration: { Id: '0ES0x00000ABC456', IsActive: true },
+    ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id',
   };
 
   beforeEach(async () => {

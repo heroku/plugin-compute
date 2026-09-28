@@ -41,10 +41,23 @@ function findConfigVarsCall(stub: sinon.SinonStub, method?: string): sinon.Sinon
   });
 }
 
+const computeAppRecord = {
+  Id: '0abEE0000004CqYYAU',
+  DeveloperName: 'CreditRatingScorer',
+  MasterLabel: 'Credit Rating Scorer',
+  Description: null,
+  Status: 'ACTIVE',
+  StatusReason: null,
+  CurrentBuild: null,
+  ExternalServiceRegistration: null,
+  ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id',
+};
+
 describe('compute config get', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
+  let toolingQueryStub: sinon.SinonStub;
   let requestStub: sinon.SinonStub;
 
   beforeEach(async () => {
@@ -53,6 +66,8 @@ describe('compute config get', () => {
 
     const org = await Org.create({ aliasOrUsername: testOrg.username });
     const connection = org.getConnection();
+    toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
+    toolingQueryStub.resolves({ totalSize: 1, records: [computeAppRecord], done: true });
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
     requestStub = sinon.stub().resolves({ STRIPE_KEY: 'sk_live_abc123', LOG_LEVEL: 'info' });
@@ -121,10 +136,10 @@ describe('compute config get', () => {
     requestStub.rejects(Object.assign(new Error("Couldn't find that app."), { data: { id: 'not_found' } }));
 
     try {
-      await ConfigGet.run(['STRIPE_KEY', '--name', 'missing-app', '--target-org', testOrg.username]);
+      await ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
-      expect((e as Error).message).to.include('missing-app');
+      expect((e as Error).message).to.include('CreditRatingScorer');
     }
   });
 
@@ -162,16 +177,34 @@ describe('compute config get', () => {
     expect(findConfigVarsCall(requestStub)).to.be.undefined;
   });
 
-  // --name is never joined into a filesystem path (unlike other commands' --name), so a
-  // hyphenated value -- invalid as a DeveloperName, but a shape Heroku app Ids/names commonly
-  // take -- must pass through untouched rather than being rejected by a path-traversal guard.
-  it('passes a hyphenated --name through untouched to the Heroku proxy call', async () => {
-    await ConfigGet.run(['STRIPE_KEY', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
+  // Now that get.ts always pre-flights a SOQL lookup by DeveloperName before proxying to Heroku,
+  // --name must be a valid DeveloperName -- a hyphenated Heroku-style value is rejected by
+  // validateName rather than passed through, unlike before resolveHerokuAppId existed.
+  it('rejects a hyphenated --name before querying or calling the Heroku proxy', async () => {
+    try {
+      await ConfigGet.run(['STRIPE_KEY', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("isn't valid");
+    }
+    expect(toolingQueryStub.called).to.be.false;
+    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+  });
 
-    const call = findConfigVarsCall(requestStub, 'GET');
-    expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/my-heroku-style-app/config-vars'
-    );
+  it('throws error.herokuAppIdentifierUnavailable when the app resolves but has no ExternalAppIdentifier yet, without calling the proxy', async () => {
+    toolingQueryStub.resolves({
+      totalSize: 1,
+      records: [{ ...computeAppRecord, ExternalAppIdentifier: undefined }],
+      done: true,
+    });
+
+    try {
+      await ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("doesn't have a Heroku app identifier yet");
+    }
+    expect(findConfigVarsCall(requestStub)).to.be.undefined;
   });
 
   it('returns the flattened result under --json, not the full status envelope', async () => {
@@ -191,7 +224,7 @@ describe('compute config get', () => {
       expect(result.name).to.equal('CreditRatingScorer');
       const call = findConfigVarsCall(requestStub, 'GET');
       expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-        'https://api.heroku.com/apps/CreditRatingScorer/config-vars'
+        'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/config-vars'
       );
     } finally {
       delete process.env.COMPUTE_APP_NAME;

@@ -17,7 +17,8 @@
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Args } from '@oclif/core';
 import { Messages } from '@salesforce/core';
-import { requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
+import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
+import { resolveHerokuAppId } from '../../../shared/computeQuery.js';
 import { updateComputeConfigVarsViaProxy, fetchLatestReleaseVersionViaProxy } from '../../../shared/herokuProxyApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
@@ -59,11 +60,7 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
   public async run(): Promise<ComputeConfigSetResult> {
     const { args, flags } = await this.parse(ConfigSet);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
-
-    // --name is never interpolated into SOQL (unlike display.ts/list.ts) -- the proxy path below
-    // URL-encodes it as a REST path segment, and a PlatformComputeApp Id/DeveloperName and a
-    // Heroku app Id/name (conventionally hyphenated) must both pass through untouched -- so this
-    // skips validateName, matching scale.ts.
+    validateName(name);
 
     // A declarative `required: true`/minimum-count arg would enforce this earlier, during
     // this.parse() -- deliberately not used so the error can carry
@@ -88,9 +85,10 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
     // No existence check first, unlike get/unset -- set is also how a brand-new config var gets
     // created, so a nonexistent key here isn't an error, it's the normal creation path.
     const connection = flags['target-org'].getConnection();
+    const appId = await resolveHerokuAppId(connection, name);
     this.spinner.start(`Setting config vars and restarting ${name}`);
     try {
-      await updateComputeConfigVarsViaProxy(connection, { name, updates });
+      await updateComputeConfigVarsViaProxy(connection, { name, appId, updates });
     } catch (err) {
       this.spinner.stop('failed');
       throw err;
@@ -101,7 +99,7 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
     // not fatal to the config-set operation the spinner already reported as done.
     let release: number | undefined;
     try {
-      release = await fetchLatestReleaseVersionViaProxy(connection, { name });
+      release = await fetchLatestReleaseVersionViaProxy(connection, { name, appId });
     } catch {
       // Best-effort -- the config vars were already updated successfully above.
     }

@@ -11,7 +11,8 @@ entirely locally; no org is contacted.
 
 # flags.name.summary
 
-Name for the new compute app.
+Name for the new compute app. Use <namespace>\_\_<developerName> to scaffold
+it under a namespace.
 
 # flags.output-dir.summary
 

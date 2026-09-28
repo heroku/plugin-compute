@@ -15,8 +15,9 @@ one command.
 
 # flags.name.summary
 
-PlatformComputeApp Id or DeveloperName of the compute app to read config
-from. Defaults to the COMPUTE_APP_NAME environment variable, or the current
+DeveloperName of the compute app to read config from (or
+<namespace>\_\_<developerName> if it was deployed under a namespace).
+Defaults to the COMPUTE_APP_NAME environment variable, or the current
 directory's app name if that isn't set either.
 
 # examples

@@ -53,11 +53,24 @@ function findReleasesCall(stub: sinon.SinonStub, method?: string): sinon.SinonSp
   });
 }
 
+const computeAppRecord = {
+  Id: '0abEE0000004CqYYAU',
+  DeveloperName: 'CreditRatingScorer',
+  MasterLabel: 'Credit Rating Scorer',
+  Description: null,
+  Status: 'ACTIVE',
+  StatusReason: null,
+  CurrentBuild: null,
+  ExternalServiceRegistration: null,
+  ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id',
+};
+
 describe('compute config unset', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
   let spinnerStubs: ReturnType<typeof stubSpinner>;
+  let toolingQueryStub: sinon.SinonStub;
   let requestStub: sinon.SinonStub;
 
   beforeEach(async () => {
@@ -67,6 +80,8 @@ describe('compute config unset', () => {
 
     const org = await Org.create({ aliasOrUsername: testOrg.username });
     const connection = org.getConnection();
+    toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
+    toolingQueryStub.resolves({ totalSize: 1, records: [computeAppRecord], done: true });
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
     requestStub = sinon.stub().callsFake(async (req: { method?: string; url?: string }) => {
@@ -103,7 +118,7 @@ describe('compute config unset', () => {
     const getCall = findConfigVarsCall(requestStub, 'GET');
     expect(getCall, 'expected a GET proxied to Heroku config-vars').to.not.be.undefined;
     expect(proxyTarget((getCall!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/CreditRatingScorer/config-vars'
+      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/config-vars'
     );
     const patchCall = findConfigVarsCall(requestStub, 'PATCH');
     expect(JSON.parse((patchCall!.args[0] as { body: string }).body)).to.deep.equal({ LOG_LEVEL: null });
@@ -167,16 +182,34 @@ describe('compute config unset', () => {
     expect(findConfigVarsCall(requestStub)).to.be.undefined;
   });
 
-  // --name is never joined into a filesystem path (unlike other commands' --name), so a
-  // hyphenated value -- invalid as a DeveloperName, but a shape Heroku app Ids/names commonly
-  // take -- must pass through untouched rather than being rejected by a path-traversal guard.
-  it('passes a hyphenated --name through untouched to the Heroku proxy call', async () => {
-    await ConfigUnset.run(['LOG_LEVEL', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
+  // Now that unset.ts always pre-flights a SOQL lookup by DeveloperName before proxying to
+  // Heroku, --name must be a valid DeveloperName -- a hyphenated Heroku-style value is rejected
+  // by validateName rather than passed through, unlike before resolveHerokuAppId existed.
+  it('rejects a hyphenated --name before querying or calling the Heroku proxy', async () => {
+    try {
+      await ConfigUnset.run(['LOG_LEVEL', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("isn't valid");
+    }
+    expect(toolingQueryStub.called).to.be.false;
+    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+  });
 
-    const patchCall = findConfigVarsCall(requestStub, 'PATCH');
-    expect(proxyTarget((patchCall!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/my-heroku-style-app/config-vars'
-    );
+  it('throws error.herokuAppIdentifierUnavailable when the app resolves but has no ExternalAppIdentifier yet, without calling the proxy', async () => {
+    toolingQueryStub.resolves({
+      totalSize: 1,
+      records: [{ ...computeAppRecord, ExternalAppIdentifier: undefined }],
+      done: true,
+    });
+
+    try {
+      await ConfigUnset.run(['LOG_LEVEL', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("doesn't have a Heroku app identifier yet");
+    }
+    expect(findConfigVarsCall(requestStub)).to.be.undefined;
   });
 
   it('omits release from the result when there are no releases yet', async () => {
@@ -289,10 +322,10 @@ describe('compute config unset', () => {
     });
 
     try {
-      await ConfigUnset.run(['LOG_LEVEL', '--name', 'missing-app', '--target-org', testOrg.username]);
+      await ConfigUnset.run(['LOG_LEVEL', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
-      expect((e as Error).message).to.include('missing-app');
+      expect((e as Error).message).to.include('CreditRatingScorer');
     }
   });
 
@@ -310,7 +343,7 @@ describe('compute config unset', () => {
       expect(result.name).to.equal('CreditRatingScorer');
       const patchCall = findConfigVarsCall(requestStub, 'PATCH');
       expect(proxyTarget((patchCall!.args[0] as { url: string }).url)).to.equal(
-        'https://api.heroku.com/apps/CreditRatingScorer/config-vars'
+        'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/config-vars'
       );
     } finally {
       delete process.env.COMPUTE_APP_NAME;

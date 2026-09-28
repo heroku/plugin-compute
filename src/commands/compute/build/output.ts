@@ -17,7 +17,7 @@
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
 import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
-import { queryComputeApp, toComputeAppSummary } from '../../../shared/computeQuery.js';
+import { queryComputeApp, toComputeAppSummary, requireHerokuAppId } from '../../../shared/computeQuery.js';
 import { fetchLatestBuildOutputStreamUrlViaProxy } from '../../../shared/herokuProxyApi.js';
 import { fetchBuildOutputStream } from '../../../shared/computeLogStream.js';
 
@@ -61,7 +61,8 @@ export default class Output extends SfCommand<ComputeBuildOutputResult> {
     }
 
     const { buildStatus } = currentBuild;
-    const outputStreamUrl = await fetchLatestBuildOutputStreamUrlViaProxy(connection, { name });
+    const appId = requireHerokuAppId(record, name);
+    const outputStreamUrl = await fetchLatestBuildOutputStreamUrlViaProxy(connection, { name, appId });
 
     if (outputStreamUrl === undefined) {
       this.info(messages.getMessage('info.buildOutputNotYetAvailable', [name, buildStatus]));

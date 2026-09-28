@@ -16,6 +16,7 @@
 
 import type { Connection } from '@salesforce/core';
 import { Messages } from '@salesforce/core';
+import { parseName } from './computeApp.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
@@ -36,6 +37,11 @@ export type ComputeAppRecord = {
   Description: string | null;
   Status: 'DEPLOYING' | 'ACTIVE' | 'FAILED';
   StatusReason: string | null;
+  // Heroku's own app id -- NOT the same value as DeveloperName, which is Salesforce-side only.
+  // Only present in the queried record (see soqlFields()) under SALESFORCE_INTERNAL_QA_CLIENT,
+  // since it shares PlatformComputeApp's entity-level isSfdcInternal restriction (W-24176390).
+  // Undefined/null until then, and until the app's first successful build sets it.
+  ExternalAppIdentifier?: string | null;
   CurrentBuild: {
     Id: string;
     BuildStatus: 'PENDING' | 'BUILDING' | 'SUCCEEDED' | 'FAILED';
@@ -44,10 +50,13 @@ export type ComputeAppRecord = {
     DeployedAt: string | null;
     DeployedBy: { Username: string } | null;
     Error: string | null;
+    // Heroku's own build id -- see ExternalAppIdentifier's comment above; same gating, same
+    // "written by async worker post-insert" caveat, so can be null even on a record that has one.
+    ExternalBuildIdentifier?: string | null;
   } | null;
   ExternalServiceRegistration: {
     Id: string;
-    // Not queried below (see SOQL_FIELDS) -- Tooling API rejects this column at parse time even
+    // Not queried below (see soqlFields()) -- Tooling API rejects this column at parse time even
     // with the SfdcInternalQA client override applied. This is a field-level restriction on
     // ExternalServiceRegistration itself, separate from PlatformComputeApp/PlatformComputeAppBuild's
     // entity-level isSfdcInternal restriction (tracked by W-24176390). Optional until that
@@ -57,7 +66,7 @@ export type ComputeAppRecord = {
   } | null;
 };
 
-export const SOQL_FIELDS = [
+const BASE_SOQL_FIELDS = [
   'Id',
   'DeveloperName',
   'MasterLabel',
@@ -72,7 +81,20 @@ export const SOQL_FIELDS = [
   'CurrentBuild.DeployedBy.Username',
   'CurrentBuild.Error',
   'ExternalServiceRegistration.Id',
-].join(', ');
+];
+
+// ExternalAppIdentifier/CurrentBuild.ExternalBuildIdentifier share PlatformComputeApp's
+// entity-level isSfdcInternal restriction (W-24176390) -- querying them without the
+// SfdcInternalQA client override applied (see setSfdcInternalQaCallOptions below) fails the whole
+// query, so only add them once that override is already in effect. Keeps the default query text
+// byte-for-byte unchanged until W-24176390 ships.
+function soqlFields(): string {
+  const fields =
+    process.env.SALESFORCE_INTERNAL_QA_CLIENT === 'true'
+      ? [...BASE_SOQL_FIELDS, 'ExternalAppIdentifier', 'CurrentBuild.ExternalBuildIdentifier']
+      : BASE_SOQL_FIELDS;
+  return fields.join(', ');
+}
 
 // Internal engineering workaround, not a customer-facing feature -- do not document in README.
 // PlatformComputeApp/PlatformComputeAppBuild currently ship with
@@ -97,11 +119,16 @@ function setSfdcInternalQaCallOptions(connection: Connection): void {
   };
 }
 
-// Callers must call validateName(name) first -- name is interpolated directly into SOQL, and
-// that regex (letters/digits/underscore, no quotes or spaces) is the injection guard.
+// Callers must call validateName(name) first -- name is interpolated directly into SOQL (via
+// parseName's own validation below), and that validation (letters/digits/underscore, no quotes or
+// spaces) is the injection guard. Accepts a bare DeveloperName or a namespace-qualified
+// <namespace>__<developerName> value; the latter adds a Namespace filter so it only matches an
+// app deployed under that namespace, since DeveloperName alone isn't unique across namespaces.
 export async function queryComputeApp(connection: Connection, name: string): Promise<ComputeAppRecord> {
   setSfdcInternalQaCallOptions(connection);
-  const soql = `SELECT ${SOQL_FIELDS} FROM PlatformComputeApp WHERE DeveloperName = '${name}'`;
+  const { namespace, developerName } = parseName(name);
+  const namespaceFilter = namespace === undefined ? '' : ` AND Namespace = '${namespace}'`;
+  const soql = `SELECT ${soqlFields()} FROM PlatformComputeApp WHERE DeveloperName = '${developerName}'${namespaceFilter}`;
   try {
     return await connection.singleRecordQuery<ComputeAppRecord>(soql, { tooling: true });
   } catch (err) {
@@ -124,7 +151,7 @@ export async function queryComputeApp(connection: Connection, name: string): Pro
 // (10,000-record default fetch size), which comfortably covers any realistic org's compute-app count.
 export async function listComputeApps(connection: Connection): Promise<ComputeAppRecord[]> {
   setSfdcInternalQaCallOptions(connection);
-  const soql = `SELECT ${SOQL_FIELDS} FROM PlatformComputeApp ORDER BY DeveloperName ASC`;
+  const soql = `SELECT ${soqlFields()} FROM PlatformComputeApp ORDER BY DeveloperName ASC`;
   try {
     // autoFetchQuery's type param is bounded to jsforce's Schema (org-wide SObject map), not the
     // record shape -- there's no way to type this call against ComputeAppRecord directly.
@@ -160,6 +187,32 @@ export type ComputeAppSummary = {
     error?: string;
   };
 };
+
+// Pure extraction, no fallback to DeveloperName -- a Heroku proxy call must never receive the
+// Salesforce-side name in place of Heroku's own app id, so callers that get undefined back must
+// either skip the Heroku call (display.ts) or hard-error (requireHerokuAppId/resolveHerokuAppId
+// below), never silently substitute name on the wire.
+export function pickHerokuAppId(record: ComputeAppRecord): string | undefined {
+  return record.ExternalAppIdentifier ?? undefined;
+}
+
+// For callers that already hold a queried ComputeAppRecord (logs.ts, build/output.ts) and just
+// need to gate on/extract the Heroku app id without a second query.
+export function requireHerokuAppId(record: ComputeAppRecord, name: string): string {
+  const herokuAppId = pickHerokuAppId(record);
+  if (!herokuAppId) {
+    throw messages.createError('error.herokuAppIdentifierUnavailable', [name]);
+  }
+  return herokuAppId;
+}
+
+// For callers that don't otherwise query the org (scale.ts, config/*.ts) -- runs the same
+// queryComputeApp lookup those commands now require (see validateName's call-site contract above)
+// and extracts the Heroku app id in one step.
+export async function resolveHerokuAppId(connection: Connection, name: string): Promise<string> {
+  const record = await queryComputeApp(connection, name);
+  return requireHerokuAppId(record, name);
+}
 
 // Heroku-side runtime metadata (dyno type, web process/formation count) isn't included here --
 // there's no confirmed Salesforce-queryable source for it yet. Open item, not yet resolved.

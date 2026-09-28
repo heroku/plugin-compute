@@ -21,17 +21,46 @@ import { Messages } from '@salesforce/core';
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
 
-// Also guards against path traversal, since `name` is joined directly into a filesystem path.
-// Leading digit is allowed (unlike a strict DeveloperName) so a PlatformComputeApp/Heroku Id --
-// which may start with a digit -- passes too; see sf compute scale, the first command that
-// accepts an Id as well as a DeveloperName.
-const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_]*$/;
+// Mirrors Salesforce's DeveloperName grammar (starts with a letter, alphanumeric/underscore only,
+// no trailing or double underscore) -- every --name is now resolved as a DeveloperName via SOQL,
+// so this also guards against path traversal, since `name` is joined directly into a filesystem path.
+const NAME_PATTERN = /^(?!.*__)(?!.*_$)[A-Za-z]\w*$/;
 
-// Shared by every command that takes --name, so the path-traversal guard has one source of truth.
-export function validateName(name: string): void {
-  if (!NAME_PATTERN.test(name)) {
+// Mirrors Salesforce's namespace grammar (starts with a letter, alphanumeric/underscore only,
+// 1-15 characters total, no double underscore).
+const NAMESPACE_PATTERN = /^[A-Za-z](?!.*__)[A-Za-z0-9_]{0,14}$/;
+
+export type ParsedComputeAppName = {
+  namespace?: string;
+  developerName: string;
+};
+
+// Splits a --name value on its first "__" into { namespace, developerName } when it's a
+// namespace-qualified metadata name (<namespace>__<developerName>), validating each part against
+// its own Salesforce grammar; otherwise validates the whole string as a bare DeveloperName. A
+// DeveloperName can never itself contain "__" (see NAME_PATTERN's lookahead), so any "__" in --name
+// means everything before the first one is a namespace -- DeveloperName and Namespace are separate
+// compound-key fields (see PLATFORMCOMPUTEAPP_ENTITY_SCHEMA.md), not one combined identifier.
+export function parseName(name: string): ParsedComputeAppName {
+  const separatorIndex = name.indexOf('__');
+  if (separatorIndex === -1) {
+    if (!NAME_PATTERN.test(name)) {
+      throw messages.createError('error.invalidName', [name]);
+    }
+    return { developerName: name };
+  }
+  const namespace = name.slice(0, separatorIndex);
+  const developerName = name.slice(separatorIndex + 2);
+  if (!NAMESPACE_PATTERN.test(namespace) || !NAME_PATTERN.test(developerName)) {
     throw messages.createError('error.invalidName', [name]);
   }
+  return { namespace, developerName };
+}
+
+// Shared by every command that takes --name, so the path-traversal/SOQL-injection guard has one
+// source of truth. Delegates to parseName so a <namespace>__<developerName> value is accepted too.
+export function validateName(name: string): void {
+  parseName(name);
 }
 
 export function resolveAppDir(outputDir: string, name: string): string {

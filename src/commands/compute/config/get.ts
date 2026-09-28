@@ -17,7 +17,8 @@
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Args } from '@oclif/core';
 import { Messages } from '@salesforce/core';
-import { requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
+import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
+import { resolveHerokuAppId } from '../../../shared/computeQuery.js';
 import { formatConfigVarLines, requireConfigVar } from '../../../shared/computeConfig.js';
 import { fetchComputeConfigVarsViaProxy } from '../../../shared/herokuProxyApi.js';
 
@@ -55,6 +56,7 @@ export default class ConfigGet extends SfCommand<ComputeConfigGetResult> {
   public async run(): Promise<ComputeConfigGetResult> {
     const { args, flags } = await this.parse(ConfigGet);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
+    validateName(name);
 
     // A declarative `required: true`/minimum-count arg would enforce this earlier, during
     // this.parse() -- deliberately not used so the error can carry
@@ -65,11 +67,9 @@ export default class ConfigGet extends SfCommand<ComputeConfigGetResult> {
     }
     const keys = [...new Set(tokens)];
 
-    // --name is never interpolated into SOQL (unlike display.ts/list.ts) -- the proxy path below
-    // URL-encodes it as a REST path segment, and a PlatformComputeApp Id/DeveloperName and a
-    // Heroku app Id/name (conventionally hyphenated) must both pass through untouched -- so this
-    // skips validateName, matching scale.ts.
-    const configVars = await fetchComputeConfigVarsViaProxy(flags['target-org'].getConnection(), { name });
+    const connection = flags['target-org'].getConnection();
+    const appId = await resolveHerokuAppId(connection, name);
+    const configVars = await fetchComputeConfigVarsViaProxy(connection, { name, appId });
 
     const values: Record<string, string> = {};
     for (const key of keys) {

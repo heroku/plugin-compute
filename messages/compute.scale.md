@@ -18,9 +18,10 @@ process types in one command.
 
 # flags.name.summary
 
-PlatformComputeApp Id or DeveloperName of the compute app to scale. Defaults
-to the COMPUTE_APP_NAME environment variable, or the current directory's app
-name if that isn't set either.
+DeveloperName of the compute app to scale (or <namespace>\_\_<developerName>
+if it was deployed under a namespace). Defaults to the COMPUTE_APP_NAME
+environment variable, or the current directory's app name if that isn't set
+either.
 
 # examples
 

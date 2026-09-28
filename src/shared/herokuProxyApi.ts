@@ -76,11 +76,7 @@ type HerokuProxyRequestOptions = {
 
 // THE ONLY function in this plugin that knows the /services/data/vXX.0/heroku/proxy?proxy_url=...
 // shape -- every exported function below calls this and otherwise looks like it's talking to
-// Heroku's typed API directly, the same way herokuApi.ts's typed client functions used to look
-// before HEROKU_API_TOKEN mode was removed. Once post-GA user-scoped Heroku tokens exist and
-// direct-to-Heroku calls become possible again, only this function's body needs to change (e.g.
-// to an openapi-fetch call against a token-bearing client) -- every exported function's
-// signature, and every command file's call site, stays identical.
+// Heroku's typed API directly.
 //
 // proxy_url must carry the full target Heroku URL as a single percent-encoded query param value
 // -- connection.request() is used (never raw fetch) so token refresh/retry/proxy settings apply,
@@ -126,14 +122,14 @@ export type HerokuFormationSummary = Array<{ type: string; dynoSize?: string; qu
 
 export async function fetchComputeFormationViaProxy(
   connection: Connection,
-  params: { name: string }
+  params: { name: string; appId: string }
 ): Promise<HerokuFormationSummary> {
   try {
     const formation = await herokuProxyRequest<Array<components['schemas']['Formation']>>(connection, {
       method: 'GET',
       path: '/apps/{app_id_or_name}/formation',
       // eslint-disable-next-line camelcase -- app_id_or_name mirrors Heroku's own path param name
-      params: { app_id_or_name: params.name },
+      params: { app_id_or_name: params.appId },
     });
     return formation.map((f) => ({ type: f.type ?? '-', dynoSize: f.dyno_size?.name, quantity: f.quantity ?? 0 }));
   } catch (err) {
@@ -150,7 +146,7 @@ export type HerokuFormationUpdate = { type: string; dynoSize?: string; quantity:
 
 export async function scaleComputeFormationViaProxy(
   connection: Connection,
-  params: { name: string; processType: string; dynoSize?: string; quantity?: number }
+  params: { name: string; appId: string; processType: string; dynoSize?: string; quantity?: number }
 ): Promise<HerokuFormationUpdate> {
   try {
     const formation = await herokuProxyRequest<components['schemas']['Formation']>(connection, {
@@ -158,7 +154,7 @@ export async function scaleComputeFormationViaProxy(
       path: '/apps/{app_id_or_name}/formation/{formation_id_or_type}',
       params: {
         // eslint-disable-next-line camelcase -- mirrors Heroku's own path param names
-        app_id_or_name: params.name,
+        app_id_or_name: params.appId,
         // eslint-disable-next-line camelcase
         formation_id_or_type: params.processType,
       },
@@ -183,14 +179,14 @@ export async function scaleComputeFormationViaProxy(
 
 export async function fetchComputeConfigVarsViaProxy(
   connection: Connection,
-  params: { name: string }
+  params: { name: string; appId: string }
 ): Promise<Record<string, string>> {
   try {
     return await herokuProxyRequest<components['schemas']['ConfigVars']>(connection, {
       method: 'GET',
       path: '/apps/{app_id_or_name}/config-vars',
       // eslint-disable-next-line camelcase -- app_id_or_name mirrors Heroku's own path param name
-      params: { app_id_or_name: params.name },
+      params: { app_id_or_name: params.appId },
     });
   } catch (err) {
     throwHerokuProxyComputeError(err, params.name);
@@ -199,14 +195,14 @@ export async function fetchComputeConfigVarsViaProxy(
 
 export async function updateComputeConfigVarsViaProxy(
   connection: Connection,
-  params: { name: string; updates: Record<string, string | null> }
+  params: { name: string; appId: string; updates: Record<string, string | null> }
 ): Promise<Record<string, string>> {
   try {
     return await herokuProxyRequest<components['schemas']['ConfigVars']>(connection, {
       method: 'PATCH',
       path: '/apps/{app_id_or_name}/config-vars',
       // eslint-disable-next-line camelcase -- app_id_or_name mirrors Heroku's own path param name
-      params: { app_id_or_name: params.name },
+      params: { app_id_or_name: params.appId },
       body: params.updates satisfies components['schemas']['ConfigVarsUpdate'],
     });
   } catch (err) {
@@ -221,14 +217,14 @@ export async function updateComputeConfigVarsViaProxy(
 // one element. Returns undefined (not an error) for a brand-new app with no releases yet.
 export async function fetchLatestReleaseVersionViaProxy(
   connection: Connection,
-  params: { name: string }
+  params: { name: string; appId: string }
 ): Promise<number | undefined> {
   try {
     const releases = await herokuProxyRequest<Array<components['schemas']['Release']>>(connection, {
       method: 'GET',
       path: '/apps/{app_id_or_name}/releases',
       // eslint-disable-next-line camelcase -- app_id_or_name mirrors Heroku's own path param name
-      params: { app_id_or_name: params.name },
+      params: { app_id_or_name: params.appId },
       headers: { Range: 'version ..; max=1; order=desc' },
     });
     const versions = releases.map((r) => r.version).filter((v): v is number => v !== undefined);
@@ -245,14 +241,14 @@ export type HerokuLogSession = { logplexUrl: string };
 // only as a path param.
 export async function createComputeLogSessionViaProxy(
   connection: Connection,
-  params: { name: string; lines?: number; tail?: boolean }
+  params: { name: string; appId: string; lines?: number; tail?: boolean }
 ): Promise<HerokuLogSession> {
   try {
     const session = await herokuProxyRequest<components['schemas']['LogSession']>(connection, {
       method: 'POST',
       path: '/apps/{app_id_or_name}/log-sessions',
       // eslint-disable-next-line camelcase -- app_id_or_name mirrors Heroku's own path param name
-      params: { app_id_or_name: params.name },
+      params: { app_id_or_name: params.appId },
       body: {
         lines: params.lines,
         tail: params.tail,
@@ -277,14 +273,14 @@ export async function createComputeLogSessionViaProxy(
 // output_stream_url yet -- build/output.ts treats both the same as the old Connect resource's 404.
 export async function fetchLatestBuildOutputStreamUrlViaProxy(
   connection: Connection,
-  params: { name: string }
+  params: { name: string; appId: string }
 ): Promise<string | undefined> {
   try {
     const builds = await herokuProxyRequest<Array<components['schemas']['Build']>>(connection, {
       method: 'GET',
       path: '/apps/{app_id_or_name}/builds',
       // eslint-disable-next-line camelcase -- app_id_or_name mirrors Heroku's own path param name
-      params: { app_id_or_name: params.name },
+      params: { app_id_or_name: params.appId },
     });
     return builds.at(-1)?.output_stream_url;
   } catch (err) {

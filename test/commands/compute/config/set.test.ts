@@ -52,11 +52,24 @@ function findReleasesCall(stub: sinon.SinonStub, method?: string): sinon.SinonSp
   });
 }
 
+const computeAppRecord = {
+  Id: '0abEE0000004CqYYAU',
+  DeveloperName: 'CreditRatingScorer',
+  MasterLabel: 'Credit Rating Scorer',
+  Description: null,
+  Status: 'ACTIVE',
+  StatusReason: null,
+  CurrentBuild: null,
+  ExternalServiceRegistration: null,
+  ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id',
+};
+
 describe('compute config set', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
   let spinnerStubs: ReturnType<typeof stubSpinner>;
+  let toolingQueryStub: sinon.SinonStub;
   let requestStub: sinon.SinonStub;
 
   beforeEach(async () => {
@@ -66,6 +79,8 @@ describe('compute config set', () => {
 
     const org = await Org.create({ aliasOrUsername: testOrg.username });
     const connection = org.getConnection();
+    toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
+    toolingQueryStub.resolves({ totalSize: 1, records: [computeAppRecord], done: true });
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
     // PATCH .../config-vars returns Heroku's raw (flat) updated ConfigVars map; the command
@@ -110,7 +125,7 @@ describe('compute config set', () => {
     const patchCall = findConfigVarsCall(requestStub, 'PATCH');
     expect(patchCall, 'expected a PATCH proxied to Heroku config-vars').to.not.be.undefined;
     expect(proxyTarget((patchCall!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/CreditRatingScorer/config-vars'
+      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/config-vars'
     );
     expect(JSON.parse((patchCall!.args[0] as { body: string }).body)).to.deep.equal({
       STRIPE_KEY: 'sk_live_xyz789',
@@ -291,12 +306,28 @@ describe('compute config set', () => {
     });
 
     try {
-      await ConfigSet.run(['FOO=bar', '--name', 'missing-app', '--target-org', testOrg.username]);
+      await ConfigSet.run(['FOO=bar', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
     } catch (e) {
-      expect((e as Error).message).to.include('missing-app');
+      expect((e as Error).message).to.include('CreditRatingScorer');
     }
     expect(spinnerStubs.stop.firstCall.args[0]).to.equal('failed');
+  });
+
+  it('throws error.herokuAppIdentifierUnavailable when the app resolves but has no ExternalAppIdentifier yet, without calling the proxy', async () => {
+    toolingQueryStub.resolves({
+      totalSize: 1,
+      records: [{ ...computeAppRecord, ExternalAppIdentifier: undefined }],
+      done: true,
+    });
+
+    try {
+      await ConfigSet.run(['FOO=bar', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("doesn't have a Heroku app identifier yet");
+    }
+    expect(findConfigVarsCall(requestStub)).to.be.undefined;
   });
 
   it('returns the flattened result under --json, not the full status envelope', async () => {
@@ -324,7 +355,7 @@ describe('compute config set', () => {
       expect(result.name).to.equal('CreditRatingScorer');
       const patchCall = findConfigVarsCall(requestStub, 'PATCH');
       expect(proxyTarget((patchCall!.args[0] as { url: string }).url)).to.equal(
-        'https://api.heroku.com/apps/CreditRatingScorer/config-vars'
+        'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/config-vars'
       );
     } finally {
       delete process.env.COMPUTE_APP_NAME;

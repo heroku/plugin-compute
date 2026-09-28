@@ -1,6 +1,9 @@
 # error.invalidName
 
-The name "%s" isn't valid. Use only letters, numbers, and underscores, and start with a letter.
+The name "%s" isn't valid. Use only letters, numbers, and underscores, start with a letter, and
+don't use two consecutive underscores. For a namespace-qualified name
+(<namespace>\_\_<developerName>), both parts must independently follow those rules, and the
+namespace must be 15 characters or fewer.
 
 # error.cannotResolveAppName
 
@@ -109,6 +112,15 @@ Heroku didn't find app %s or its %s process type.
 
 - Confirm the process type is correct.
 - Run the command again; if it still fails, check Setup for outstanding compute app errors.
+
+# error.herokuAppIdentifierUnavailable
+
+Compute app %s doesn't have a Heroku app identifier yet.
+
+# error.herokuAppIdentifierUnavailable.actions
+
+- Wait for the app's current build to finish, then run the command again.
+- If the app has never had a successful build, run sf compute deploy first.
 
 # error.configVarNotFound
 

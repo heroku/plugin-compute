@@ -17,7 +17,8 @@
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Args } from '@oclif/core';
 import { Messages } from '@salesforce/core';
-import { requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
+import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
+import { resolveHerokuAppId } from '../../shared/computeQuery.js';
 import { scaleComputeFormationViaProxy } from '../../shared/herokuProxyApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
@@ -108,12 +109,7 @@ export default class Scale extends SfCommand<ComputeScaleResult> {
   public async run(): Promise<ComputeScaleResult> {
     const { args, flags } = await this.parse(Scale);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
-
-    // --name is never joined into a filesystem path or interpolated into SOQL (unlike other
-    // commands' --name), so it skips validateName -- the Connect and Heroku-direct paths below
-    // each URL-encode it as a REST path segment, and both a PlatformComputeApp Id/DeveloperName
-    // and a Heroku app Id (a UUID, hyphens included) or name (conventionally hyphenated) must
-    // pass through untouched.
+    validateName(name);
 
     // A declarative `required: true`/minimum-count arg would enforce this earlier, during
     // this.parse() -- deliberately not used so the error can carry
@@ -125,6 +121,7 @@ export default class Scale extends SfCommand<ComputeScaleResult> {
     const targets = tokens.map((token) => parseScaleTarget(token));
 
     const connection = flags['target-org'].getConnection();
+    const appId = await resolveHerokuAppId(connection, name);
 
     this.spinner.start('Scaling dynos');
     const formation: Array<{ type: string; dynoSize?: string; quantity: number }> = [];
@@ -132,7 +129,7 @@ export default class Scale extends SfCommand<ComputeScaleResult> {
       for (const target of targets) {
         // Sequential PATCHes to the same app's formation -- there's nothing to parallelize.
         /* eslint-disable no-await-in-loop */
-        const updated = await scaleComputeFormationViaProxy(connection, { name, ...target });
+        const updated = await scaleComputeFormationViaProxy(connection, { name, appId, ...target });
         /* eslint-enable no-await-in-loop */
         formation.push(updated);
       }

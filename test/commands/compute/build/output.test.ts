@@ -73,6 +73,7 @@ describe('compute build output', () => {
       Error: null,
     },
     ExternalServiceRegistration: null,
+    ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id',
   };
 
   const succeededRecord = {
@@ -133,9 +134,22 @@ describe('compute build output', () => {
     const call = findListBuildsCall(requestStub);
     expect(call, 'expected a GET to the Heroku proxy listBuilds path').to.not.be.undefined;
     expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/CreditRatingScorer/builds'
+      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/builds'
     );
     expect(fetchStub.calledWith('https://build-output.heroku.com/streams/abc')).to.be.true;
+  });
+
+  it('throws error.herokuAppIdentifierUnavailable when the app has a build but no ExternalAppIdentifier yet, without calling the proxy or fetch', async () => {
+    resolveWith([{ ...buildingRecord, ExternalAppIdentifier: undefined }]);
+
+    try {
+      await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("doesn't have a Heroku app identifier yet");
+    }
+    expect(findListBuildsCall(requestStub)).to.be.undefined;
+    expect(fetchStub.called).to.be.false;
   });
 
   it('reports no builds yet and returns just the name when CurrentBuild is null', async () => {
@@ -267,7 +281,7 @@ describe('compute build output', () => {
     expect(result).to.deep.equal({ name: 'CreditRatingScorer' });
   });
 
-  it('preserves the exact case of --name in both the SOQL filter and the Heroku proxy target', async () => {
+  it('preserves the exact case of --name in the SOQL filter and targets the resolved Heroku app id', async () => {
     resolveWith([succeededRecord]);
 
     await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
@@ -276,7 +290,7 @@ describe('compute build output', () => {
     expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
     const call = findListBuildsCall(requestStub);
     expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/CreditRatingScorer/builds'
+      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/builds'
     );
   });
 
@@ -301,7 +315,7 @@ describe('compute build output', () => {
       expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
       const call = findListBuildsCall(requestStub);
       expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-        'https://api.heroku.com/apps/CreditRatingScorer/builds'
+        'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/builds'
       );
     } finally {
       delete process.env.COMPUTE_APP_NAME;

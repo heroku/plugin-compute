@@ -16,7 +16,14 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 import { SfError, type Connection } from '@salesforce/core';
-import { queryComputeApp, listComputeApps, toComputeAppSummary } from '../../src/shared/computeQuery.js';
+import {
+  queryComputeApp,
+  listComputeApps,
+  toComputeAppSummary,
+  pickHerokuAppId,
+  requireHerokuAppId,
+  resolveHerokuAppId,
+} from '../../src/shared/computeQuery.js';
 
 const activeRecord = {
   Id: '0abEE0000004CqYYAU',
@@ -53,6 +60,66 @@ describe('computeQuery.queryComputeApp', () => {
     // ExternalServiceRegistration.IsActive's comment in computeQuery.ts).
     expect(soql).to.not.include('ExternalServiceRegistration.IsActive');
     expect(options).to.deep.equal({ tooling: true });
+  });
+
+  it('does not query ExternalAppIdentifier or CurrentBuild.ExternalBuildIdentifier by default', async () => {
+    const singleRecordQuery = sinon.stub().resolves(activeRecord);
+    const connection = { singleRecordQuery } as unknown as Connection;
+
+    await queryComputeApp(connection, 'CreditRatingScorer');
+
+    const [soql] = singleRecordQuery.firstCall.args as [string];
+    expect(soql).to.not.include('ExternalAppIdentifier');
+    expect(soql).to.not.include('ExternalBuildIdentifier');
+  });
+
+  it('queries ExternalAppIdentifier and CurrentBuild.ExternalBuildIdentifier when SALESFORCE_INTERNAL_QA_CLIENT=true', async () => {
+    const singleRecordQuery = sinon.stub().resolves(activeRecord);
+    const connection = { singleRecordQuery } as unknown as Connection;
+    process.env.SALESFORCE_INTERNAL_QA_CLIENT = 'true';
+    try {
+      await queryComputeApp(connection, 'CreditRatingScorer');
+    } finally {
+      delete process.env.SALESFORCE_INTERNAL_QA_CLIENT;
+    }
+
+    const [soql] = singleRecordQuery.firstCall.args as [string];
+    expect(soql).to.include('ExternalAppIdentifier');
+    expect(soql).to.include('CurrentBuild.ExternalBuildIdentifier');
+  });
+
+  it('adds a Namespace filter when name is namespace-qualified', async () => {
+    const singleRecordQuery = sinon.stub().resolves({ ...activeRecord, DeveloperName: 'CreditRatingScorer' });
+    const connection = { singleRecordQuery } as unknown as Connection;
+
+    await queryComputeApp(connection, 'myns__CreditRatingScorer');
+
+    const [soql] = singleRecordQuery.firstCall.args as [string];
+    expect(soql).to.include("WHERE DeveloperName = 'CreditRatingScorer'");
+    expect(soql).to.include("AND Namespace = 'myns'");
+  });
+
+  it('does not add a Namespace filter for a bare DeveloperName', async () => {
+    const singleRecordQuery = sinon.stub().resolves(activeRecord);
+    const connection = { singleRecordQuery } as unknown as Connection;
+
+    await queryComputeApp(connection, 'CreditRatingScorer');
+
+    const [soql] = singleRecordQuery.firstCall.args as [string];
+    expect(soql).to.not.include('Namespace');
+  });
+
+  it('rejects an invalid --name before issuing any query', async () => {
+    const singleRecordQuery = sinon.stub().resolves(activeRecord);
+    const connection = { singleRecordQuery } as unknown as Connection;
+
+    try {
+      await queryComputeApp(connection, 'My-App');
+      expect.fail('expected queryComputeApp to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include("isn't valid");
+    }
+    expect(singleRecordQuery.called).to.be.false;
   });
 
   it('maps a zero-record result to a deploy-hint error with the name filled into both the message and the actions', async () => {
@@ -222,5 +289,80 @@ describe('computeQuery.toComputeAppSummary', () => {
 
     expect(result.description).to.be.undefined;
     expect(result.statusReason).to.equal('Buildpack detection failed.');
+  });
+});
+
+describe('computeQuery.pickHerokuAppId', () => {
+  it('returns the record ExternalAppIdentifier when present', () => {
+    expect(pickHerokuAppId({ ...activeRecord, ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id' })).to.equal(
+      'a1b2c3d4-heroku-app-id'
+    );
+  });
+
+  it('returns undefined without falling back to DeveloperName when ExternalAppIdentifier is missing', () => {
+    expect(pickHerokuAppId(activeRecord)).to.be.undefined;
+  });
+
+  it('returns undefined when ExternalAppIdentifier is explicitly null', () => {
+    expect(pickHerokuAppId({ ...activeRecord, ExternalAppIdentifier: null })).to.be.undefined;
+  });
+});
+
+describe('computeQuery.requireHerokuAppId', () => {
+  it('returns the Heroku app id when present', () => {
+    expect(
+      requireHerokuAppId({ ...activeRecord, ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id' }, 'CreditRatingScorer')
+    ).to.equal('a1b2c3d4-heroku-app-id');
+  });
+
+  it('throws error.herokuAppIdentifierUnavailable, naming the app, when ExternalAppIdentifier is missing', () => {
+    try {
+      requireHerokuAppId(activeRecord, 'CreditRatingScorer');
+      expect.fail('expected requireHerokuAppId to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include('CreditRatingScorer');
+      expect((err as Error).message).to.include("doesn't have a Heroku app identifier yet");
+    }
+  });
+});
+
+describe('computeQuery.resolveHerokuAppId', () => {
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('queries the app and returns its Heroku app id', async () => {
+    const singleRecordQuery = sinon
+      .stub()
+      .resolves({ ...activeRecord, ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id' });
+    const connection = { singleRecordQuery } as unknown as Connection;
+
+    const result = await resolveHerokuAppId(connection, 'CreditRatingScorer');
+
+    expect(result).to.equal('a1b2c3d4-heroku-app-id');
+  });
+
+  it('throws error.herokuAppIdentifierUnavailable when the queried record has no Heroku app id', async () => {
+    const singleRecordQuery = sinon.stub().resolves(activeRecord);
+    const connection = { singleRecordQuery } as unknown as Connection;
+
+    try {
+      await resolveHerokuAppId(connection, 'CreditRatingScorer');
+      expect.fail('expected resolveHerokuAppId to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include("doesn't have a Heroku app identifier yet");
+    }
+  });
+
+  it('propagates the underlying appNotFoundInOrg error when the app does not exist in the org', async () => {
+    const singleRecordQuery = sinon.stub().rejects(new SfError('No records found', 'SingleRecordQuery_NoRecords'));
+    const connection = { singleRecordQuery } as unknown as Connection;
+
+    try {
+      await resolveHerokuAppId(connection, 'NeverDeployed');
+      expect.fail('expected resolveHerokuAppId to throw');
+    } catch (err) {
+      expect((err as Error).message).to.include('No compute app named NeverDeployed was found in the org');
+    }
   });
 });

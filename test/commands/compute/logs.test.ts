@@ -78,6 +78,7 @@ describe('compute logs', () => {
       Error: null,
     },
     ExternalServiceRegistration: null,
+    ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id',
   };
 
   beforeEach(async () => {
@@ -121,7 +122,7 @@ describe('compute logs', () => {
     const call = findLogSessionCall(requestStub);
     expect(call, 'expected a POST to the Heroku proxy log-sessions path').to.not.be.undefined;
     expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/CreditRatingScorer/log-sessions'
+      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/log-sessions'
     );
     const body = JSON.parse((call!.args[0] as { body: string }).body);
     expect(body).to.deep.equal({ lines: 100, tail: false });
@@ -204,6 +205,19 @@ describe('compute logs', () => {
     expect(fetchStub.called).to.be.false;
   });
 
+  it('throws error.herokuAppIdentifierUnavailable when the app has a build but no ExternalAppIdentifier yet, without calling the proxy or fetch', async () => {
+    resolveWith([{ ...deployedRecord, ExternalAppIdentifier: undefined }]);
+
+    try {
+      await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include("doesn't have a Heroku app identifier yet");
+    }
+    expect(findLogSessionCall(requestStub)).to.be.undefined;
+    expect(fetchStub.called).to.be.false;
+  });
+
   it('surfaces error.herokuAppNotFound when Heroku 404s the log-session creation', async () => {
     resolveWith([deployedRecord]);
     requestStub.rejects(Object.assign(new Error("Couldn't find that app."), { data: { id: 'not_found' } }));
@@ -230,7 +244,7 @@ describe('compute logs', () => {
     }
   });
 
-  it('preserves the exact case of --name in both the SOQL filter and the Heroku proxy target', async () => {
+  it('preserves the exact case of --name in the SOQL filter and targets the resolved Heroku app id', async () => {
     resolveWith([deployedRecord]);
 
     await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
@@ -239,7 +253,7 @@ describe('compute logs', () => {
     expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
     const call = findLogSessionCall(requestStub);
     expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/CreditRatingScorer/log-sessions'
+      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/log-sessions'
     );
   });
 

@@ -11,7 +11,8 @@ into that same directory. This is the inverse of sf compute deploy.
 
 # flags.name.summary
 
-Name of the compute app to retrieve.
+DeveloperName of the compute app to retrieve (or <namespace>\_\_<developerName>
+if it was deployed under a namespace).
 
 # flags.output-dir.summary
 

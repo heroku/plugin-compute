@@ -155,3 +155,28 @@ The downloaded deployment bundle is invalid: %s.
 # error.sourceBundleMalformed.actions
 
 - Run sf compute source retrieve again; if it still fails, contact your Salesforce admin.
+
+# error.templateSourceFetchFailed
+
+Couldn't fetch the %s starter source: %s
+
+# error.templateSourceFetchFailed.actions
+
+- Check your network connection to github.com and codeload.github.com.
+- Run the command again; if it still fails, check https://www.githubstatus.com.
+
+# error.templateSourceChecksumMismatch
+
+The %s starter source didn't match its expected checksum (expected %s, got %s).
+
+# error.templateSourceChecksumMismatch.actions
+
+- Run the command again; if it still fails, this plugin's pinned reference commit may need updating.
+
+# error.templateSourceMalformed
+
+The %s starter source download is invalid: %s.
+
+# error.templateSourceMalformed.actions
+
+- Run the command again; if it still fails, this plugin's pinned reference commit may need updating.

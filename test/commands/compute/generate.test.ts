@@ -20,12 +20,46 @@ import { TestContext } from '@salesforce/core/testSetup';
 import { expect } from 'chai';
 import { stubSfCommandUx } from '@salesforce/sf-plugins-core';
 import Generate from '../../../src/commands/compute/generate.js';
+import type { FetchTemplateSource, Language } from '../../../src/shared/computeGenerateSource.js';
+
+// Keeps this suite offline: production Generate.fetchTemplateSource does a live HTTPS fetch of
+// the pinned reference-app commit, so tests swap in an in-memory fixture covering every path
+// generate.ts actually reads (see FETCHED_FILES in generate.ts) instead of hitting the network.
+const FIXTURE_SOURCE: Record<Language, Record<string, string>> = {
+  node: {
+    Procfile: 'web: APP_PORT=3000 heroku-applink-service-mesh npm start\n',
+    'src/app.js': 'export default async function (fastify, opts) {}\n',
+    'src/plugins/heroku-applink.js': "import fp from 'fastify-plugin';\nexport default fp(async () => {});\n",
+    'package.json': JSON.stringify({
+      type: 'module',
+      main: 'src/app.js',
+      scripts: { start: 'fastify start src/app.js', dev: 'fastify start -w src/app.js', lint: 'eslint src' },
+      license: 'Apache-2.0',
+      engines: { node: '>=20.0.0 <24.0.0' },
+      dependencies: { fastify: '^5.4.0' },
+      devDependencies: { eslint: '^9.14.0' },
+    }),
+  },
+  python: {
+    Procfile: 'web: APP_PORT=3000 heroku-applink-service-mesh uvicorn app.main:app\n',
+    'requirements.txt': 'fastapi>=0.109.2\nuvicorn>=0.27.1\nheroku-applink>=1.0.0\nPyYAML>=6.0.1\npytest>=8.2.0\n',
+  },
+};
+
+const stubFetchTemplateSource: FetchTemplateSource = async (language) => {
+  const entries: Record<string, Buffer> = {};
+  for (const [path, contents] of Object.entries(FIXTURE_SOURCE[language])) {
+    entries[path] = Buffer.from(contents, 'utf8');
+  }
+  return entries;
+};
 
 describe('compute generate', () => {
   const $$ = new TestContext();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
   let projectDir: string;
   let originalCwd: string;
+  let originalFetchTemplateSource: FetchTemplateSource;
 
   beforeEach(async () => {
     sfCommandStubs = stubSfCommandUx($$.SANDBOX);
@@ -36,9 +70,12 @@ describe('compute generate', () => {
       JSON.stringify({ packageDirectories: [{ path: 'force-app', default: true }] })
     );
     process.chdir(projectDir);
+    originalFetchTemplateSource = Generate.fetchTemplateSource;
+    Generate.fetchTemplateSource = stubFetchTemplateSource;
   });
 
   afterEach(async () => {
+    Generate.fetchTemplateSource = originalFetchTemplateSource;
     process.chdir(originalCwd);
     await rm(projectDir, { recursive: true, force: true });
     $$.restore();
@@ -71,6 +108,14 @@ describe('compute generate', () => {
     expect(projectToml).to.include('id = "heroku/heroku-applink"');
     expect(projectToml).to.include('id = "heroku/procfile"');
 
+    const packageJson = await readFile(
+      join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer/package.json'),
+      'utf8'
+    );
+    expect(packageJson).to.include('"name": "creditratingscorer"');
+    expect(packageJson).to.not.include('devDependencies');
+    expect(packageJson).to.not.include('lint');
+
     const output = sfCommandStubs.log
       .getCalls()
       .flatMap((c) => c.args)
@@ -90,6 +135,13 @@ describe('compute generate', () => {
       'utf8'
     );
     expect(mainPy).to.include('title="ReceiptOcr"');
+
+    const requirementsTxt = await readFile(
+      join(projectDir, 'force-app/main/default/platformComputeApps/ReceiptOcr/requirements.txt'),
+      'utf8'
+    );
+    expect(requirementsTxt).to.include('fastapi');
+    expect(requirementsTxt).to.not.include('pytest');
 
     const projectToml = await readFile(
       join(projectDir, 'force-app/main/default/platformComputeApps/ReceiptOcr/project.toml'),
@@ -123,6 +175,30 @@ describe('compute generate', () => {
       expect.fail('expected an error');
     } catch (e) {
       expect((e as Error).message).to.include("isn't valid");
+    }
+  });
+
+  it('surfaces a clear error when the template source fetch fails', async () => {
+    Generate.fetchTemplateSource = async () => {
+      throw new Error('boom');
+    };
+
+    try {
+      await Generate.run(['--name', 'FetchFails']);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('boom');
+    }
+  });
+
+  it('surfaces a clear error when the fetched source is missing an expected file', async () => {
+    Generate.fetchTemplateSource = async () => ({});
+
+    try {
+      await Generate.run(['--name', 'MissingFile']);
+      expect.fail('expected an error');
+    } catch (e) {
+      expect((e as Error).message).to.include('Procfile');
     }
   });
 });

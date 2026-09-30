@@ -6,8 +6,10 @@ Scaffold a new compute app into your Salesforce DX project.
 
 Creates the app directory under force-app/main/default/platformComputeApps/<name>/ (or
 --output-dir) with a compute metadata file, a Procfile, a project.toml, and
-starter source in the language you choose with --language. This command runs
-entirely locally; no org is contacted.
+starter source in the language you choose with --language. No org is
+contacted, but this command does fetch the starter source for the chosen
+language from its Heroku AppLink reference app on GitHub, so it requires
+outbound network access.
 
 # flags.name.summary
 
@@ -50,6 +52,14 @@ A compute app named %s already exists at %s. Choose a different name or remove t
 
 - Choose a different --name.
 - Remove the existing directory and run this command again.
+
+# error.templateSourceMissingFile
+
+The %s starter source is missing an expected file: %s.
+
+# error.templateSourceMissingFile.actions
+
+- This plugin's pinned reference commit may be out of date with the upstream repo's layout; file an issue against @salesforce/plugin-compute.
 
 # info.generating
 

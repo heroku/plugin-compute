@@ -12,8 +12,7 @@
           "type": "string"
         },
         "language": {
-          "type": "string",
-          "enum": ["node", "python"]
+          "$ref": "#/definitions/Language"
         },
         "files": {
           "type": "array",
@@ -24,6 +23,10 @@
       },
       "required": ["name", "path", "language", "files"],
       "additionalProperties": false
+    },
+    "Language": {
+      "type": "string",
+      "enum": ["node", "python"]
     }
   }
 }

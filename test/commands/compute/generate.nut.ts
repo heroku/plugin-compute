@@ -41,4 +41,12 @@ describe('compute generate NUTs', () => {
     const output = execCmd('compute generate --name CreditRatingScorer --json', { ensureExitCode: 1 }).jsonOutput;
     expect(output?.message).to.include('already exists');
   });
+
+  it('scaffolds a python compute app', () => {
+    const result = execCmd<ComputeGenerateResult>('compute generate --name ReceiptOcr --language python --json', {
+      ensureExitCode: 0,
+    }).jsonOutput?.result;
+    expect(result?.name).to.equal('ReceiptOcr');
+    expect(result?.language).to.equal('python');
+  });
 });

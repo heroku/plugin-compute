@@ -42,8 +42,7 @@
     "/npm-shrinkwrap.json",
     "/oclif.lock",
     "/oclif.manifest.json",
-    "/schemas",
-    "/templates"
+    "/schemas"
   ],
   "homepage": "https://github.com/salesforcecli/plugin-compute",
   "keywords": [

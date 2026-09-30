@@ -1,0 +1,38 @@
+name: checkReferenceAppDrift
+on:
+  schedule:
+    - cron: '0 13 * * 1' # Mondays at 13:00 UTC
+  workflow_dispatch:
+
+jobs:
+  check-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: yarn install --frozen-lockfile
+      - run: yarn compile
+      - run: node scripts/check-reference-app-drift.mjs
+      - name: Announce drift
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.CLI_ALERTS_SLACK_WEBHOOK }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+          JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          payload: |
+            {
+              "text": "plugin-compute's pinned Heroku AppLink reference-app commit(s) are behind upstream HEAD",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*plugin-compute*: `sf compute generate`'s pinned reference-app commit(s) are behind upstream HEAD.\n*Job:* ${{ env.JOB_URL }}"
+                  }
+                }
+              ]
+            }

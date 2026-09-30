@@ -14,19 +14,16 @@
  * limitations under the License.
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Messages } from '@salesforce/core';
 import { resolveAppDir, validateName, pathExists } from '../../shared/computeApp.js';
+import { fetchTemplateSource, type FetchTemplateSource, type Language } from '../../shared/computeGenerateSource.js';
+import { GENERATED_SKELETONS } from '../../shared/computeGenerateSkeletons.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.generate');
-
-// Only Node.js and Python have AppLink SDK/middleware support today; see the
-// design spec's "generate" open question for the other Heroku-supported languages.
-type Language = 'node' | 'python';
 
 export type ComputeGenerateResult = {
   name: string;
@@ -62,6 +59,10 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
     }),
   };
 
+  // Overridable by tests so generate.test.ts stays offline -- production always uses the real
+  // fetchTemplateSource (live HTTPS fetch of the pinned reference-app commit).
+  public static fetchTemplateSource: FetchTemplateSource = fetchTemplateSource;
+
   public async run(): Promise<ComputeGenerateResult> {
     const { flags } = await this.parse(Generate);
     const { name } = flags;
@@ -76,7 +77,7 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
 
     this.log(messages.getMessage('info.generating', [name]));
 
-    const starterFiles = await buildStarterFiles(name, language);
+    const starterFiles = await buildStarterFiles(name, language, Generate.fetchTemplateSource);
     const writtenFiles = await Promise.all(
       Object.entries(starterFiles).map(async ([relativePath, contents]) => {
         const filePath = join(appDir, relativePath);
@@ -96,34 +97,39 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
   }
 }
 
-// Starter source is adapted from the Heroku AppLink getting-started reference
-// apps (applink-getting-started-nodejs / applink-getting-started-python): same
-// bootstrap/routing/middleware pattern, minus their repo-hygiene, lint, test
-// files, and example business-logic endpoints (Accounts query, UnitOfWork,
-// Data Cloud webhook) - customers write their own routes/routers into the
-// empty scaffold those endpoints left behind. See templates/<language>/.
+// Starter source is fetched live from the Heroku AppLink getting-started reference apps
+// (applink-getting-started-nodejs / applink-getting-started-python) at generate time -- see
+// computeGenerateSource.ts for the pinned commit/checksum and the fetch-and-extract mechanics.
 //
-// project.toml is the one exception: those reference repos don't ship one, so
-// it's authored here per language (lang-specific buildpack, then the
-// heroku/heroku-applink CNB -- see heroku-buildpack-heroku-applink-service-mesh
-// -- then heroku/procfile) and stored alongside the vendored files.
-const TEMPLATES_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'templates');
-
-const TEMPLATE_FILES: Record<Language, string[]> = {
-  node: [
-    'project.toml',
-    'package.json',
-    'Procfile',
-    'api-spec.yaml',
-    'src/app.js',
-    'src/plugins/heroku-applink.js',
-    'src/routes/index.js',
-    'README.md',
-  ],
-  python: ['project.toml', 'requirements.txt', 'Procfile', 'api-spec.yaml', 'app/main.py', 'README.md'],
+// Files carrying the reference apps' example business-logic endpoints (Accounts query,
+// UnitOfWork, Data Cloud webhook) aren't separable from that logic by trimming -- it's woven
+// into route/router registration, OpenAPI paths, and README prose, not appended after some
+// boilerplate. Those paths are always replaced with a hand-authored skeleton (see
+// computeGenerateSkeletons.ts) that keeps the same bootstrap/routing/middleware pattern with a
+// commented worked example, so customers write their own routes/routers into it. project.toml
+// has no upstream equivalent at all (those repos don't ship one) and is generated the same way.
+//
+// Everything else -- Procfile, the Fastify bootstrap/plugin files, package.json/requirements.txt
+// (each lightly transformed to drop dev/test-only entries) -- is kept from the fetched source,
+// so this repo carries zero vendored copies of upstream's code.
+const FETCHED_FILES: Record<Language, Record<string, ((raw: Buffer) => string) | undefined>> = {
+  node: {
+    Procfile: undefined,
+    'src/app.js': undefined,
+    'src/plugins/heroku-applink.js': undefined,
+    'package.json': transformNodePackageJson,
+  },
+  python: {
+    Procfile: undefined,
+    'requirements.txt': transformPythonRequirements,
+  },
 };
 
-async function buildStarterFiles(name: string, language: Language): Promise<Record<string, string>> {
+async function buildStarterFiles(
+  name: string,
+  language: Language,
+  fetchSource: FetchTemplateSource
+): Promise<Record<string, string>> {
   const metaXml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<PlatformComputeApp xmlns="http://soap.sforce.com/2006/04/metadata">',
@@ -137,13 +143,70 @@ async function buildStarterFiles(name: string, language: Language): Promise<Reco
     [`${name}.compute-meta.xml`]: metaXml,
   };
 
-  const templateDir = join(TEMPLATES_ROOT, language);
-  await Promise.all(
-    TEMPLATE_FILES[language].map(async (relativePath) => {
-      const raw = await readFile(join(templateDir, relativePath), 'utf8');
-      files[relativePath] = raw.replaceAll('__APP_NAME_LOWER__', name.toLowerCase()).replaceAll('__APP_NAME__', name);
-    })
-  );
+  const fetched = await fetchSource(language);
+  for (const [relativePath, transform] of Object.entries(FETCHED_FILES[language])) {
+    const raw = fetched[relativePath];
+    if (!raw) {
+      throw messages.createError('error.templateSourceMissingFile', [language, relativePath]);
+    }
+    files[relativePath] = transform ? transform(raw) : raw.toString('utf8');
+  }
+
+  for (const [relativePath, contents] of Object.entries(GENERATED_SKELETONS[language])) {
+    files[relativePath] = contents;
+  }
+
+  for (const [relativePath, contents] of Object.entries(files)) {
+    files[relativePath] = contents
+      .replaceAll('__APP_NAME_LOWER__', name.toLowerCase())
+      .replaceAll('__APP_NAME__', name);
+  }
 
   return files;
+}
+
+// Keeps package.json's runtime shape (module type, entry point, start/dev scripts, license,
+// engines, dependencies) while dropping devDependencies and the lint/format/test scripts that
+// only make sense inside the reference app's own repo, and renaming/redescribing the package for
+// the generated app.
+function transformNodePackageJson(raw: Buffer): string {
+  const upstream = JSON.parse(raw.toString('utf8')) as {
+    type?: string;
+    main?: string;
+    scripts?: Record<string, string>;
+    license?: string;
+    engines?: Record<string, string>;
+    dependencies?: Record<string, string>;
+  };
+  const pkg = {
+    name: '__APP_NAME_LOWER__',
+    version: '1.0.0',
+    description: 'Compute app generated by sf compute generate, built on the Heroku AppLink Node.js starter.',
+    type: upstream.type,
+    main: upstream.main,
+    scripts: {
+      start: upstream.scripts?.start,
+      dev: upstream.scripts?.dev,
+    },
+    license: upstream.license,
+    engines: upstream.engines,
+    dependencies: upstream.dependencies,
+  };
+  return JSON.stringify(pkg, null, 2) + '\n';
+}
+
+// requirements.txt lists runtime and test dependencies on separate lines with no section
+// markers, so the only reliable split is an explicit runtime-package allowlist rather than a
+// positional/comment-based cut.
+const PYTHON_RUNTIME_PACKAGES = new Set(['fastapi', 'uvicorn', 'heroku-applink', 'pyyaml']);
+
+function transformPythonRequirements(raw: Buffer): string {
+  const lines = raw
+    .toString('utf8')
+    .split('\n')
+    .filter((line) => {
+      const packageName = /^[A-Za-z0-9_.-]+/.exec(line.trim())?.[0];
+      return packageName !== undefined && PYTHON_RUNTIME_PACKAGES.has(packageName.toLowerCase());
+    });
+  return lines.join('\n') + '\n';
 }

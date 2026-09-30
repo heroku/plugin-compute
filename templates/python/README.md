@@ -7,11 +7,13 @@ the Heroku AppLink Python starter (FastAPI).
 
 - `GET /` -- public welcome endpoint.
 - `GET /health` -- public health check endpoint.
-- `POST /handleDataCloudDataChangeEvent/` -- public webhook for Data Cloud events.
 - `GET /docs` -- interactive Swagger UI generated from `api-spec.yaml`.
-- `GET /api/accounts/` -- (protected) query Accounts in the invoking org.
-- `POST /api/unitofwork/` -- (protected) create an Account, Contact, and
-  related Cases in a single transaction via the Unit of Work pattern.
+
+Add your own routers under `app/routers/` and mount them on `sf_app` in
+`app/main.py` (see the commented example there) for any endpoint that needs
+Salesforce context, or on `app` directly for a public webhook. Add a
+matching operation in `api-spec.yaml` for each one that should be published
+as an External Service.
 
 ## Local development
 

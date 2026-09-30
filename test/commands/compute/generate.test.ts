@@ -84,7 +84,6 @@ describe('compute generate', () => {
     expect(result.language).to.equal('python');
     expect(result.files.some((f) => f.endsWith('requirements.txt'))).to.be.true;
     expect(result.files.some((f) => f.endsWith('app/main.py'))).to.be.true;
-    expect(result.files.some((f) => f.endsWith('app/routers/accounts.py'))).to.be.true;
 
     const mainPy = await readFile(
       join(projectDir, 'force-app/main/default/platformComputeApps/ReceiptOcr/app/main.py'),

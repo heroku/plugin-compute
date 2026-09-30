@@ -96,9 +96,12 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
   }
 }
 
-// Starter source is vendored from the Heroku AppLink getting-started reference
-// apps (applink-getting-started-nodejs / applink-getting-started-python), minus
-// their repo-hygiene, lint, and test files. See templates/<language>/.
+// Starter source is adapted from the Heroku AppLink getting-started reference
+// apps (applink-getting-started-nodejs / applink-getting-started-python): same
+// bootstrap/routing/middleware pattern, minus their repo-hygiene, lint, test
+// files, and example business-logic endpoints (Accounts query, UnitOfWork,
+// Data Cloud webhook) - customers write their own routes/routers into the
+// empty scaffold those endpoints left behind. See templates/<language>/.
 //
 // project.toml is the one exception: those reference repos don't ship one, so
 // it's authored here per language (lang-specific buildpack, then the
@@ -117,17 +120,7 @@ const TEMPLATE_FILES: Record<Language, string[]> = {
     'src/routes/index.js',
     'README.md',
   ],
-  python: [
-    'project.toml',
-    'requirements.txt',
-    'Procfile',
-    'api-spec.yaml',
-    'app/main.py',
-    'app/routers/accounts.py',
-    'app/routers/unitofwork.py',
-    'app/routers/datacloud.py',
-    'README.md',
-  ],
+  python: ['project.toml', 'requirements.txt', 'Procfile', 'api-spec.yaml', 'app/main.py', 'README.md'],
 };
 
 async function buildStarterFiles(name: string, language: Language): Promise<Record<string, string>> {

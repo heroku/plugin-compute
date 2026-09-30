@@ -9,15 +9,18 @@ from fastapi import FastAPI
 from typing import Dict
 import yaml
 
-from .routers import accounts, unitofwork, datacloud
-
 # --- Protected Salesforce App ---
 # All routers and middleware that require Salesforce context are attached here.
 sf_app = FastAPI()
 sf_app.add_middleware(sdk.IntegrationAsgiMiddleware, config=sdk.Config())
 
-sf_app.include_router(accounts.router, prefix="/accounts")
-sf_app.include_router(unitofwork.router, prefix="/unitofwork")
+# Add your routers here, e.g.:
+#
+# from .routers import hello
+# sf_app.include_router(hello.router, prefix="/hello")
+#
+# Every route on a router mounted on sf_app can call sdk.get_client_context()
+# to read the invoking org's context (context.data_api, context.org, etc.).
 
 # --- Main Public App ---
 app = FastAPI(
@@ -29,9 +32,9 @@ app = FastAPI(
 # Mount the protected Salesforce app at the /api prefix
 app.mount("/api", sf_app)
 
-# The Data Cloud router is a webhook, so it's attached to the main app
-# without the Salesforce context middleware.
-app.include_router(datacloud.router)
+# A webhook (e.g. a Data Cloud Data Action Target) has no invoking-user
+# context, so it's attached directly to the public app instead of sf_app -
+# add app.include_router(...) calls here for that case.
 
 # Load the OpenAPI spec and attach it to the main app
 with open("api-spec.yaml", "r") as f:

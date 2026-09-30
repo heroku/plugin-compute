@@ -35,35 +35,46 @@ describe('metadataDeploy.deployComputeMetadata', () => {
     sinon.restore();
   });
 
-  function stubConnection(deployResult: {
+  function stubConnection(deployStatus: {
     success: boolean;
     details: { componentFailures: Array<{ problem?: string }> };
   }) {
-    const complete = sinon.stub().resolves(deployResult);
-    const on = sinon.stub();
-    const deploy = sinon.stub().returns({ complete, on });
+    const deploy = sinon.stub().resolves({ id: 'deploy-job-id' });
+    const checkDeployStatus = sinon.stub().resolves({ id: 'deploy-job-id', done: true, ...deployStatus });
+    // SDR's MetadataTransfer.getConnection() unconditionally calls retrieveMaxApiVersion() before
+    // every deploy, even though we never pass an `apiVersion` option -- so the "requested higher
+    // than org allows" branch it feeds into never actually fires, but the call itself must resolve.
+    const retrieveMaxApiVersion = sinon.stub().resolves('70.0');
     const connection = {
       getApiVersion: () => '62.0',
-      metadata: { deploy, pollTimeout: 10_000, pollInterval: 1000 },
+      getAuthInfoFields: () => ({ orgId: '00DEE0000000000EAA' }),
+      retrieveMaxApiVersion,
+      metadata: { deploy, checkDeployStatus },
     } as unknown as Connection;
-    return { connection, deploy, complete, on };
+    return { connection, deploy, checkDeployStatus, retrieveMaxApiVersion };
   }
 
   it('builds a package.xml + platformComputeApps/<name>.compute zip and deploys it', async () => {
-    const { connection, deploy, complete, on } = stubConnection({ success: true, details: { componentFailures: [] } });
+    const { connection, deploy, checkDeployStatus } = stubConnection({
+      success: true,
+      details: { componentFailures: [] },
+    });
 
-    await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
+    const result = await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
 
-    // Regression guard: jsforce's DeployResultLocator emits 'error' on poll timeout/failure,
-    // and an unhandled 'error' event crashes the whole process (EventEmitter default behavior)
-    // -- a listener must always be attached before complete() is awaited.
-    expect(on.calledOnceWith('error')).to.be.true;
-    // jsforce's 10s default pollTimeout is too short for a real metadata deploy.
-    expect(connection.metadata.pollTimeout).to.be.greaterThan(10_000);
+    expect(result).to.deep.equal({ id: 'deploy-job-id' });
+    // isRestDeploy is false since we never set apiOptions.rest -- SDR polls via the SOAP checkDeployStatus signature.
+    expect(checkDeployStatus.calledOnceWith('deploy-job-id', true, false)).to.be.true;
 
     expect(deploy.calledOnce).to.be.true;
-    const [zipBuffer, options] = deploy.firstCall.args as [Buffer, { singlePackage: boolean }];
-    expect(options).to.deep.equal({ singlePackage: true });
+    const [zipBuffer, options] = deploy.firstCall.args as [Buffer, Record<string, unknown>];
+    // SDR merges our apiOptions with its own defaults and strips `rest` before calling connection.metadata.deploy.
+    expect(options).to.deep.equal({
+      rollbackOnError: true,
+      ignoreWarnings: false,
+      checkOnly: false,
+      singlePackage: true,
+    });
 
     const zip = await JSZip.loadAsync(zipBuffer);
     const packageXml = await zip.file('package.xml')?.async('string');
@@ -72,8 +83,6 @@ describe('metadataDeploy.deployComputeMetadata', () => {
 
     const metaXml = await zip.file('platformComputeApps/CreditRatingScorer.compute')?.async('string');
     expect(metaXml).to.equal('<PlatformComputeApp/>\n');
-
-    expect(complete.calledOnceWith(true)).to.be.true;
   });
 
   // Regression guard: PlatformComputeApp was only registered as a metadata type in API 68.0.
@@ -82,13 +91,11 @@ describe('metadataDeploy.deployComputeMetadata', () => {
   // contents -- surfacing as a misleading "was named in package.xml, but was not found in zipped
   // directory" error instead of an explicit unsupported-type error.
   it('floors the package.xml version at 68.0 even when the connection reports a lower API version', async () => {
-    const { connection, deploy, complete, on } = stubConnection({ success: true, details: { componentFailures: [] } });
+    const { connection, deploy } = stubConnection({ success: true, details: { componentFailures: [] } });
     connection.getApiVersion = () => '62.0';
 
     await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
 
-    expect(on.calledOnceWith('error')).to.be.true;
-    expect(complete.calledOnceWith(true)).to.be.true;
     const [zipBuffer] = deploy.firstCall.args as [Buffer];
     const zip = await JSZip.loadAsync(zipBuffer);
     const packageXml = await zip.file('package.xml')?.async('string');

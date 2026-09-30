@@ -19,12 +19,21 @@ import { join } from 'node:path';
 import JSZip from 'jszip';
 import type { Connection } from '@salesforce/core';
 import { Messages } from '@salesforce/core';
+import { getLogger } from '@oclif/core';
 import { resolveComputeApiVersion } from './metadataApiVersion.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
 
-// Inverse of deployComputeMetadata in metadataDeploy.ts. Note the asymmetry with that function's
+// Gated by DEBUG=sf:compute:metadataRetrieve (or DEBUG=*).
+const debug = getLogger('sf:compute:metadataRetrieve').debug;
+
+// Inverse of deployComputeMetadata in metadataDeploy.ts, but NOT built on SDR's
+// ComponentSet/MetadataApiRetrieve the way that function is built on MetadataApiDeploy --
+// PlatformComputeApp has no entry in SDR's metadata registry, and ComponentSet.getObject()
+// (called internally when building a retrieve request) requires resolving every member's type
+// against that registry, so it throws for this type today. This uses jsforce's lower-level
+// retrieve API directly instead. Note the asymmetry with deployComputeMetadata's
 // deployResult.complete(true): RetrieveResultLocator#complete() takes no argument (unlike
 // DeployResultLocator#complete(includeDetails?)), per @jsforce/jsforce-node's metadata.d.ts.
 export async function retrieveComputeMetadata(connection: Connection, appDir: string, name: string): Promise<void> {
@@ -40,7 +49,9 @@ export async function retrieveComputeMetadata(connection: Connection, appDir: st
       objectPermissions: [],
     },
   });
+  debug('started metadata retrieve for %s from %s', name, connection.getUsername() ?? '<org>');
   const result = await retrieveResult.complete();
+  debug('metadata retrieve complete for %s: success=%s', name, result.success);
 
   if (!result.success) {
     throw messages.createError('error.metadataRetrieveFailed', [name, result.errorMessage ?? 'Unknown error.']);

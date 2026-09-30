@@ -13,9 +13,12 @@
         },
         "buildId": {
           "type": "string"
+        },
+        "deployId": {
+          "type": "string"
         }
       },
-      "required": ["name", "platformComputeId", "buildId"],
+      "required": ["name", "platformComputeId", "buildId", "deployId"],
       "additionalProperties": false
     }
   }

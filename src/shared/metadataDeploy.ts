@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import JSZip from 'jszip';
 import type { Connection } from '@salesforce/core';
 import { Messages } from '@salesforce/core';
+import { ensureArray } from '@salesforce/kit';
+import { MetadataApiDeploy } from '@salesforce/source-deploy-retrieve';
 import { getLogger } from '@oclif/core';
 import { resolveComputeApiVersion } from './metadataApiVersion.js';
 
@@ -28,11 +31,23 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.er
 // Gated by DEBUG=sf:compute:metadataDeploy (or DEBUG=*).
 const debug = getLogger('sf:compute:metadataDeploy').debug;
 
+export type ComputeMetadataDeployResult = {
+  id: string;
+};
+
 // Deploying <name>.compute-meta.xml is what actually triggers the build server-side (sets
 // CurrentBuild + Status=DEPLOYING and kicks off the async worker) -- source upload alone does
 // not. See deployment/specs/PLATFORMCOMPUTEAPP_ENTITY_SCHEMA.md "POST /source Inserts a
 // PlatformComputeAppBuild Row -- Does NOT Trigger Deploy". Call this AFTER uploadComputeSource.
-export async function deployComputeMetadata(connection: Connection, appDir: string, name: string): Promise<void> {
+//
+// Built on SDR's MetadataApiDeploy -- the same class `sf project deploy start`/`report` use --
+// so the returned job id is checkable with `sf project deploy report --job-id <id>` like any
+// other metadata deploy, not just through this plugin's own commands.
+export async function deployComputeMetadata(
+  connection: Connection,
+  appDir: string,
+  name: string
+): Promise<ComputeMetadataDeployResult> {
   const metaXml = await readFile(join(appDir, `${name}.compute-meta.xml`), 'utf8');
 
   const zip = new JSZip();
@@ -59,33 +74,38 @@ export async function deployComputeMetadata(connection: Connection, appDir: stri
 
   const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
 
-  const deployResult = connection.metadata.deploy(zipBuffer, { singlePackage: true });
+  // MetadataApiDeploy's getZipBuffer() only accepts a ComponentSet, an mdapiPath directory, or a
+  // zipPath file -- there's no "hand it a Buffer directly" option, so the in-memory zip built
+  // above has to make a round trip through a temp file.
+  const tempDir = await mkdtemp(join(tmpdir(), 'sf-compute-deploy-'));
+  const zipPath = join(tempDir, `${name}.zip`);
+  try {
+    await writeFile(zipPath, zipBuffer);
 
-  // jsforce's DeployResultLocator emits 'error' AND rejects complete()'s promise on the same
-  // timeout/failure path. With zero 'error' listeners, Node's EventEmitter throws *synchronously*
-  // inside the poll timer callback -- crashing the whole process before that reject() is ever
-  // awaited or caught. This listener is a no-op; reject(err) on the same line is what actually
-  // surfaces the failure to our caller below.
-  deployResult.on('error', () => {});
+    const deploy = new MetadataApiDeploy({
+      usernameOrConnection: connection,
+      zipPath,
+      apiOptions: { singlePackage: true },
+    });
 
-  // jsforce's default pollTimeout is 10s, which is far too short for a real metadata deploy
-  // (routinely takes 1-2+ minutes org-side). Without this, a slow-but-healthy deploy times out
-  // and (pre-fix, above) crashed the CLI outright.
-  connection.metadata.pollTimeout = 10 * 60 * 1000; // 10 minutes
-  connection.metadata.pollInterval = 2000;
-  debug(
-    'polling deploy status for %s every %dms, up to %dms',
-    name,
-    connection.metadata.pollInterval,
-    connection.metadata.pollTimeout
-  );
+    const { id } = await deploy.start();
+    debug('started metadata deploy %s for %s', id, name);
 
-  const result = await deployResult.complete(true);
+    // MetadataApiDeploy.pollStatus() sizes its own polling frequency from the zip it just
+    // built (1s-10s depending on payload size) and defaults its timeout to 60 minutes -- both
+    // more generous than the fixed 2s/10min this file used before adopting SDR.
+    const result = await deploy.pollStatus();
 
-  if (!result.success) {
-    const failureDetail = result.details.componentFailures
-      .map((f: { problem?: string | null }) => f.problem)
-      .join('; ');
-    throw messages.createError('error.metadataDeployFailed', [name, failureDetail || 'Unknown error.']);
+    if (!result.response.success) {
+      const failureDetail = ensureArray(result.response.details.componentFailures)
+        .map((f) => f.problem)
+        .filter(Boolean)
+        .join('; ');
+      throw messages.createError('error.metadataDeployFailed', [name, failureDetail || 'Unknown error.']);
+    }
+
+    return { id };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
   }
 }

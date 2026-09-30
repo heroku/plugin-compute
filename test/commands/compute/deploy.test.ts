@@ -82,7 +82,9 @@ describe('compute deploy', () => {
   let originalCwd: string;
   let requestStub: sinon.SinonStub;
   let metadataDeployStub: sinon.SinonStub;
-  let completeStub: sinon.SinonStub;
+  let checkDeployStatusStub: sinon.SinonStub;
+
+  const deployId = '0Af9E00000123ABCAA';
 
   beforeEach(async () => {
     sfCommandStubs = stubSfCommandUx($$.SANDBOX);
@@ -103,11 +105,15 @@ describe('compute deploy', () => {
     // (rather than a bare fake) across every getConnection() call in this test.
     const org = await Org.create({ aliasOrUsername: testOrg.username });
     const connection = org.getConnection();
-    completeStub = sinon.stub().resolves({ success: true, details: { componentFailures: [] } });
-    metadataDeployStub = $$.SANDBOX.stub(connection.metadata, 'deploy').returns({
-      complete: completeStub,
-      on: sinon.stub(),
+    metadataDeployStub = $$.SANDBOX.stub(connection.metadata, 'deploy').resolves({ id: deployId } as never);
+    checkDeployStatusStub = $$.SANDBOX.stub(connection.metadata, 'checkDeployStatus').resolves({
+      id: deployId,
+      done: true,
+      success: true,
+      details: { componentFailures: [] },
     } as never);
+    // SDR's MetadataTransfer.getConnection() unconditionally calls this before every deploy.
+    $$.SANDBOX.stub(connection, 'retrieveMaxApiVersion').resolves('70.0');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
     originalCwd = process.cwd();
@@ -148,13 +154,14 @@ describe('compute deploy', () => {
       name: 'CreditRatingScorer',
       platformComputeId: '0abEE0000004CqYYAU',
       buildId: '0acEE0000004D1ZYAU',
+      deployId,
     });
     const uploadCall = findUploadCall(requestStub);
     expect(uploadCall, 'expected a POST to /connect/compute/source').to.not.be.undefined;
     expect(metadataDeployStub.calledOnce).to.be.true;
     // Upload (Connect API) must complete before the metadata deploy (the actual build trigger) starts.
     expect(uploadCall!.calledBefore(metadataDeployStub.firstCall)).to.be.true;
-    expect(completeStub.calledOnceWith(true)).to.be.true;
+    expect(checkDeployStatusStub.calledOnceWith(deployId, true, false)).to.be.true;
 
     const output = sfCommandStubs.log
       .getCalls()
@@ -193,7 +200,9 @@ describe('compute deploy', () => {
   });
 
   it('propagates the metadata deploy failure after a successful upload', async () => {
-    completeStub.resolves({
+    checkDeployStatusStub.resolves({
+      id: deployId,
+      done: true,
       success: false,
       details: { componentFailures: [{ problem: 'Invalid metadata type PlatformComputeApp' }] },
     });
@@ -300,6 +309,7 @@ describe('compute deploy', () => {
       name: 'CreditRatingScorer',
       platformComputeId: '0abEE0000004CqYYAU',
       buildId: '0acEE0000004D1ZYAU',
+      deployId,
     });
     expect(findUploadCall(requestStub)).to.not.be.undefined;
   });

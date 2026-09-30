@@ -2,7 +2,10 @@
   "extends": "@salesforce/dev-config/tsconfig-strict-esm",
   "compilerOptions": {
     "outDir": "lib",
-    "rootDir": "src"
+    "rootDir": "src",
+    // @salesforce/source-deploy-retrieve's own .d.ts imports a co-located .json registry file
+    // (registry/standardvalueset.d.ts -> ./stdValueSetRegistry.json) without this flag set.
+    "resolveJsonModule": true
   },
   "include": ["./src/**/*.ts"]
 }

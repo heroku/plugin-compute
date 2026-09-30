@@ -322,9 +322,10 @@ DESCRIPTION
   compute metadata file, project.toml, and .forceignore) together with its
   api-spec.yaml into a deployment bundle, uploads it to the org through the
   Connect API, then deploys the app's <name>.compute-meta.xml through the
-  Metadata API to trigger the build. Deploy is asynchronous: this command
-  returns once the build has been enqueued, it doesn't wait for the build to
-  finish.
+  Metadata API to trigger the build. The metadata deploy itself returns a job
+  ID that can be checked independently with "sf project deploy report
+  --job-id <id>". Deploy is asynchronous: this command returns once the build
+  has been enqueued, it doesn't wait for the build to finish.
 
   Files matching patterns in a .forceignore are excluded from the source
   bundle. Both the compute app's own .forceignore and the one at the project

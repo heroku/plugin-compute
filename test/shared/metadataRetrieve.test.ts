@@ -47,6 +47,7 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
     const retrieve = sinon.stub().returns({ complete });
     const connection = {
       getApiVersion: () => '62.0',
+      getUsername: () => 'user@example.com',
       metadata: { retrieve },
     } as unknown as Connection;
     return { connection, retrieve, complete };

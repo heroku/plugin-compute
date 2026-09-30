@@ -29,6 +29,7 @@ export type ComputeDeployResult = {
   name: string;
   platformComputeId: string;
   buildId: string;
+  deployId: string;
 };
 
 export default class Deploy extends SfCommand<ComputeDeployResult> {
@@ -102,12 +103,12 @@ export default class Deploy extends SfCommand<ComputeDeployResult> {
       ])
     );
     this.debug('deploying metadata for %s to %s', name, connection.getUsername() ?? '<org>');
-    await deployComputeMetadata(connection, appDir, name);
-    this.debug('metadata deploy complete for %s', name);
-    this.log(messages.getMessage('info.deployedMetaFile', [`${name}.compute-meta.xml`]));
+    const { id: deployId } = await deployComputeMetadata(connection, appDir, name);
+    this.debug('metadata deploy %s complete for %s', deployId, name);
+    this.log(messages.getMessage('info.deployedMetaFile', [`${name}.compute-meta.xml`, deployId]));
 
     this.logSuccess(messages.getMessage('info.buildEnqueued'));
 
-    return { name, platformComputeId: upload.platformComputeId, buildId: upload.buildId };
+    return { name, platformComputeId: upload.platformComputeId, buildId: upload.buildId, deployId };
   }
 }

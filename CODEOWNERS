@@ -1,4 +1,8 @@
+# Default owner for everything in this repo.
+* @heroku/frontend-dev-tooling
+
 # Techical writers will be added as reviewers on markdown changes.
+# (listed after the catch-all so this more-specific rule wins for *.md — CODEOWNERS uses last-match-wins)
 *.md @salesforcecli/cli-docs
 
 # Comment line immediately above ownership line is reserved for related other information. Please be careful while editing.

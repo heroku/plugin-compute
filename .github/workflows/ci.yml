@@ -51,5 +51,7 @@ jobs:
           node-version: 22.x
       - run: yarn install --frozen-lockfile --ignore-engines
       - run: yarn build
+      - name: Install Salesforce CLI
+        run: npm install --global @salesforce/cli
       - name: nuts
         run: yarn test:nuts

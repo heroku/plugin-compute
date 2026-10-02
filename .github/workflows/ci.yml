@@ -28,7 +28,7 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
-      - run: yarn install --frozen-lockfile
+      - run: yarn install --frozen-lockfile --ignore-engines
       - name: unit tests + lint + schema/snapshot gates
         run: yarn test
 
@@ -49,7 +49,7 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22.x
-      - run: yarn install --frozen-lockfile
+      - run: yarn install --frozen-lockfile --ignore-engines
       - run: yarn build
       - name: nuts
         run: yarn test:nuts

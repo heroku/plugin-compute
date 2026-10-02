@@ -53,7 +53,11 @@ export type PackagedBundle = {
 // deployment/specs/PLATFORMCOMPUTEAPP_ENTITY_SCHEMA.md "Nested Tarball Structure".
 export async function packageComputeBundle(appDir: string, name: string, projectRoot: string): Promise<PackagedBundle> {
   const metaFileName = `${name}.compute-meta.xml`;
-  const excluded = new Set(['.forceignore', 'api-spec.yaml', metaFileName, 'project.toml']);
+  // api-spec.yaml and project.toml also go into the outer bundle/get read by the Fir builder
+  // respectively, but both are included here too: api-spec.yaml so the AppLink Service Mesh
+  // Proxy has it at runtime, project.toml so CNB picks up its declared buildpacks (notably
+  // heroku/heroku-applink-service-mesh, which nothing else installs).
+  const excluded = new Set(['.forceignore', metaFileName]);
   const isForceIgnored = await loadForceIgnore(appDir, projectRoot);
 
   const allFiles = await listFilesRecursive(appDir);

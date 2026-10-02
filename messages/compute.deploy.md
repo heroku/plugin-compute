@@ -5,9 +5,9 @@ Deploy a compute app's source and metadata to an org.
 # description
 
 Packages the compute app's source (everything under its directory except the
-compute metadata file, project.toml, and .forceignore) together with its
-api-spec.yaml into a deployment bundle, uploads it to the org through the
-Connect API, then deploys the app's <name>.compute-meta.xml through the
+compute metadata file and .forceignore) together with its api-spec.yaml into
+a deployment bundle, uploads it to the org through the Connect API, then
+deploys the app's <name>.compute-meta.xml through the
 Metadata API to trigger the build. The metadata deploy itself returns a job
 ID that can be checked independently with "sf project deploy report
 --job-id <id>". Deploy is asynchronous: this command returns once the build

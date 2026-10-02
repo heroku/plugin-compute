@@ -57,7 +57,7 @@ export default class List extends SfCommand<ComputeListResult> {
 
     const connection = flags['target-org'].getConnection();
     const records = await listComputeApps(connection);
-    const results = records.map(toComputeAppSummary);
+    const results = records.map(record => toComputeAppSummary(record));
 
     if (results.length === 0) {
       this.info(messages.getMessage('info.noAppsFound'));
@@ -65,7 +65,7 @@ export default class List extends SfCommand<ComputeListResult> {
     }
 
     this.styledHeader('Compute Apps');
-    const data = results.map(toRow);
+    const data = results.map(result => toRow(result));
     const columns: Array<keyof Row> = ['name', 'masterLabel', 'status', 'statusReason'];
     this.table({data, columns});
 

@@ -29,7 +29,7 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.sc
 // Heroku's process-type pattern (salesforce-connect-compute.yaml's Formation.type: ^[-\w]{1,128}$).
 // The SIZE group additionally allows `.` (unlike TYPE/COUNT) because Fir's Classic-family dyno
 // sizes use fractional GB, e.g. dyno-1c-0.5gb.
-const TARGET_PATTERN = /^([-\w]+)(?:=(\d+))?(?::([-\w.]+))?$/;
+const TARGET_PATTERN = /^([\-\w]+)(?:=(\d+))?(?::([\-\w.]+))?$/v;
 
 // Fir dyno-size identifiers (dyno-<vCPUs>c-<RAM>gb). Full union of all 4 Fir dyno families --
 // product hasn't yet decided which families Compute apps may provision on for GA, so this is a
@@ -133,10 +133,9 @@ export default class Scale extends SfCommand<ComputeScaleResult> {
     const formation: Array<{dynoSize?: string; quantity: number; type: string}> = [];
     try {
       for (const target of targets) {
-        // Sequential PATCHes to the same app's formation -- there's nothing to parallelize.
-        /* eslint-disable no-await-in-loop */
+        /* eslint-disable no-await-in-loop -- sequential PATCHes to the same app's formation; there's nothing to parallelize */
         const updated = await scaleComputeFormationViaProxy(connection, {name, appId, ...target});
-        /* eslint-enable no-await-in-loop */
+        /* eslint-enable no-await-in-loop -- re-enable after the sequential formation loop body */
         formation.push(updated);
       }
     } catch (error) {

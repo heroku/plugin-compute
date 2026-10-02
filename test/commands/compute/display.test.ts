@@ -101,7 +101,7 @@ describe('compute display', () => {
       statusReason: undefined,
     });
 
-    const soql: string = toolingQueryStub.firstCall.args[0];
+    const soql = toolingQueryStub.firstCall.args[0] as string;
     expect(soql).to.include("WHERE DeveloperName = 'CreditRatingScorer'");
   });
 
@@ -232,7 +232,7 @@ describe('compute display', () => {
 
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    const soql: string = toolingQueryStub.firstCall.args[0];
+    const soql = toolingQueryStub.firstCall.args[0] as string;
     expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
     expect(soql).to.not.include("DeveloperName = 'creditratingscorer'");
   });
@@ -290,7 +290,7 @@ describe('compute display', () => {
     const result = await Display.run(['--name', 'myns__CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result.name).to.equal('myns__CreditRatingScorer');
-    const soql: string = toolingQueryStub.firstCall.args[0];
+    const soql = toolingQueryStub.firstCall.args[0] as string;
     expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
     expect(soql).to.include("Namespace = 'myns'");
   });
@@ -301,7 +301,7 @@ describe('compute display', () => {
     try {
       const result = await Display.run(['--target-org', testOrg.username]);
       expect(result.name).to.equal('CreditRatingScorer');
-      const soql: string = toolingQueryStub.firstCall.args[0];
+      const soql = toolingQueryStub.firstCall.args[0] as string;
       expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
     } finally {
       delete process.env.COMPUTE_APP_NAME;
@@ -314,7 +314,7 @@ describe('compute display', () => {
     try {
       const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect(result.name).to.equal('CreditRatingScorer');
-      const soql: string = toolingQueryStub.firstCall.args[0];
+      const soql = toolingQueryStub.firstCall.args[0] as string;
       expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
     } finally {
       delete process.env.COMPUTE_APP_NAME;

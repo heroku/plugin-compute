@@ -122,7 +122,7 @@ describe('compute list', () => {
 
     await List.run(['--target-org', testOrg.username]);
 
-    const soql: string = toolingQueryStub.firstCall.args[0];
+    const soql = toolingQueryStub.firstCall.args[0] as string;
     expect(soql).to.include('FROM PlatformComputeApp');
     expect(soql).to.include('ORDER BY DeveloperName ASC');
     expect(soql).to.not.include('WHERE');

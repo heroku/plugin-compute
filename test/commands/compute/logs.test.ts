@@ -130,7 +130,7 @@ describe('compute logs', () => {
     expect(proxyTarget((call!.args[0] as {url: string}).url)).to.equal(
       'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/log-sessions',
     );
-    const body = JSON.parse((call!.args[0] as {body: string}).body);
+    const body = JSON.parse((call!.args[0] as {body: string}).body) as {lines: number; tail: boolean};
     expect(body).to.deep.equal({lines: 100, tail: false});
     expect(fetchStub.calledWith('https://logplex.heroku.com/sessions/abc?srv=1')).to.be.true;
   });
@@ -162,7 +162,7 @@ describe('compute logs', () => {
     await Logs.run(['--name', 'CreditRatingScorer', '--num', '500', '--target-org', testOrg.username]);
 
     const call = findLogSessionCall(requestStub);
-    const body = JSON.parse((call!.args[0] as {body: string}).body);
+    const body = JSON.parse((call!.args[0] as {body: string}).body) as {lines: number; tail: boolean};
     expect(body).to.deep.equal({lines: 500, tail: false});
   });
 
@@ -182,7 +182,7 @@ describe('compute logs', () => {
     expect(sfCommandStubs.info.lastCall.args[0]).to.include('ended');
 
     const call = findLogSessionCall(requestStub);
-    const body = JSON.parse((call!.args[0] as {body: string}).body);
+    const body = JSON.parse((call!.args[0] as {body: string}).body) as {lines: number; tail: boolean};
     expect(body).to.deep.equal({lines: 100, tail: true});
   });
 
@@ -258,7 +258,7 @@ describe('compute logs', () => {
 
     await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    const soql: string = toolingQueryStub.firstCall.args[0];
+    const soql = toolingQueryStub.firstCall.args[0] as string;
     expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
     const call = findLogSessionCall(requestStub);
     expect(proxyTarget((call!.args[0] as {url: string}).url)).to.equal(
@@ -284,7 +284,7 @@ describe('compute logs', () => {
     try {
       const result = await Logs.run(['--target-org', testOrg.username]);
       expect(result.name).to.equal('CreditRatingScorer');
-      const soql: string = toolingQueryStub.firstCall.args[0];
+      const soql = toolingQueryStub.firstCall.args[0] as string;
       expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
     } finally {
       delete process.env.COMPUTE_APP_NAME;

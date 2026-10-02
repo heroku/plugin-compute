@@ -168,6 +168,7 @@ describe('computeQuery.queryComputeApp', () => {
 
   it('wraps a non-Error throw (e.g. a rejected string) without crashing', async () => {
     const singleRecordQuery = sinon.stub().callsFake(async () => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- deliberately throws a non-Error string to exercise the "wraps a non-Error throw" branch
       throw 'INVALID_SESSION_ID';
     });
     const connection = {singleRecordQuery} as unknown as Connection;
@@ -224,6 +225,7 @@ describe('computeQuery.listComputeApps', () => {
 
   it('wraps a non-Error throw (e.g. a rejected string) without crashing', async () => {
     const autoFetchQuery = sinon.stub().callsFake(async () => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- deliberately throws a non-Error string to exercise the "wraps a non-Error throw" branch
       throw 'INVALID_SESSION_ID';
     });
     const connection = {autoFetchQuery} as unknown as Connection;

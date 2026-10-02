@@ -44,23 +44,31 @@ async function zipBase64(entries: Record<string, string>): Promise<string> {
 
 async function tarGz(entries: ReadonlyArray<{data: Buffer; name: string}>): Promise<Buffer> {
   const pack = tarStream.pack();
-  await entries.reduce(
-    async (previous, {data, name}) =>
-      previous.then(
-        async () =>
-          new Promise<void>((resolve, reject) => {
-            pack.entry({name, size: data.length}, data, err => {
-              err ? reject(err) : resolve();
-            });
-          }),
-      ),
-    Promise.resolve(),
-  );
+  // Sequential promise chain (entries written one at a time, in order), awaited once.
+  let previous = Promise.resolve();
+  for (const {data, name} of entries) {
+    previous = previous.then(
+      async () =>
+        new Promise<void>((resolve, reject) => {
+          pack.entry({name, size: data.length}, data, err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        }),
+    );
+  }
+
+  await previous;
   pack.finalize();
 
   const chunks: Buffer[] = [];
   return new Promise((resolve, reject) => {
-    pack.on('data', (chunk: unknown) => chunks.push(chunk as Buffer));
+    pack.on('data', (chunk: unknown) => {
+      chunks.push(chunk as Buffer);
+    });
     pack.on('end', () => {
       resolve(gzipSync(Buffer.concat(chunks)));
     });

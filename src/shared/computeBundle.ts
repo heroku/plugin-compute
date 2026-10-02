@@ -142,7 +142,9 @@ async function untarGzip(buffer: Buffer): Promise<Record<string, Buffer>> {
     const extract = tarStream.extract();
     extract.on('entry', (header, stream, next) => {
       const chunks: Buffer[] = [];
-      stream.on('data', (chunk: unknown) => chunks.push(chunk as Buffer));
+      stream.on('data', (chunk: unknown) => {
+        chunks.push(chunk as Buffer);
+      });
       stream.on('end', () => {
         entries[header.name] = Buffer.concat(chunks);
         next();
@@ -176,19 +178,26 @@ async function tarGzip(entries: ReadonlyArray<{data: Buffer; name: string}>): Pr
     entries.reduce((sum, e) => sum + e.data.length, 0),
   );
 
-  // Entries share one pack stream and must be written one at a time, in order.
-  await entries.reduce(
-    async (previous, {name, data}) =>
-      previous.then(
-        async () =>
-          new Promise<void>((resolveEntry, reject) => {
-            pack.entry({name, size: data.length}, data, err => {
-              err ? reject(err) : resolveEntry();
-            });
-          }),
-      ),
-    Promise.resolve(),
-  );
+  // Entries share one pack stream and must be written one at a time, in order, so build a
+  // single sequential promise chain (each entry waits on the previous) and await it once --
+  // avoids both an await-in-loop and a reduce used purely for its sequencing side effect.
+  let previous = Promise.resolve();
+  for (const {name, data} of entries) {
+    previous = previous.then(
+      async () =>
+        new Promise<void>((resolveEntry, reject) => {
+          pack.entry({name, size: data.length}, data, err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolveEntry();
+            }
+          });
+        }),
+    );
+  }
+
+  await previous;
   pack.finalize();
   return gzippedBufferPromise;
 }

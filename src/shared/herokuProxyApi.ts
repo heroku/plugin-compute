@@ -88,7 +88,8 @@ type HerokuProxyRequestOptions = {
 async function herokuProxyRequest<T>(connection: Connection, opts: HerokuProxyRequestOptions): Promise<T> {
   let targetPath = opts.path;
   for (const [key, value] of Object.entries(opts.params ?? {})) {
-    targetPath = targetPath.replace(`{${key}}`, encodeURIComponent(value));
+    // Replacer function so the encoded value is inserted verbatim, never read as a $-pattern.
+    targetPath = targetPath.replace(`{${key}}`, () => encodeURIComponent(value));
   }
 
   const targetUrl = `${HEROKU_API_BASE_URL}${targetPath}`;

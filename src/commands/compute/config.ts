@@ -57,7 +57,7 @@ export default class Config extends SfCommand<ComputeConfigResult> {
     const fetched = await fetchComputeConfigVarsViaProxy(connection, {name, appId});
 
     const configVars: Record<string, string> = {};
-    for (const key of Object.keys(fetched).sort()) {
+    for (const key of Object.keys(fetched).toSorted()) {
       configVars[key] = fetched[key];
     }
 

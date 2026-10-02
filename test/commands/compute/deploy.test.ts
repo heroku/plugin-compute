@@ -67,7 +67,9 @@ async function extractTarGz(buffer: Buffer): Promise<Record<string, Buffer>> {
   await new Promise<void>((resolve, reject) => {
     extract.on('entry', (header, stream, next) => {
       const chunks: Buffer[] = [];
-      stream.on('data', (chunk: unknown) => chunks.push(chunk as Buffer));
+      stream.on('data', (chunk: unknown) => {
+        chunks.push(chunk as Buffer);
+      });
       stream.on('end', () => {
         entries[header.name] = Buffer.concat(chunks);
         next();
@@ -129,7 +131,8 @@ describe('compute deploy', () => {
     // realpath: tmpdir() is a /var symlink on macOS, but process.chdir() makes cwd (hence deploy's
     // appDir) the canonical /private/var form -- the project root must match, or relative(root, appDir)
     // in computeBundle escapes with ../ and the `ignore` lib rejects it.
-    projectDir = await realpath(await mkdtemp(join(tmpdir(), 'plugin-compute-deploy-')));
+    const tempRoot = await mkdtemp(join(tmpdir(), 'plugin-compute-deploy-'));
+    projectDir = await realpath(tempRoot);
     await writeFile(
       join(projectDir, 'sfdx-project.json'),
       JSON.stringify({packageDirectories: [{default: true, path: 'force-app'}]}),
@@ -195,7 +198,7 @@ describe('compute deploy', () => {
     const outer = await extractTarGz(bundleBuffer);
     const source = await extractTarGz(outer['source.tar.gz']);
 
-    expect(Object.keys(source).sort()).to.deep.equal(['Procfile', 'src/app.js']);
+    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js']);
   });
 
   it('does not attempt the metadata deploy when the source upload fails', async () => {

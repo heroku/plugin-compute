@@ -113,7 +113,9 @@ async function untarGzip(buffer: Buffer, language: Language): Promise<Record<str
       }
 
       const chunks: Buffer[] = [];
-      stream.on('data', (chunk: unknown) => chunks.push(chunk as Buffer));
+      stream.on('data', (chunk: unknown) => {
+        chunks.push(chunk as Buffer);
+      });
       stream.on('end', () => {
         entries[header.name] = Buffer.concat(chunks);
         next();

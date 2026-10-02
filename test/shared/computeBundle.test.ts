@@ -35,7 +35,9 @@ async function extractTarGz(buffer: Buffer): Promise<Record<string, Buffer>> {
   await new Promise<void>((resolve, reject) => {
     extract.on('entry', (header, stream, next) => {
       const chunks: Buffer[] = [];
-      stream.on('data', (chunk: unknown) => chunks.push(chunk as Buffer));
+      stream.on('data', (chunk: unknown) => {
+        chunks.push(chunk as Buffer);
+      });
       stream.on('end', () => {
         entries[header.name] = Buffer.concat(chunks);
         next();
@@ -53,23 +55,31 @@ async function extractTarGz(buffer: Buffer): Promise<Record<string, Buffer>> {
 
 async function buildTarGz(entries: ReadonlyArray<{data: Buffer; name: string}>): Promise<Buffer> {
   const pack = tarStream.pack();
-  await entries.reduce(
-    async (previous, {data, name}) =>
-      previous.then(
-        async () =>
-          new Promise<void>((resolve, reject) => {
-            pack.entry({name, size: data.length}, data, err => {
-              err ? reject(err) : resolve();
-            });
-          }),
-      ),
-    Promise.resolve(),
-  );
+  // Sequential promise chain (entries written one at a time, in order), awaited once.
+  let previous = Promise.resolve();
+  for (const {data, name} of entries) {
+    previous = previous.then(
+      async () =>
+        new Promise<void>((resolve, reject) => {
+          pack.entry({name, size: data.length}, data, err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        }),
+    );
+  }
+
+  await previous;
   pack.finalize();
 
   const chunks: Buffer[] = [];
   return new Promise((resolve, reject) => {
-    pack.on('data', (chunk: unknown) => chunks.push(chunk as Buffer));
+    pack.on('data', (chunk: unknown) => {
+      chunks.push(chunk as Buffer);
+    });
     pack.on('end', () => {
       resolve(gzipSync(Buffer.concat(chunks)));
     });
@@ -101,7 +111,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const outer = await extractTarGz(buffer);
-    expect(Object.keys(outer).sort()).to.deep.equal(['api-spec.yaml', 'source.tar.gz']);
+    expect(Object.keys(outer).toSorted()).to.deep.equal(['api-spec.yaml', 'source.tar.gz']);
     expect(outer['api-spec.yaml'].toString('utf8')).to.equal('openapi: 3.0.0\n');
   });
 
@@ -111,7 +121,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const outer = await extractTarGz(buffer);
     const source = await extractTarGz(outer['source.tar.gz']);
 
-    expect(Object.keys(source).sort()).to.deep.equal(['Procfile', 'src/app.js']);
+    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js']);
     expect(source['src/app.js'].toString('utf8')).to.equal('console.log("hi");\n');
   });
 
@@ -128,7 +138,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
-    expect(Object.keys(source).sort()).to.deep.equal(['Procfile', 'src/app.js']);
+    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js']);
   });
 
   it('excludes files matching the project-root .forceignore', async () => {
@@ -138,7 +148,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
-    expect(Object.keys(source).sort()).to.deep.equal(['Procfile', 'src/app.js']);
+    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js']);
   });
 
   it('does not let a project-root-anchored pattern match an unrelated app-relative path of the same name', async () => {
@@ -152,7 +162,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
-    expect(Object.keys(source).sort()).to.deep.equal(['Procfile', 'src/app.js']);
+    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js']);
   });
 
   it('honors negation patterns within a single .forceignore', async () => {
@@ -163,7 +173,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
-    expect(Object.keys(source).sort()).to.deep.equal(['Procfile', 'src/app.js', 'src/keep.log']);
+    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js', 'src/keep.log']);
   });
 
   it('excludes a path ignored by either file, even if the other file does not mention it', async () => {
@@ -174,7 +184,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
-    expect(Object.keys(source).sort()).to.deep.equal(['Procfile', 'src/app.js']);
+    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js']);
   });
 
   it('excludes Procfile if a .forceignore pattern happens to match it', async () => {
@@ -187,7 +197,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
-    expect(Object.keys(source).sort()).to.deep.equal(['src/app.js']);
+    expect(Object.keys(source).toSorted()).to.deep.equal(['src/app.js']);
   });
 });
 

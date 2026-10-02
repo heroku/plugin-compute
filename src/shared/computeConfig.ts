@@ -23,7 +23,7 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.er
 // fetched map and must raise byte-identical text for a missing key, so this is the one source of
 // truth for that check rather than duplicating the message in each command's own .md file.
 export function requireConfigVar(configVars: Record<string, string>, name: string, key: string): string {
-  if (!(key in configVars)) {
+  if (!Object.hasOwn(configVars, key)) {
     throw messages.createError('error.configVarNotFound', [name, key]);
   }
 

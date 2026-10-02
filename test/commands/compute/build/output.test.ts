@@ -31,9 +31,20 @@ import Output from '../../../../src/commands/compute/build/output.js';
 
 // jsforce's HttpApi.getError() sets both .name and .errorCode to the parsed error body's
 // errorCode, falling back to `ERROR_HTTP_${status}` when the body isn't a recognizable
-// { message, errorCode } shape -- this is the exact shape a 404 with no body takes.
+// { message, errorCode } shape -- this is the exact shape a 404 with no body takes. Modeled as
+// a subclass so .name is set in the constructor rather than assigned onto a built-in Error.
+class HttpError extends Error {
+  public readonly errorCode: string;
+
+  public constructor(status: number, message = 'Not Found') {
+    super(message);
+    this.name = `ERROR_HTTP_${status}`;
+    this.errorCode = `ERROR_HTTP_${status}`;
+  }
+}
+
 function httpError(status: number, message = 'Not Found'): Error {
-  return Object.assign(new Error(message), {errorCode: `ERROR_HTTP_${status}`, name: `ERROR_HTTP_${status}`});
+  return new HttpError(status, message);
 }
 
 // Every proxy-bound request lands on the same /services/data/vXX.0/heroku/proxy path with the
@@ -293,7 +304,7 @@ describe('compute build output', () => {
 
     await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    const soql: string = toolingQueryStub.firstCall.args[0];
+    const soql = toolingQueryStub.firstCall.args[0] as string;
     expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
     const call = findListBuildsCall(requestStub);
     expect(proxyTarget((call!.args[0] as {url: string}).url)).to.equal(
@@ -319,7 +330,7 @@ describe('compute build output', () => {
     try {
       const result = await Output.run(['--target-org', testOrg.username]);
       expect(result.name).to.equal('CreditRatingScorer');
-      const soql: string = toolingQueryStub.firstCall.args[0];
+      const soql = toolingQueryStub.firstCall.args[0] as string;
       expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
       const call = findListBuildsCall(requestStub);
       expect(proxyTarget((call!.args[0] as {url: string}).url)).to.equal(

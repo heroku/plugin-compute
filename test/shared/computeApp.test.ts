@@ -46,38 +46,38 @@ describe('computeApp.parseName', () => {
   });
 
   it('rejects a bare name starting with a digit', () => {
-    expect(() => parseName('1App')).to.throw(/isn't valid/);
+    expect(() => parseName('1App')).to.throw(/isn't valid/v);
   });
 
   it('rejects a namespace-qualified name whose developerName part has two consecutive underscores', () => {
     // The first "__" is always treated as the namespace separator, so a double underscore only
     // surfaces as invalid once it appears in the developerName part after that split.
-    expect(() => parseName('myns__My__App')).to.throw(/isn't valid/);
+    expect(() => parseName('myns__My__App')).to.throw(/isn't valid/v);
   });
 
   it('rejects a bare name ending in an underscore', () => {
-    expect(() => parseName('MyApp_')).to.throw(/isn't valid/);
+    expect(() => parseName('MyApp_')).to.throw(/isn't valid/v);
   });
 
   it('rejects a bare name containing a hyphen', () => {
-    expect(() => parseName('My-App')).to.throw(/isn't valid/);
+    expect(() => parseName('My-App')).to.throw(/isn't valid/v);
   });
 
   it('rejects a 16-character namespace (over the maximum length)', () => {
     const namespace = 'a'.repeat(16);
-    expect(() => parseName(`${namespace}__App`)).to.throw(/isn't valid/);
+    expect(() => parseName(`${namespace}__App`)).to.throw(/isn't valid/v);
   });
 
   it('rejects a namespace starting with a digit', () => {
-    expect(() => parseName('1ns__App')).to.throw(/isn't valid/);
+    expect(() => parseName('1ns__App')).to.throw(/isn't valid/v);
   });
 
   it('rejects a namespace containing two consecutive underscores', () => {
-    expect(() => parseName('my__ns__App')).to.throw(/isn't valid/);
+    expect(() => parseName('my__ns__App')).to.throw(/isn't valid/v);
   });
 
   it('rejects an empty developerName after the namespace separator', () => {
-    expect(() => parseName('myns__')).to.throw(/isn't valid/);
+    expect(() => parseName('myns__')).to.throw(/isn't valid/v);
   });
 
   it('includes the original --name value in the error message', () => {
@@ -101,6 +101,6 @@ describe('computeApp.validateName', () => {
   it('throws for an invalid name', () => {
     expect(() => {
       validateName('1App');
-    }).to.throw(/isn't valid/);
+    }).to.throw(/isn't valid/v);
   });
 });

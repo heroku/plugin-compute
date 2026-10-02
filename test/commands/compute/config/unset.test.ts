@@ -126,9 +126,9 @@ describe('compute config unset', () => {
     ]);
 
     expect(result).to.deep.equal({name: 'CreditRatingScorer', release: 10, unset: ['LOG_LEVEL']});
-    const getCall = findConfigVarsCall(requestStub, 'GET');
-    expect(getCall, 'expected a GET proxied to Heroku config-vars').to.not.be.undefined;
-    expect(proxyTarget((getCall!.args[0] as {url: string}).url)).to.equal(
+    const configVarsGetCall = findConfigVarsCall(requestStub, 'GET');
+    expect(configVarsGetCall, 'expected a GET proxied to Heroku config-vars').to.not.be.undefined;
+    expect(proxyTarget((configVarsGetCall!.args[0] as {url: string}).url)).to.equal(
       'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/config-vars',
     );
     const patchCall = findConfigVarsCall(requestStub, 'PATCH');

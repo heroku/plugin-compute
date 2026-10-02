@@ -161,9 +161,11 @@ async function buildStarterFiles(
   }
 
   for (const [relativePath, contents] of Object.entries(files)) {
+    // Replacer functions (not string literals) so a `$` in the app name is inserted verbatim
+    // rather than interpreted as a replacement pattern ($&, $1, $$, ...).
     files[relativePath] = contents
-      .replaceAll('__APP_NAME_LOWER__', name.toLowerCase())
-      .replaceAll('__APP_NAME__', name);
+      .replaceAll('__APP_NAME_LOWER__', () => name.toLowerCase())
+      .replaceAll('__APP_NAME__', () => name);
   }
 
   return files;
@@ -209,7 +211,7 @@ function transformPythonRequirements(raw: Buffer): string {
     .toString('utf8')
     .split('\n')
     .filter(line => {
-      const packageName = /^[A-Za-z0-9_.-]+/.exec(line.trim())?.[0];
+      const packageName = /^[A-Za-z0-9_.\-]+/v.exec(line.trim())?.[0];
       return packageName !== undefined && PYTHON_RUNTIME_PACKAGES.has(packageName.toLowerCase());
     });
   return lines.join('\n') + '\n';

@@ -24,11 +24,11 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.er
 // Mirrors Salesforce's DeveloperName grammar (starts with a letter, alphanumeric/underscore only,
 // no trailing or double underscore) -- every --name is now resolved as a DeveloperName via SOQL,
 // so this also guards against path traversal, since `name` is joined directly into a filesystem path.
-const NAME_PATTERN = /^(?!.*__)(?!.*_$)[A-Za-z]\w*$/;
+const NAME_PATTERN = /^(?!.*__)(?!.*_$)[A-Za-z]\w*$/v;
 
 // Mirrors Salesforce's namespace grammar (starts with a letter, alphanumeric/underscore only,
 // 1-15 characters total, no double underscore).
-const NAMESPACE_PATTERN = /^[A-Za-z](?!.*__)[A-Za-z0-9_]{0,14}$/;
+const NAMESPACE_PATTERN = /^[A-Za-z](?!.*__)[A-Za-z0-9_]{0,14}$/v;
 
 export type ParsedComputeAppName = {
   developerName: string;

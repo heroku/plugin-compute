@@ -27,7 +27,7 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.co
 
 // Splits on the first = only, so a value that itself contains one (e.g. a connection string's
 // query params) isn't truncated. Requires a non-empty key.
-const PAIR_PATTERN = /^([^=]+)=(.*)$/;
+const PAIR_PATTERN = /^([^=]+)=(.*)$/v;
 
 export type ComputeConfigSetResult = {
   configVars: Record<string, string>;

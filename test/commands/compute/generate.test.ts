@@ -30,22 +30,26 @@ import type {FetchTemplateSource, Language} from '../../../src/shared/computeGen
 import Generate from '../../../src/commands/compute/generate.js';
 
 // Keeps this suite offline: production Generate.fetchTemplateSource does a live HTTPS fetch of
-// the pinned reference-app commit, so tests swap in an in-memory fixture covering every path
-// generate.ts actually reads (see FETCHED_FILES in generate.ts) instead of hitting the network.
+// the pinned reference-app commit, so tests swap in an in-memory fixture standing in for the
+// whole fetched tarball. buildStarterFiles writes every one of these paths out verbatim (no
+// curation/trimming), so the fixture includes files like package-lock.json and devDependencies
+// that a real fetch would also carry straight through.
 const FIXTURE_SOURCE: Record<Language, Record<string, string>> = {
   node: {
-    'package.json': JSON.stringify({
-      dependencies: {fastify: '^5.4.0'},
-      devDependencies: {eslint: '^9.14.0'},
-      engines: {node: '>=20.0.0 <24.0.0'},
-      license: 'Apache-2.0',
-      main: 'src/app.js',
-      scripts: {dev: 'fastify start -w src/app.js', lint: 'eslint src', start: 'fastify start src/app.js'},
-      type: 'module',
-    }),
     Procfile: 'web: APP_PORT=3000 heroku-applink-service-mesh npm start\n',
     'src/app.js': 'export default async function (fastify, opts) {}\n',
     'src/plugins/heroku-applink.js': "import fp from 'fastify-plugin';\nexport default fp(async () => {});\n",
+    'package.json': JSON.stringify({
+      name: 'applink-getting-started-nodejs',
+      type: 'module',
+      main: 'src/app.js',
+      scripts: {start: 'fastify start src/app.js', dev: 'fastify start -w src/app.js', lint: 'eslint src'},
+      license: 'Apache-2.0',
+      engines: {node: '>=20.0.0 <24.0.0'},
+      dependencies: {fastify: '^5.4.0', 'fastify-cli': '^7.4.0'},
+      devDependencies: {eslint: '^9.14.0'},
+    }),
+    'package-lock.json': JSON.stringify({name: 'applink-getting-started-nodejs', lockfileVersion: 3}),
   },
   python: {
     Procfile: 'web: APP_PORT=3000 heroku-applink-service-mesh uvicorn app.main:app\n',
@@ -94,9 +98,10 @@ describe('compute generate', () => {
 
     expect(result.name).to.equal('CreditRatingScorer');
     expect(result.language).to.equal('node');
-    expect(result.files).to.have.length(9);
-    expect(result.files.some(f => f.endsWith(join('src', 'app.js')))).to.be.true;
-    expect(result.files.some(f => f.endsWith(join('src', 'plugins', 'heroku-applink.js')))).to.be.true;
+    expect(result.files).to.have.length(10);
+    expect(result.files.some(f => f.endsWith('src/app.js'))).to.be.true;
+    expect(result.files.some(f => f.endsWith('src/plugins/heroku-applink.js'))).to.be.true;
+    expect(result.files.some(f => f.endsWith('package-lock.json'))).to.be.true;
 
     const metaXml = await readFile(
       join(
@@ -120,9 +125,14 @@ describe('compute generate', () => {
       join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer/package.json'),
       'utf8',
     );
-    expect(packageJson).to.include('"name": "creditratingscorer"');
-    expect(packageJson).to.not.include('devDependencies');
-    expect(packageJson).to.not.include('lint');
+    expect(packageJson).to.include('"fastify-cli"');
+    expect(packageJson).to.include('devDependencies');
+
+    const packageLockJson = await readFile(
+      join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer/package-lock.json'),
+      'utf8',
+    );
+    expect(packageLockJson).to.include('"lockfileVersion"');
 
     const output = sfCommandStubs.log
       .getCalls()
@@ -149,7 +159,7 @@ describe('compute generate', () => {
       'utf8',
     );
     expect(requirementsTxt).to.include('fastapi');
-    expect(requirementsTxt).to.not.include('pytest');
+    expect(requirementsTxt).to.include('pytest');
 
     const projectToml = await readFile(
       join(projectDir, 'force-app/main/default/platformComputeApps/ReceiptOcr/project.toml'),

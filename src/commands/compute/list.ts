@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
-import { Messages } from '@salesforce/core';
-import { listComputeApps, toComputeAppSummary, type ComputeAppSummary } from '../../shared/computeQuery.js';
+import {Messages} from '@salesforce/core';
+import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
+
+import {type ComputeAppSummary, listComputeApps, toComputeAppSummary} from '../../shared/computeQuery.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.list');
@@ -24,8 +25,8 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.li
 export type ComputeListResult = ComputeAppSummary[];
 
 type Row = {
-  name: string;
   masterLabel: string;
+  name: string;
   status: string;
   statusReason: string;
 };
@@ -40,18 +41,19 @@ function toRow(app: ComputeAppSummary): Row {
 }
 
 export default class List extends SfCommand<ComputeListResult> {
-  public static readonly summary = messages.getMessage('summary');
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
+  public static readonly flags = {
+    'target-org': Flags.requiredOrg({char: 'o'}),
+  };
+
   // Pure org-side lookup -- no local project files are read.
   public static readonly requiresProject = false;
 
-  public static readonly flags = {
-    'target-org': Flags.requiredOrg({ char: 'o' }),
-  };
+  public static readonly summary = messages.getMessage('summary');
 
   public async run(): Promise<ComputeListResult> {
-    const { flags } = await this.parse(List);
+    const {flags} = await this.parse(List);
 
     const connection = flags['target-org'].getConnection();
     const records = await listComputeApps(connection);
@@ -65,7 +67,7 @@ export default class List extends SfCommand<ComputeListResult> {
     this.styledHeader('Compute Apps');
     const data = results.map(toRow);
     const columns: Array<keyof Row> = ['name', 'masterLabel', 'status', 'statusReason'];
-    this.table({ data, columns });
+    this.table({data, columns});
 
     return results;
   }

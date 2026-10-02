@@ -15,7 +15,10 @@
           }
         }
       },
-      "required": ["name", "values"],
+      "required": [
+        "name",
+        "values"
+      ],
       "additionalProperties": false
     }
   }

@@ -14,18 +14,19 @@
  * limitations under the License.
  */
 
-import { execCmd, TestSession } from '@salesforce/cli-plugins-testkit';
-import { expect } from 'chai';
-import { ComputeGenerateResult } from '../../../src/commands/compute/generate.js';
+import {execCmd, TestSession} from '@salesforce/cli-plugins-testkit';
+import {expect} from 'chai';
+
+import {type ComputeGenerateResult} from '../../../src/commands/compute/generate.js';
 
 let testSession: TestSession;
 
 describe('compute generate NUTs', () => {
-  before('prepare session', async () => {
-    testSession = await TestSession.create({ project: { name: 'ComputeGenerateProject' } });
+  beforeAll(async () => {
+    testSession = await TestSession.create({project: {name: 'ComputeGenerateProject'}});
   });
 
-  after(async () => {
+  afterAll(async () => {
     await testSession?.clean();
   });
 
@@ -38,7 +39,7 @@ describe('compute generate NUTs', () => {
   });
 
   it('fails when the app already exists', () => {
-    const output = execCmd('compute generate --name CreditRatingScorer --json', { ensureExitCode: 1 }).jsonOutput;
+    const output = execCmd('compute generate --name CreditRatingScorer --json', {ensureExitCode: 1}).jsonOutput;
     expect(output?.message).to.include('already exists');
   });
 

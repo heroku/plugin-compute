@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { Language } from './computeGenerateSource.js';
+import type {Language} from './computeGenerateSource.js';
 
 // These files can't be produced by trimming the fetched upstream copy: the example endpoints
 // they exist to teach (Accounts query, UnitOfWork, Data Cloud webhook) are woven into the

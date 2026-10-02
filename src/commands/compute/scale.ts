@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
-import { Args } from '@oclif/core';
-import { Messages } from '@salesforce/core';
-import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
-import { resolveHerokuAppId } from '../../shared/computeQuery.js';
-import { scaleComputeFormationViaProxy } from '../../shared/herokuProxyApi.js';
+import {Args} from '@oclif/core';
+import {Messages} from '@salesforce/core';
+import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
+
+import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../shared/computeApp.js';
+import {resolveHerokuAppId} from '../../shared/computeQuery.js';
+import {scaleComputeFormationViaProxy} from '../../shared/herokuProxyApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.scale');
@@ -57,17 +58,19 @@ const VALID_SIZES = [
   'dyno-16c-128gb',
 ];
 
-type ScaleTarget = { processType: string; quantity?: number; dynoSize?: string };
+type ScaleTarget = {dynoSize?: string; processType: string; quantity?: number};
 
 function parseScaleTarget(token: string): ScaleTarget {
   const match = TARGET_PATTERN.exec(token);
   if (!match) {
     throw messages.createError('error.scaleInvalidTarget', [token]);
   }
+
   const [, processType, countStr, sizeStr] = match;
   if (countStr === undefined && sizeStr === undefined) {
     throw messages.createError('error.scaleNoChangeForTarget', [token]);
   }
+
   let dynoSize: string | undefined;
   if (sizeStr !== undefined) {
     dynoSize = sizeStr.toLowerCase();
@@ -75,21 +78,16 @@ function parseScaleTarget(token: string): ScaleTarget {
       throw messages.createError('error.scaleInvalidSize', [sizeStr, VALID_SIZES.join(', ')]);
     }
   }
-  return { processType, quantity: countStr === undefined ? undefined : Number(countStr), dynoSize };
+
+  return {processType, quantity: countStr === undefined ? undefined : Number(countStr), dynoSize};
 }
 
 export type ComputeScaleResult = {
+  formation: Array<{dynoSize?: string; quantity: number; type: string}>;
   name: string;
-  formation: Array<{ type: string; dynoSize?: string; quantity: number }>;
 };
 
 export default class Scale extends SfCommand<ComputeScaleResult> {
-  public static readonly summary = messages.getMessage('summary');
-  public static readonly description = messages.getMessage('description');
-  public static readonly examples = messages.getMessages('examples');
-  // Org- or Heroku-mediated lookup by --name -- no local project files are read.
-  public static readonly requiresProject = false;
-
   public static readonly args = {
     target: Args.string({
       multiple: true,
@@ -97,17 +95,24 @@ export default class Scale extends SfCommand<ComputeScaleResult> {
     }),
   };
 
+  public static readonly description = messages.getMessage('description');
+  public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
     name: Flags.string({
       char: 'n',
       env: 'COMPUTE_APP_NAME',
       summary: messages.getMessage('flags.name.summary'),
     }),
-    'target-org': Flags.requiredOrg({ char: 'o' }),
+    'target-org': Flags.requiredOrg({char: 'o'}),
   };
 
+  // Org- or Heroku-mediated lookup by --name -- no local project files are read.
+  public static readonly requiresProject = false;
+
+  public static readonly summary = messages.getMessage('summary');
+
   public async run(): Promise<ComputeScaleResult> {
-    const { args, flags } = await this.parse(Scale);
+    const {args, flags} = await this.parse(Scale);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
@@ -118,29 +123,30 @@ export default class Scale extends SfCommand<ComputeScaleResult> {
     if (tokens.length === 0) {
       throw messages.createError('error.scaleNoTargetsSpecified');
     }
-    const targets = tokens.map((token) => parseScaleTarget(token));
+
+    const targets = tokens.map(token => parseScaleTarget(token));
 
     const connection = flags['target-org'].getConnection();
     const appId = await resolveHerokuAppId(connection, name);
 
     this.spinner.start('Scaling dynos');
-    const formation: Array<{ type: string; dynoSize?: string; quantity: number }> = [];
+    const formation: Array<{dynoSize?: string; quantity: number; type: string}> = [];
     try {
       for (const target of targets) {
         // Sequential PATCHes to the same app's formation -- there's nothing to parallelize.
         /* eslint-disable no-await-in-loop */
-        const updated = await scaleComputeFormationViaProxy(connection, { name, appId, ...target });
+        const updated = await scaleComputeFormationViaProxy(connection, {name, appId, ...target});
         /* eslint-enable no-await-in-loop */
         formation.push(updated);
       }
-    } catch (err) {
+    } catch (error) {
       this.spinner.stop('failed');
-      throw err;
+      throw error;
     }
 
-    const summary = formation.map((f) => `${f.type} at ${f.quantity}:${f.dynoSize ?? '-'}`).join(', ');
+    const summary = formation.map(f => `${f.type} at ${f.quantity}:${f.dynoSize ?? '-'}`).join(', ');
     this.spinner.stop(`done, now running ${summary}.`);
 
-    return { name, formation };
+    return {name, formation};
   }
 }

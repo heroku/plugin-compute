@@ -5,28 +5,36 @@
     "ComputeGenerateResult": {
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        },
-        "language": {
-          "$ref": "#/definitions/Language"
-        },
         "files": {
           "type": "array",
           "items": {
             "type": "string"
           }
+        },
+        "language": {
+          "$ref": "#/definitions/Language"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
         }
       },
-      "required": ["name", "path", "language", "files"],
+      "required": [
+        "files",
+        "language",
+        "name",
+        "path"
+      ],
       "additionalProperties": false
     },
     "Language": {
       "type": "string",
-      "enum": ["node", "python"]
+      "enum": [
+        "node",
+        "python"
+      ]
     }
   }
 }

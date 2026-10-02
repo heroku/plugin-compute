@@ -8,17 +8,20 @@
         "name": {
           "type": "string"
         },
+        "release": {
+          "type": "number"
+        },
         "unset": {
           "type": "array",
           "items": {
             "type": "string"
           }
-        },
-        "release": {
-          "type": "number"
         }
       },
-      "required": ["name", "unset"],
+      "required": [
+        "name",
+        "unset"
+      ],
       "additionalProperties": false
     }
   }

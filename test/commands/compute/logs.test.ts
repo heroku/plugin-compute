@@ -1,3 +1,7 @@
+import {Org} from '@salesforce/core';
+import {MockTestOrgData, TestContext} from '@salesforce/core/testSetup';
+import {stubSfCommandUx} from '@salesforce/sf-plugins-core';
+import {expect} from 'chai';
 /*
  * Copyright 2026, Salesforce, Inc.
  *
@@ -13,14 +17,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { expect } from 'chai';
+import {
+  mkdir,
+  mkdtemp,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import sinon from 'sinon';
-import { TestContext, MockTestOrgData } from '@salesforce/core/testSetup';
-import { Org } from '@salesforce/core';
-import { stubSfCommandUx } from '@salesforce/sf-plugins-core';
+
 import Logs from '../../../src/commands/compute/logs.js';
 
 // Every proxy-bound request lands on the same /services/data/vXX.0/heroku/proxy path with the
@@ -35,8 +41,8 @@ function proxyTarget(url: string): string {
 // shared requestStub while resolving --target-org, so callCount/called on the stub itself is
 // unreliable -- filter for the specific log-sessions call instead (mirrors build/output.test.ts).
 function findLogSessionCall(stub: sinon.SinonStub): sinon.SinonSpyCall | undefined {
-  return stub.getCalls().find((call) => {
-    const req = call.args[0] as { url?: string } | undefined;
+  return stub.getCalls().find(call => {
+    const req = call.args[0] as undefined | {url?: string};
     return req?.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions');
   });
 }
@@ -48,6 +54,7 @@ function streamOf(chunks: string[]): ReadableStream<Uint8Array> {
       for (const chunk of chunks) {
         controller.enqueue(encoder.encode(chunk));
       }
+
       controller.close();
     },
   });
@@ -62,40 +69,39 @@ describe('compute logs', () => {
   let fetchStub: sinon.SinonStub;
 
   const deployedRecord = {
-    Id: '0abEE0000004CqYYAU',
-    DeveloperName: 'CreditRatingScorer',
-    MasterLabel: 'Credit Rating Scorer',
+    CurrentBuild: {
+      BuildCompletedAt: '2026-08-31T14:25:32.000Z',
+      BuildStartedAt: '2026-08-31T14:23:50.000Z',
+      BuildStatus: 'SUCCEEDED',
+      DeployedAt: '2026-08-31T14:25:32.000Z',
+      DeployedBy: {Username: 'dev@mycompany.com'},
+      Error: null,
+      Id: '0acEE0000004D1ZYAU',
+    },
     Description: null,
+    DeveloperName: 'CreditRatingScorer',
+    ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id',
+    ExternalServiceRegistration: null,
+    Id: '0abEE0000004CqYYAU',
+    MasterLabel: 'Credit Rating Scorer',
     Status: 'ACTIVE',
     StatusReason: null,
-    CurrentBuild: {
-      Id: '0acEE0000004D1ZYAU',
-      BuildStatus: 'SUCCEEDED',
-      BuildStartedAt: '2026-08-31T14:23:50.000Z',
-      BuildCompletedAt: '2026-08-31T14:25:32.000Z',
-      DeployedAt: '2026-08-31T14:25:32.000Z',
-      DeployedBy: { Username: 'dev@mycompany.com' },
-      Error: null,
-    },
-    ExternalServiceRegistration: null,
-    ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id',
   };
 
   beforeEach(async () => {
     sfCommandStubs = stubSfCommandUx($$.SANDBOX);
     await $$.stubAuths(testOrg);
 
-    const org = await Org.create({ aliasOrUsername: testOrg.username });
+    const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
     toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
-    /* eslint-disable camelcase -- logplex_url mirrors Heroku's LogSession field name */
-    requestStub = sinon.stub().resolves({ logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1' });
-    /* eslint-enable camelcase */
+    requestStub = sinon.stub().resolves({logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'});
+
     $$.fakeConnectionRequest = requestStub;
 
-    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch').resolves(new Response('line one\nline two\n', { status: 200 }));
+    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch').resolves(new Response('line one\nline two\n', {status: 200}));
   });
 
   afterEach(() => {
@@ -103,7 +109,7 @@ describe('compute logs', () => {
   });
 
   function resolveWith(records: unknown[]): void {
-    toolingQueryStub.resolves({ totalSize: records.length, records, done: true });
+    toolingQueryStub.resolves({done: true, records, totalSize: records.length});
   }
 
   it('prints backfilled lines and returns them on the non-tail happy path', async () => {
@@ -111,30 +117,30 @@ describe('compute logs', () => {
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({ name: 'CreditRatingScorer', lines: ['line one', 'line two'] });
+    expect(result).to.deep.equal({lines: ['line one', 'line two'], name: 'CreditRatingScorer'});
     const output = sfCommandStubs.log
       .getCalls()
-      .flatMap((c) => c.args)
+      .flatMap(c => c.args)
       .join('\n');
     expect(output).to.include('line one');
     expect(output).to.include('line two');
 
     const call = findLogSessionCall(requestStub);
     expect(call, 'expected a POST to the Heroku proxy log-sessions path').to.not.be.undefined;
-    expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/log-sessions'
+    expect(proxyTarget((call!.args[0] as {url: string}).url)).to.equal(
+      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/log-sessions',
     );
-    const body = JSON.parse((call!.args[0] as { body: string }).body);
-    expect(body).to.deep.equal({ lines: 100, tail: false });
+    const body = JSON.parse((call!.args[0] as {body: string}).body);
+    expect(body).to.deep.equal({lines: 100, tail: false});
     expect(fetchStub.calledWith('https://logplex.heroku.com/sessions/abc?srv=1')).to.be.true;
   });
 
   it('reports no builds yet and returns just the name when CurrentBuild is null, without calling the proxy or fetch', async () => {
-    resolveWith([{ ...deployedRecord, CurrentBuild: null }]);
+    resolveWith([{...deployedRecord, CurrentBuild: null}]);
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({ name: 'CreditRatingScorer' });
+    expect(result).to.deep.equal({name: 'CreditRatingScorer'});
     expect(sfCommandStubs.info.firstCall.args[0]).to.include('has no builds yet');
     expect(findLogSessionCall(requestStub)).to.be.undefined;
     expect(fetchStub.called).to.be.false;
@@ -142,11 +148,11 @@ describe('compute logs', () => {
 
   it('reports no log lines yet when the logplex fetch returns empty output', async () => {
     resolveWith([deployedRecord]);
-    fetchStub.resolves(new Response('', { status: 200 }));
+    fetchStub.resolves(new Response('', {status: 200}));
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({ name: 'CreditRatingScorer' });
+    expect(result).to.deep.equal({name: 'CreditRatingScorer'});
     expect(sfCommandStubs.info.lastCall.args[0]).to.include('no log output yet');
   });
 
@@ -156,28 +162,28 @@ describe('compute logs', () => {
     await Logs.run(['--name', 'CreditRatingScorer', '--num', '500', '--target-org', testOrg.username]);
 
     const call = findLogSessionCall(requestStub);
-    const body = JSON.parse((call!.args[0] as { body: string }).body);
-    expect(body).to.deep.equal({ lines: 500, tail: false });
+    const body = JSON.parse((call!.args[0] as {body: string}).body);
+    expect(body).to.deep.equal({lines: 500, tail: false});
   });
 
   it('streams lines and reports the session ending naturally under --tail', async () => {
     resolveWith([deployedRecord]);
-    fetchStub.resolves(new Response(streamOf(['line one\n', 'line two\n']), { status: 200 }));
+    fetchStub.resolves(new Response(streamOf(['line one\n', 'line two\n']), {status: 200}));
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--tail', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({ name: 'CreditRatingScorer' });
+    expect(result).to.deep.equal({name: 'CreditRatingScorer'});
     const output = sfCommandStubs.log
       .getCalls()
-      .flatMap((c) => c.args)
+      .flatMap(c => c.args)
       .join('\n');
     expect(output).to.include('line one');
     expect(output).to.include('line two');
     expect(sfCommandStubs.info.lastCall.args[0]).to.include('ended');
 
     const call = findLogSessionCall(requestStub);
-    const body = JSON.parse((call!.args[0] as { body: string }).body);
-    expect(body).to.deep.equal({ lines: 100, tail: true });
+    const body = JSON.parse((call!.args[0] as {body: string}).body);
+    expect(body).to.deep.equal({lines: 100, tail: true});
   });
 
   it('rejects combining --tail with --json before any org call is made', async () => {
@@ -186,9 +192,10 @@ describe('compute logs', () => {
     try {
       await Logs.run(['--name', 'CreditRatingScorer', '--tail', '--json', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include('cannot also be provided when using --tail');
+    } catch (error) {
+      expect((error as Error).message).to.include('cannot also be provided when using --tail');
     }
+
     expect(toolingQueryStub.called).to.be.false;
   });
 
@@ -198,35 +205,37 @@ describe('compute logs', () => {
     try {
       await Logs.run(['--name', 'NeverDeployed', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include('No compute app named NeverDeployed was found in the org');
+    } catch (error) {
+      expect((error as Error).message).to.include('No compute app named NeverDeployed was found in the org');
     }
+
     expect(findLogSessionCall(requestStub)).to.be.undefined;
     expect(fetchStub.called).to.be.false;
   });
 
   it('throws error.herokuAppIdentifierUnavailable when the app has a build but no ExternalAppIdentifier yet, without calling the proxy or fetch', async () => {
-    resolveWith([{ ...deployedRecord, ExternalAppIdentifier: undefined }]);
+    resolveWith([{...deployedRecord, ExternalAppIdentifier: undefined}]);
 
     try {
       await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("doesn't have a Heroku app identifier yet");
+    } catch (error) {
+      expect((error as Error).message).to.include("doesn't have a Heroku app identifier yet");
     }
+
     expect(findLogSessionCall(requestStub)).to.be.undefined;
     expect(fetchStub.called).to.be.false;
   });
 
   it('surfaces error.herokuAppNotFound when Heroku 404s the log-session creation', async () => {
     resolveWith([deployedRecord]);
-    requestStub.rejects(Object.assign(new Error("Couldn't find that app."), { data: { id: 'not_found' } }));
+    requestStub.rejects(Object.assign(new Error("Couldn't find that app."), {data: {id: 'not_found'}}));
 
     try {
       await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("Heroku didn't find an app named CreditRatingScorer");
+    } catch (error) {
+      expect((error as Error).message).to.include("Heroku didn't find an app named CreditRatingScorer");
     }
   });
 
@@ -237,9 +246,9 @@ describe('compute logs', () => {
     try {
       await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include(
-        "Couldn't reach the Heroku Platform API through Salesforce: socket hang up"
+    } catch (error) {
+      expect((error as Error).message).to.include(
+        "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
       );
     }
   });
@@ -252,8 +261,8 @@ describe('compute logs', () => {
     const soql: string = toolingQueryStub.firstCall.args[0];
     expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
     const call = findLogSessionCall(requestStub);
-    expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/log-sessions'
+    expect(proxyTarget((call!.args[0] as {url: string}).url)).to.equal(
+      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/log-sessions',
     );
   });
 
@@ -261,9 +270,10 @@ describe('compute logs', () => {
     try {
       await Logs.run(['--name', '../evil', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("isn't valid");
+    } catch (error) {
+      expect((error as Error).message).to.include("isn't valid");
     }
+
     expect(toolingQueryStub.called).to.be.false;
     expect(findLogSessionCall(requestStub)).to.be.undefined;
   });
@@ -294,7 +304,7 @@ describe('compute logs', () => {
       expect(result.name).to.equal('CreditRatingScorer');
     } finally {
       process.chdir(originalCwd);
-      await rm(tmp, { recursive: true, force: true });
+      await rm(tmp, {force: true, recursive: true});
     }
   });
 
@@ -305,22 +315,23 @@ describe('compute logs', () => {
     try {
       await Logs.run(['--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("Couldn't determine which compute app to use");
+    } catch (error) {
+      expect((error as Error).message).to.include("Couldn't determine which compute app to use");
     } finally {
       process.chdir(originalCwd);
-      await rm(tmp, { recursive: true, force: true });
+      await rm(tmp, {force: true, recursive: true});
     }
+
     expect(toolingQueryStub.called).to.be.false;
   });
 
   it('drops the lines key under --json for the no-builds-yet case', async () => {
-    resolveWith([{ ...deployedRecord, CurrentBuild: null }]);
+    resolveWith([{...deployedRecord, CurrentBuild: null}]);
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
     const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as Record<string, unknown>;
 
     expect(JSON.stringify(jsonOutput)).to.not.include('"lines"');
-    expect(result).to.deep.equal({ name: 'CreditRatingScorer' });
+    expect(result).to.deep.equal({name: 'CreditRatingScorer'});
   });
 });

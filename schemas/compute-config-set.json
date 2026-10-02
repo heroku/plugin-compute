@@ -5,20 +5,23 @@
     "ComputeConfigSetResult": {
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string"
-        },
         "configVars": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
           }
         },
+        "name": {
+          "type": "string"
+        },
         "release": {
           "type": "number"
         }
       },
-      "required": ["name", "configVars"],
+      "required": [
+        "configVars",
+        "name"
+      ],
       "additionalProperties": false
     }
   }

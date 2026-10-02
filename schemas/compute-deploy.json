@@ -5,20 +5,25 @@
     "ComputeDeployResult": {
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string"
-        },
-        "platformComputeId": {
-          "type": "string"
-        },
         "buildId": {
           "type": "string"
         },
         "deployId": {
           "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "platformComputeId": {
+          "type": "string"
         }
       },
-      "required": ["name", "platformComputeId", "buildId", "deployId"],
+      "required": [
+        "buildId",
+        "deployId",
+        "name",
+        "platformComputeId"
+      ],
       "additionalProperties": false
     }
   }

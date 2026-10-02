@@ -6,58 +6,32 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "orgId": {
-          "type": "string"
-        },
         "formation": {
           "$ref": "#/definitions/HerokuFormationSummary"
+        },
+        "orgId": {
+          "type": "string"
         },
         "release": {
           "type": "number"
         },
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "masterLabel": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string",
-          "enum": ["DEPLOYING", "ACTIVE", "FAILED"]
-        },
-        "statusReason": {
-          "type": "string"
-        },
-        "externalServiceId": {
-          "type": "string"
-        },
-        "externalServiceRegistered": {
-          "type": "boolean"
-        },
-        "externalServiceActive": {
-          "type": "boolean"
-        },
         "currentBuild": {
           "type": "object",
           "properties": {
-            "id": {
+            "buildCompletedAt": {
               "type": "string"
-            },
-            "buildStatus": {
-              "type": "string",
-              "enum": ["PENDING", "BUILDING", "SUCCEEDED", "FAILED"]
             },
             "buildStartedAt": {
               "type": "string"
             },
-            "buildCompletedAt": {
-              "type": "string"
+            "buildStatus": {
+              "type": "string",
+              "enum": [
+                "BUILDING",
+                "FAILED",
+                "PENDING",
+                "SUCCEEDED"
+              ]
             },
             "deployedAt": {
               "type": "string"
@@ -67,30 +41,78 @@
             },
             "error": {
               "type": "string"
+            },
+            "id": {
+              "type": "string"
             }
           },
-          "required": ["id", "buildStatus"],
+          "required": [
+            "buildStatus",
+            "id"
+          ],
           "additionalProperties": false
+        },
+        "description": {
+          "type": "string"
+        },
+        "externalServiceActive": {
+          "type": "boolean"
+        },
+        "externalServiceId": {
+          "type": "string"
+        },
+        "externalServiceRegistered": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "masterLabel": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "DEPLOYING",
+            "FAILED"
+          ]
+        },
+        "statusReason": {
+          "type": "string"
         }
       },
-      "required": ["externalServiceRegistered", "id", "masterLabel", "name", "orgId", "status"]
+      "required": [
+        "externalServiceRegistered",
+        "id",
+        "masterLabel",
+        "name",
+        "orgId",
+        "status"
+      ]
     },
     "HerokuFormationSummary": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "type": {
-            "type": "string"
-          },
           "dynoSize": {
             "type": "string"
           },
           "quantity": {
             "type": "number"
+          },
+          "type": {
+            "type": "string"
           }
         },
-        "required": ["type", "quantity"],
+        "required": [
+          "quantity",
+          "type"
+        ],
         "additionalProperties": false
       }
     }

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import type { Connection } from '@salesforce/core';
-import { Messages } from '@salesforce/core';
-import { parseName } from './computeApp.js';
+import {type Connection, Messages} from '@salesforce/core';
+
+import {parseName} from './computeApp.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
@@ -31,30 +31,26 @@ const SINGLE_RECORD_QUERY_MULTIPLE_RECORDS = 'SingleRecordQuery_MultipleRecords'
 // Both lookups are null until the app's first successful metadata deploy / AppLink publish sets
 // them -- see PLATFORMCOMPUTEAPP_ENTITY_SCHEMA.md "Initial Deploy" and "-> ExternalServiceRegistration".
 export type ComputeAppRecord = {
-  Id: string;
+  CurrentBuild: null | {
+    BuildCompletedAt: null | string;
+    BuildStartedAt: null | string;
+    BuildStatus: 'BUILDING' | 'FAILED' | 'PENDING' | 'SUCCEEDED';
+    DeployedAt: null | string;
+    DeployedBy: null | {Username: string};
+    Error: null | string;
+    // Heroku's own build id -- see ExternalAppIdentifier's comment above; same gating, same
+    // "written by async worker post-insert" caveat, so can be null even on a record that has one.
+    ExternalBuildIdentifier?: null | string;
+    Id: string;
+  };
+  Description: null | string;
   DeveloperName: string;
-  MasterLabel: string;
-  Description: string | null;
-  Status: 'DEPLOYING' | 'ACTIVE' | 'FAILED';
-  StatusReason: string | null;
   // Heroku's own app id -- NOT the same value as DeveloperName, which is Salesforce-side only.
   // Only present in the queried record (see soqlFields()) under SALESFORCE_INTERNAL_QA_CLIENT,
   // since it shares PlatformComputeApp's entity-level isSfdcInternal restriction (W-24176390).
   // Undefined/null until then, and until the app's first successful build sets it.
-  ExternalAppIdentifier?: string | null;
-  CurrentBuild: {
-    Id: string;
-    BuildStatus: 'PENDING' | 'BUILDING' | 'SUCCEEDED' | 'FAILED';
-    BuildStartedAt: string | null;
-    BuildCompletedAt: string | null;
-    DeployedAt: string | null;
-    DeployedBy: { Username: string } | null;
-    Error: string | null;
-    // Heroku's own build id -- see ExternalAppIdentifier's comment above; same gating, same
-    // "written by async worker post-insert" caveat, so can be null even on a record that has one.
-    ExternalBuildIdentifier?: string | null;
-  } | null;
-  ExternalServiceRegistration: {
+  ExternalAppIdentifier?: null | string;
+  ExternalServiceRegistration: null | {
     Id: string;
     // Not queried below (see soqlFields()) -- Tooling API rejects this column at parse time even
     // with the SfdcInternalQA client override applied. This is a field-level restriction on
@@ -63,7 +59,11 @@ export type ComputeAppRecord = {
     // field-level restriction is separately resolved with the ExternalServiceRegistration owning
     // team -- see W-24176390's description for the split.
     IsActive?: boolean;
-  } | null;
+  };
+  Id: string;
+  MasterLabel: string;
+  Status: 'ACTIVE' | 'DEPLOYING' | 'FAILED';
+  StatusReason: null | string;
 };
 
 const BASE_SOQL_FIELDS = [
@@ -101,7 +101,7 @@ function soqlFields(): string {
 // should never actually fire, but it keeps a future NAME_PATTERN/NAMESPACE_PATTERN change from
 // silently reopening injection.
 function escapeSoqlLiteral(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  return value.replaceAll('\\', '\\\\').replaceAll('\'', String.raw`\'`);
 }
 
 // Internal engineering workaround, not a customer-facing feature -- do not document in README.
@@ -121,8 +121,8 @@ function setSfdcInternalQaCallOptions(connection: Connection): void {
   if (process.env.SALESFORCE_INTERNAL_QA_CLIENT !== 'true') {
     return;
   }
-  // eslint-disable-next-line no-underscore-dangle
-  (connection as unknown as { _callOptions?: Record<string, string> })._callOptions = {
+
+  (connection as unknown as {_callOptions?: Record<string, string>})._callOptions = {
     client: 'SfdcInternalQA/plugin-compute',
   };
 }
@@ -135,25 +135,27 @@ export async function queryComputeApp(connection: Connection, name: string): Pro
   // parseName's NAME_PATTERN/NAMESPACE_PATTERN (letters/digits/underscore, anchored, no quotes or
   // spaces) are the injection guard for the two interpolations below -- escapeSoqlLiteral is
   // belt-and-suspenders in case either pattern is ever loosened, not the primary defense.
-  const { namespace, developerName } = parseName(name);
+  const {namespace, developerName} = parseName(name);
   const namespaceFilter = namespace === undefined ? '' : ` AND Namespace = '${escapeSoqlLiteral(namespace)}'`;
   const soql = `SELECT ${soqlFields()} FROM PlatformComputeApp WHERE DeveloperName = '${escapeSoqlLiteral(
-    developerName
+    developerName,
   )}'${namespaceFilter}`;
   try {
-    return await connection.singleRecordQuery<ComputeAppRecord>(soql, { tooling: true });
-  } catch (err) {
-    if (err instanceof Error && err.name === SINGLE_RECORD_QUERY_NO_RECORDS) {
-      throw messages.createError('error.appNotFoundInOrg', [name], [name], err);
+    return await connection.singleRecordQuery<ComputeAppRecord>(soql, {tooling: true});
+  } catch (error) {
+    if (error instanceof Error && error.name === SINGLE_RECORD_QUERY_NO_RECORDS) {
+      throw messages.createError('error.appNotFoundInOrg', [name], [name], error);
     }
-    if (err instanceof Error && err.name === SINGLE_RECORD_QUERY_MULTIPLE_RECORDS) {
-      throw messages.createError('error.ambiguousName', [name], [], err);
+
+    if (error instanceof Error && error.name === SINGLE_RECORD_QUERY_MULTIPLE_RECORDS) {
+      throw messages.createError('error.ambiguousName', [name], [], error);
     }
+
     throw messages.createError(
       'error.queryFailed',
-      [err instanceof Error ? err.message : String(err)],
+      [error instanceof Error ? error.message : String(error)],
       [],
-      err instanceof Error ? err : undefined
+      error instanceof Error ? error : undefined,
     );
   }
 }
@@ -166,37 +168,37 @@ export async function listComputeApps(connection: Connection): Promise<ComputeAp
   try {
     // autoFetchQuery's type param is bounded to jsforce's Schema (org-wide SObject map), not the
     // record shape -- there's no way to type this call against ComputeAppRecord directly.
-    const result = await connection.autoFetchQuery(soql, { tooling: true });
+    const result = await connection.autoFetchQuery(soql, {tooling: true});
     return result.records as unknown as ComputeAppRecord[];
-  } catch (err) {
+  } catch (error) {
     throw messages.createError(
       'error.queryFailed',
-      [err instanceof Error ? err.message : String(err)],
+      [error instanceof Error ? error.message : String(error)],
       [],
-      err instanceof Error ? err : undefined
+      error instanceof Error ? error : undefined,
     );
   }
 }
 
 export type ComputeAppSummary = {
-  id: string;
-  name: string;
-  masterLabel: string;
-  description?: string;
-  status: 'DEPLOYING' | 'ACTIVE' | 'FAILED';
-  statusReason?: string;
-  externalServiceId?: string;
-  externalServiceRegistered: boolean;
-  externalServiceActive?: boolean;
   currentBuild?: {
-    id: string;
-    buildStatus: 'PENDING' | 'BUILDING' | 'SUCCEEDED' | 'FAILED';
-    buildStartedAt?: string;
     buildCompletedAt?: string;
+    buildStartedAt?: string;
+    buildStatus: 'BUILDING' | 'FAILED' | 'PENDING' | 'SUCCEEDED';
     deployedAt?: string;
     deployedBy?: string;
     error?: string;
+    id: string;
   };
+  description?: string;
+  externalServiceActive?: boolean;
+  externalServiceId?: string;
+  externalServiceRegistered: boolean;
+  id: string;
+  masterLabel: string;
+  name: string;
+  status: 'ACTIVE' | 'DEPLOYING' | 'FAILED';
+  statusReason?: string;
 };
 
 // Pure extraction, no fallback to DeveloperName -- a Heroku proxy call must never receive the
@@ -214,6 +216,7 @@ export function requireHerokuAppId(record: ComputeAppRecord, name: string): stri
   if (!herokuAppId) {
     throw messages.createError('error.herokuAppIdentifierUnavailable', [name]);
   }
+
   return herokuAppId;
 }
 
@@ -240,14 +243,14 @@ export function toComputeAppSummary(record: ComputeAppRecord): ComputeAppSummary
     externalServiceActive: record.ExternalServiceRegistration?.IsActive,
     currentBuild: record.CurrentBuild
       ? {
-          id: record.CurrentBuild.Id,
-          buildStatus: record.CurrentBuild.BuildStatus,
-          buildStartedAt: record.CurrentBuild.BuildStartedAt ?? undefined,
-          buildCompletedAt: record.CurrentBuild.BuildCompletedAt ?? undefined,
-          deployedAt: record.CurrentBuild.DeployedAt ?? undefined,
-          deployedBy: record.CurrentBuild.DeployedBy?.Username,
-          error: record.CurrentBuild.Error ?? undefined,
-        }
+        id: record.CurrentBuild.Id,
+        buildStatus: record.CurrentBuild.BuildStatus,
+        buildStartedAt: record.CurrentBuild.BuildStartedAt ?? undefined,
+        buildCompletedAt: record.CurrentBuild.BuildCompletedAt ?? undefined,
+        deployedAt: record.CurrentBuild.DeployedAt ?? undefined,
+        deployedBy: record.CurrentBuild.DeployedBy?.Username,
+        error: record.CurrentBuild.Error ?? undefined,
+      }
       : undefined,
   };
 }

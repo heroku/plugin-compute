@@ -14,22 +14,34 @@
  * limitations under the License.
  */
 
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, relative, resolve, sep } from 'node:path';
-import { createGzip, gunzipSync } from 'node:zlib';
-import { buffer as streamToBuffer } from 'node:stream/consumers';
+import {getLogger} from '@oclif/core';
+import {Messages} from '@salesforce/core';
+import ignore, {type Ignore} from 'ignore';
+import {
+  mkdir,
+  readdir,
+  readFile,
+  writeFile,
+} from 'node:fs/promises';
+import {
+  dirname,
+  join,
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
+import {buffer as streamToBuffer} from 'node:stream/consumers';
+import {createGzip, gunzipSync} from 'node:zlib';
 import tarStream from 'tar-stream';
-import ignore, { type Ignore } from 'ignore';
-import { getLogger } from '@oclif/core';
-import { Messages } from '@salesforce/core';
-import { pathExists } from './computeApp.js';
+
+import {pathExists} from './computeApp.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
 
 // Gated by DEBUG=sf:compute:bundle (or DEBUG=*) -- see @oclif/core's Command#debug, which this
 // mirrors for code that isn't a command instance.
-const debug = getLogger('sf:compute:bundle').debug;
+const {debug} = getLogger('sf:compute:bundle');
 
 export type PackagedBundle = {
   buffer: Buffer;
@@ -41,34 +53,34 @@ export type PackagedBundle = {
 // deployment/specs/PLATFORMCOMPUTEAPP_ENTITY_SCHEMA.md "Nested Tarball Structure".
 export async function packageComputeBundle(appDir: string, name: string, projectRoot: string): Promise<PackagedBundle> {
   const metaFileName = `${name}.compute-meta.xml`;
-  const excluded = new Set(['api-spec.yaml', metaFileName, 'project.toml', '.forceignore']);
+  const excluded = new Set(['.forceignore', 'api-spec.yaml', metaFileName, 'project.toml']);
   const isForceIgnored = await loadForceIgnore(appDir, projectRoot);
 
   const allFiles = await listFilesRecursive(appDir);
-  const sourceRelativePaths = allFiles.filter((f) => !excluded.has(f) && !isForceIgnored(f));
+  const sourceRelativePaths = allFiles.filter(f => !excluded.has(f) && !isForceIgnored(f));
   debug(
     'packaging %s: %d of %d files after exclusions/.forceignore',
     appDir,
     sourceRelativePaths.length,
-    allFiles.length
+    allFiles.length,
   );
 
   const sourceEntries = await Promise.all(
-    sourceRelativePaths.map(async (relativePath) => ({
+    sourceRelativePaths.map(async relativePath => ({
       name: relativePath,
       data: await readFile(join(appDir, relativePath)),
-    }))
+    })),
   );
   const sourceTarGz = await tarGzip(sourceEntries);
   const apiSpec = await readFile(join(appDir, 'api-spec.yaml'));
 
   const buffer = await tarGzip([
-    { name: 'api-spec.yaml', data: apiSpec },
-    { name: 'source.tar.gz', data: sourceTarGz },
+    {name: 'api-spec.yaml', data: apiSpec},
+    {name: 'source.tar.gz', data: sourceTarGz},
   ]);
   debug('packaged %s into %d bytes (%d files)', appDir, buffer.length, sourceEntries.length + 1);
 
-  return { buffer, fileCount: sourceEntries.length + 1 };
+  return {buffer, fileCount: sourceEntries.length + 1};
 }
 
 export type UnpackedBundle = {
@@ -101,21 +113,22 @@ export async function unpackComputeBundle(buffer: Buffer, appDir: string): Promi
       if (filePath !== resolvedAppDir && !filePath.startsWith(resolvedAppDir + sep)) {
         throw messages.createError('error.sourceBundleMalformed', [`unsafe entry path "${relativePath}"`]);
       }
-      await mkdir(dirname(filePath), { recursive: true });
+
+      await mkdir(dirname(filePath), {recursive: true});
       await writeFile(filePath, data);
-    })
+    }),
   );
 
   // Mirrors packageComputeBundle's own counting convention: source-entry count, plus 1 for
   // api-spec.yaml.
-  return { fileCount: Object.keys(sourceEntries).length + 1 };
+  return {fileCount: Object.keys(sourceEntries).length + 1};
 }
 
 // Inverse of tarGzip below -- decompress and read every tar entry into memory, keyed by name.
 // Wraps decompression/parse failures as error.sourceBundleMalformed rather than letting a raw
 // zlib/tar-stream error (e.g. "incorrect header check") reach the user -- a truncated download
 // or an HTTP error page returned with a 200 status both land here.
-function untarGzip(buffer: Buffer): Promise<Record<string, Buffer>> {
+async function untarGzip(buffer: Buffer): Promise<Record<string, Buffer>> {
   return new Promise((resolveEntries, reject) => {
     let decompressed: Buffer;
     try {
@@ -137,13 +150,17 @@ function untarGzip(buffer: Buffer): Promise<Record<string, Buffer>> {
       stream.on('error', reject);
       stream.resume();
     });
-    extract.on('finish', () => resolveEntries(entries));
-    extract.on('error', () => reject(messages.createError('error.sourceBundleMalformed', ['not a valid tar archive'])));
+    extract.on('finish', () => {
+      resolveEntries(entries);
+    });
+    extract.on('error', () => {
+      reject(messages.createError('error.sourceBundleMalformed', ['not a valid tar archive']));
+    });
     extract.end(decompressed);
   });
 }
 
-async function tarGzip(entries: ReadonlyArray<{ name: string; data: Buffer }>): Promise<Buffer> {
+async function tarGzip(entries: ReadonlyArray<{data: Buffer; name: string}>): Promise<Buffer> {
   const pack = tarStream.pack();
 
   // Pipe (i.e. attach a consumer) BEFORE writing any entries. pack is a streamx Readable with a
@@ -156,19 +173,21 @@ async function tarGzip(entries: ReadonlyArray<{ name: string; data: Buffer }>): 
   debug(
     'tarGzip: %d entries, %d total bytes',
     entries.length,
-    entries.reduce((sum, e) => sum + e.data.length, 0)
+    entries.reduce((sum, e) => sum + e.data.length, 0),
   );
 
   // Entries share one pack stream and must be written one at a time, in order.
   await entries.reduce(
-    (previous, { name, data }) =>
+    async (previous, {name, data}) =>
       previous.then(
         async () =>
           new Promise<void>((resolveEntry, reject) => {
-            pack.entry({ name, size: data.length }, data, (err) => (err ? reject(err) : resolveEntry()));
-          })
+            pack.entry({name, size: data.length}, data, err => {
+              err ? reject(err) : resolveEntry();
+            });
+          }),
       ),
-    Promise.resolve()
+    Promise.resolve(),
   );
   pack.finalize();
   return gzippedBufferPromise;
@@ -187,12 +206,14 @@ async function loadForceIgnore(appDir: string, projectRoot: string): Promise<(ap
     if (appFilter?.ignores(appRelativePath)) {
       return true;
     }
+
     if (rootFilter) {
       const rootRelativePath = appDirFromRoot ? `${appDirFromRoot}/${appRelativePath}` : appRelativePath;
       if (rootFilter.ignores(rootRelativePath)) {
         return true;
       }
     }
+
     return false;
   };
 }
@@ -202,22 +223,25 @@ async function readForceIgnoreFile(dir: string): Promise<Ignore | undefined> {
   if (!(await pathExists(forceIgnorePath))) {
     return undefined;
   }
+
   return ignore().add(await readFile(forceIgnorePath, 'utf8'));
 }
 
 async function listFilesRecursive(dir: string, base = dir): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
+  const entries = await readdir(dir, {withFileTypes: true});
   const nested = await Promise.all(
     entries.map(async (entry): Promise<string[]> => {
       const full = join(dir, entry.name);
       if (entry.isDirectory()) {
         return listFilesRecursive(full, base);
       }
+
       if (entry.isFile()) {
         return [relative(base, full).split(sep).join('/')];
       }
+
       return [];
-    })
+    }),
   );
   return nested.flat();
 }

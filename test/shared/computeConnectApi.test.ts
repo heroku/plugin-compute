@@ -1,3 +1,5 @@
+import type {Connection} from '@salesforce/core';
+
 /*
  * Copyright 2026, Salesforce, Inc.
  *
@@ -13,10 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { expect } from 'chai';
+import {expect} from 'chai';
 import sinon from 'sinon';
-import type { Connection } from '@salesforce/core';
-import { uploadComputeSource, downloadComputeSource } from '../../src/shared/computeConnectApi.js';
+
+import {downloadComputeSource, uploadComputeSource} from '../../src/shared/computeConnectApi.js';
 
 describe('computeConnectApi.uploadComputeSource', () => {
   afterEach(() => {
@@ -25,22 +27,22 @@ describe('computeConnectApi.uploadComputeSource', () => {
 
   it('POSTs a multipart form to /connect/compute/source', async () => {
     const expected = {
-      platformComputeId: '0abEE0000004CqYYAU',
       buildId: '0acEE0000004D1ZYAU',
+      platformComputeId: '0abEE0000004CqYYAU',
       sourceBlobSize: 12,
       uploadedAt: '2026-08-31T00:00:00.000Z',
     };
     const request = sinon.stub().resolves(expected);
-    const connection = { request } as unknown as Connection;
+    const connection = {request} as unknown as Connection;
 
     const result = await uploadComputeSource(connection, {
-      name: 'CreditRatingScorer',
       bundle: Buffer.from('fake-tarball-contents'),
+      name: 'CreditRatingScorer',
     });
 
     expect(result).to.deep.equal(expected);
     expect(request.calledOnce).to.be.true;
-    const [httpRequest] = request.firstCall.args as [{ method: string; url: string; headers: Record<string, string> }];
+    const [httpRequest] = request.firstCall.args as [{headers: Record<string, string>; method: string; url: string}];
     expect(httpRequest.method).to.equal('POST');
     expect(httpRequest.url).to.equal('/connect/compute/source');
     expect(httpRequest.headers['content-type']).to.include('multipart/form-data');
@@ -48,14 +50,14 @@ describe('computeConnectApi.uploadComputeSource', () => {
 
   it('translates a failed request into a createError-style message', async () => {
     const request = sinon.stub().rejects(new Error('socket hang up'));
-    const connection = { request } as unknown as Connection;
+    const connection = {request} as unknown as Connection;
 
     try {
-      await uploadComputeSource(connection, { name: 'CreditRatingScorer', bundle: Buffer.from('x') });
+      await uploadComputeSource(connection, {bundle: Buffer.from('x'), name: 'CreditRatingScorer'});
       expect.fail('expected uploadComputeSource to throw');
-    } catch (err) {
-      expect((err as Error).message).to.include('socket hang up');
-      expect((err as Error).message).to.include('Connect API');
+    } catch (error) {
+      expect((error as Error).message).to.include('socket hang up');
+      expect((error as Error).message).to.include('Connect API');
     }
   });
 });
@@ -68,40 +70,40 @@ describe('computeConnectApi.downloadComputeSource', () => {
   it('GETs /connect/compute/{app_id_or_name}/source with { encoding: binary } and returns the exact original bytes', async () => {
     // Bytes >0x7F are where UTF-8 decoding would corrupt a binary gzip payload -- this is a
     // real byte-content round-trip assertion, not just a "was called" assertion.
-    const original = Buffer.from([0x1f, 0x8b, 0x00, 0xff, 0x80, 0x41, 0x00, 0xde, 0xad, 0xbe, 0xef]);
+    const original = Buffer.from([0x1F, 0x8B, 0x00, 0xFF, 0x80, 0x41, 0x00, 0xDE, 0xAD, 0xBE, 0xEF]);
     const request = sinon.stub().resolves(original.toString('binary'));
-    const connection = { request } as unknown as Connection;
+    const connection = {request} as unknown as Connection;
 
-    const result = await downloadComputeSource(connection, { appIdOrName: 'CreditRatingScorer' });
+    const result = await downloadComputeSource(connection, {appIdOrName: 'CreditRatingScorer'});
 
     expect(Buffer.compare(result, original)).to.equal(0);
     expect(request.calledOnce).to.be.true;
-    const [httpRequest, options] = request.firstCall.args as [{ method: string; url: string }, { encoding: string }];
+    const [httpRequest, options] = request.firstCall.args as [{method: string; url: string}, {encoding: string}];
     expect(httpRequest.method).to.equal('GET');
     expect(httpRequest.url).to.equal('/connect/compute/CreditRatingScorer/source');
-    expect(options).to.deep.equal({ encoding: 'binary' });
+    expect(options).to.deep.equal({encoding: 'binary'});
   });
 
   it('URL-encodes the app_id_or_name path segment', async () => {
     const request = sinon.stub().resolves('');
-    const connection = { request } as unknown as Connection;
+    const connection = {request} as unknown as Connection;
 
-    await downloadComputeSource(connection, { appIdOrName: 'my app/1' });
+    await downloadComputeSource(connection, {appIdOrName: 'my app/1'});
 
-    const [httpRequest] = request.firstCall.args as [{ url: string }];
+    const [httpRequest] = request.firstCall.args as [{url: string}];
     expect(httpRequest.url).to.equal('/connect/compute/my%20app%2F1/source');
   });
 
   it('translates a failed request into a createError-style message', async () => {
     const request = sinon.stub().rejects(new Error('socket hang up'));
-    const connection = { request } as unknown as Connection;
+    const connection = {request} as unknown as Connection;
 
     try {
-      await downloadComputeSource(connection, { appIdOrName: 'CreditRatingScorer' });
+      await downloadComputeSource(connection, {appIdOrName: 'CreditRatingScorer'});
       expect.fail('expected downloadComputeSource to throw');
-    } catch (err) {
-      expect((err as Error).message).to.include('socket hang up');
-      expect((err as Error).message).to.include('source');
+    } catch (error) {
+      expect((error as Error).message).to.include('socket hang up');
+      expect((error as Error).message).to.include('source');
     }
   });
 });

@@ -13,35 +13,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { expect } from 'chai';
-import { parseName, validateName } from '../../src/shared/computeApp.js';
+import {expect} from 'chai';
+
+import {parseName, validateName} from '../../src/shared/computeApp.js';
 
 describe('computeApp.parseName', () => {
   it('parses a bare DeveloperName with no namespace', () => {
-    expect(parseName('CreditRatingScorer')).to.deep.equal({ developerName: 'CreditRatingScorer' });
+    expect(parseName('CreditRatingScorer')).to.deep.equal({developerName: 'CreditRatingScorer'});
   });
 
   it('splits a namespace-qualified name on its first "__"', () => {
     expect(parseName('myns__CreditRatingScorer')).to.deep.equal({
-      namespace: 'myns',
       developerName: 'CreditRatingScorer',
+      namespace: 'myns',
     });
   });
 
   it('treats everything after the first "__" as the DeveloperName, even if it contains more underscores', () => {
     expect(parseName('myns__Credit_Rating_Scorer')).to.deep.equal({
-      namespace: 'myns',
       developerName: 'Credit_Rating_Scorer',
+      namespace: 'myns',
     });
   });
 
   it('accepts a 15-character namespace (the maximum length)', () => {
     const namespace = 'a'.repeat(15);
-    expect(parseName(`${namespace}__App`)).to.deep.equal({ namespace, developerName: 'App' });
+    expect(parseName(`${namespace}__App`)).to.deep.equal({developerName: 'App', namespace});
   });
 
   it('accepts a single-character namespace (the minimum length)', () => {
-    expect(parseName('a__App')).to.deep.equal({ namespace: 'a', developerName: 'App' });
+    expect(parseName('a__App')).to.deep.equal({developerName: 'App', namespace: 'a'});
   });
 
   it('rejects a bare name starting with a digit', () => {
@@ -86,14 +87,20 @@ describe('computeApp.parseName', () => {
 
 describe('computeApp.validateName', () => {
   it('does not throw for a valid bare DeveloperName', () => {
-    expect(() => validateName('CreditRatingScorer')).to.not.throw();
+    expect(() => {
+      validateName('CreditRatingScorer');
+    }).to.not.throw();
   });
 
   it('does not throw for a valid namespace-qualified name', () => {
-    expect(() => validateName('myns__CreditRatingScorer')).to.not.throw();
+    expect(() => {
+      validateName('myns__CreditRatingScorer');
+    }).to.not.throw();
   });
 
   it('throws for an invalid name', () => {
-    expect(() => validateName('1App')).to.throw(/isn't valid/);
+    expect(() => {
+      validateName('1App');
+    }).to.throw(/isn't valid/);
   });
 });

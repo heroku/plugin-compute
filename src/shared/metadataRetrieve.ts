@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import {getLogger} from '@oclif/core';
+import {type Connection, Messages} from '@salesforce/core';
 import JSZip from 'jszip';
-import type { Connection } from '@salesforce/core';
-import { Messages } from '@salesforce/core';
-import { getLogger } from '@oclif/core';
-import { resolveComputeApiVersion } from './metadataApiVersion.js';
+import {writeFile} from 'node:fs/promises';
+import {join} from 'node:path';
+
+import {resolveComputeApiVersion} from './metadataApiVersion.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
 
 // Gated by DEBUG=sf:compute:metadataRetrieve (or DEBUG=*).
-const debug = getLogger('sf:compute:metadataRetrieve').debug;
+const {debug} = getLogger('sf:compute:metadataRetrieve');
 
 // Inverse of deployComputeMetadata in metadataDeploy.ts, but NOT built on SDR's
 // ComponentSet/MetadataApiRetrieve the way that function is built on MetadataApiDeploy --
@@ -42,7 +42,7 @@ export async function retrieveComputeMetadata(connection: Connection, appDir: st
     apiVersion: Number(version),
     singlePackage: true,
     unpackaged: {
-      types: [{ members: [name], name: 'PlatformComputeApp' }],
+      types: [{members: [name], name: 'PlatformComputeApp'}],
       version,
       // Package requires objectPermissions -- retrieve doesn't use it, but the type isn't
       // Partial<Package> the way the outer RetrieveRequest is Partial<RetrieveRequest>.
@@ -57,7 +57,7 @@ export async function retrieveComputeMetadata(connection: Connection, appDir: st
     throw messages.createError('error.metadataRetrieveFailed', [name, result.errorMessage ?? 'Unknown error.']);
   }
 
-  const zip = await JSZip.loadAsync(result.zipFile, { base64: true });
+  const zip = await JSZip.loadAsync(result.zipFile, {base64: true});
   // Wire directoryName/suffix -- see the matching comment in metadataDeploy.ts. Our own on-disk
   // source-format filename (<name>.compute-meta.xml) is independent of the wire filename.
   const wireFileName = `${name}.compute`;

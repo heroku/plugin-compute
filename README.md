@@ -88,19 +88,18 @@ sf plugins
 ## Commands
 
 <!-- commands -->
-
-- [`sf compute build output`](#sf-compute-build-output)
-- [`sf compute config`](#sf-compute-config)
-- [`sf compute config get [KEY]`](#sf-compute-config-get-key)
-- [`sf compute config set [PAIR]`](#sf-compute-config-set-pair)
-- [`sf compute config unset [KEY]`](#sf-compute-config-unset-key)
-- [`sf compute deploy`](#sf-compute-deploy)
-- [`sf compute display`](#sf-compute-display)
-- [`sf compute generate`](#sf-compute-generate)
-- [`sf compute list`](#sf-compute-list)
-- [`sf compute logs`](#sf-compute-logs)
-- [`sf compute scale [TARGET]`](#sf-compute-scale-target)
-- [`sf compute source retrieve`](#sf-compute-source-retrieve)
+* [`sf compute build output`](#sf-compute-build-output)
+* [`sf compute config`](#sf-compute-config)
+* [`sf compute config get [KEY]`](#sf-compute-config-get-key)
+* [`sf compute config set [PAIR]`](#sf-compute-config-set-pair)
+* [`sf compute config unset [KEY]`](#sf-compute-config-unset-key)
+* [`sf compute deploy`](#sf-compute-deploy)
+* [`sf compute display`](#sf-compute-display)
+* [`sf compute generate`](#sf-compute-generate)
+* [`sf compute list`](#sf-compute-list)
+* [`sf compute logs`](#sf-compute-logs)
+* [`sf compute scale [TARGET]`](#sf-compute-scale-target)
+* [`sf compute source retrieve`](#sf-compute-source-retrieve)
 
 ## `sf compute build output`
 
@@ -111,9 +110,10 @@ USAGE
   $ sf compute build output -o <value> [--json] [--flags-dir <value>] [-n <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] Name of the compute app to fetch build output for. Defaults to the
-                            COMPUTE_APP_NAME environment variable, or the current directory's app name
-                            if that isn't set either.
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to fetch build output for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
 
@@ -140,7 +140,7 @@ EXAMPLES
     $ sf compute build output --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/build/output.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/build/output.ts)_
+_See code: [src/commands/compute/build/output.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/build/output.ts)_
 
 ## `sf compute config`
 
@@ -151,8 +151,8 @@ USAGE
   $ sf compute config -o <value> [--json] [--flags-dir <value>] [-n <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] PlatformComputeApp Id or DeveloperName of the compute app to show
-                            config for.
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to show config for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
                             directory's app name if that isn't set either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
@@ -177,7 +177,7 @@ EXAMPLES
     $ sf compute config --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/config.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/config.ts)_
+_See code: [src/commands/compute/config.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/config.ts)_
 
 ## `sf compute config get [KEY]`
 
@@ -188,9 +188,9 @@ USAGE
   $ sf compute config get [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] PlatformComputeApp Id or DeveloperName of the compute app to read
-                            config
-                            from. Defaults to the COMPUTE_APP_NAME environment variable, or the current
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to read config from (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
                             directory's app name if that isn't set either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
@@ -216,7 +216,7 @@ EXAMPLES
     $ sf compute config get STRIPE_KEY LOG_LEVEL --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/config/get.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/config/get.ts)_
+_See code: [src/commands/compute/config/get.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/config/get.ts)_
 
 ## `sf compute config set [PAIR]`
 
@@ -227,9 +227,9 @@ USAGE
   $ sf compute config set [PAIR...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] PlatformComputeApp Id or DeveloperName of the compute app to change
-                            config
-                            for. Defaults to the COMPUTE_APP_NAME environment variable, or the current
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to change config for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
                             directory's app name if that isn't set either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
@@ -256,7 +256,7 @@ EXAMPLES
     $ sf compute config set STRIPE_KEY=sk_live_xyz789 LOG_LEVEL=debug --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/config/set.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/config/set.ts)_
+_See code: [src/commands/compute/config/set.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/config/set.ts)_
 
 ## `sf compute config unset [KEY]`
 
@@ -267,9 +267,9 @@ USAGE
   $ sf compute config unset [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] PlatformComputeApp Id or DeveloperName of the compute app to change
-                            config
-                            for. Defaults to the COMPUTE_APP_NAME environment variable, or the current
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to change config for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
                             directory's app name if that isn't set either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
@@ -295,7 +295,7 @@ EXAMPLES
     $ sf compute config unset LOG_LEVEL DEBUG_MODE --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/config/unset.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/config/unset.ts)_
+_See code: [src/commands/compute/config/unset.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/config/unset.ts)_
 
 ## `sf compute deploy`
 
@@ -342,7 +342,7 @@ EXAMPLES
       my-org
 ```
 
-_See code: [src/commands/compute/deploy.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/deploy.ts)_
+_See code: [src/commands/compute/deploy.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/deploy.ts)_
 
 ## `sf compute display`
 
@@ -353,10 +353,10 @@ USAGE
   $ sf compute display -o <value> [--json] [--flags-dir <value>] [-n <value>] [-v]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] Name of the compute app to show status for. Defaults to the
-                            COMPUTE_APP_NAME
-                            environment variable, or the current directory's app name if that isn't set
-                            either.
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to show status for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
   -v, --verbose             Also show external service registration and current build detail.
@@ -386,7 +386,7 @@ EXAMPLES
     $ sf compute display --name CreditRatingScorer --target-org my-org --verbose
 ```
 
-_See code: [src/commands/compute/display.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/display.ts)_
+_See code: [src/commands/compute/display.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/display.ts)_
 
 ## `sf compute generate`
 
@@ -400,7 +400,8 @@ FLAGS
   -d, --output-dir=<value>  [default: force-app/main/default/platformComputeApps] Directory to create the app in.
   -l, --language=<option>   [default: node] Language to scaffold the starter project in.
                             <options: node|python>
-  -n, --name=<value>        (required) Name for the new compute app.
+  -n, --name=<value>        (required) Name for the new compute app. Use <namespace>\_\_<developerName> to scaffold
+                            it under a namespace.
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -411,8 +412,10 @@ DESCRIPTION
 
   Creates the app directory under force-app/main/default/platformComputeApps/<name>/ (or
   --output-dir) with a compute metadata file, a Procfile, a project.toml, and
-  starter source in the language you choose with --language. This command runs
-  entirely locally; no org is contacted.
+  starter source in the language you choose with --language. No org is
+  contacted, but this command does fetch the starter source for the chosen
+  language from its Heroku AppLink reference app on GitHub, so it requires
+  outbound network access.
 
 EXAMPLES
   Scaffold a Node.js compute app named CreditRatingScorer:
@@ -436,7 +439,7 @@ FLAG DESCRIPTIONS
     scaffolds starters for node and python only.
 ```
 
-_See code: [src/commands/compute/generate.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/generate.ts)_
+_See code: [src/commands/compute/generate.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/generate.ts)_
 
 ## `sf compute list`
 
@@ -471,7 +474,7 @@ EXAMPLES
     $ sf compute list --target-org my-org
 ```
 
-_See code: [src/commands/compute/list.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/list.ts)_
+_See code: [src/commands/compute/list.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/list.ts)_
 
 ## `sf compute logs`
 
@@ -482,10 +485,10 @@ USAGE
   $ sf compute logs -o <value> [--flags-dir <value>] [-n <value>] [--num <value>] [--tail | --json]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] Name of the compute app to fetch logs for. Defaults to the
-                            COMPUTE_APP_NAME
-                            environment variable, or the current directory's app name if that isn't set
-                            either.
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to fetch logs for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
       --num=<value>         [default: 100] Number of historical log lines to print before new output.
@@ -528,7 +531,7 @@ EXAMPLES
     $ sf compute logs --name CreditRatingScorer --tail --target-org my-org
 ```
 
-_See code: [src/commands/compute/logs.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/logs.ts)_
+_See code: [src/commands/compute/logs.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/logs.ts)_
 
 ## `sf compute scale [TARGET]`
 
@@ -539,10 +542,11 @@ USAGE
   $ sf compute scale [TARGET...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] PlatformComputeApp Id or DeveloperName of the compute app to scale.
-                            Defaults
-                            to the COMPUTE_APP_NAME environment variable, or the current directory's app
-                            name if that isn't set either.
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to scale (or
+                            <namespace>\_\_<developerName>
+                            if it was deployed under a namespace). Defaults to the COMPUTE_APP_NAME
+                            environment variable, or the current directory's app name if that isn't set
+                            either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
 
@@ -581,7 +585,7 @@ EXAMPLES
     $ sf compute scale worker=0 --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/scale.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/scale.ts)_
+_See code: [src/commands/compute/scale.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/scale.ts)_
 
 ## `sf compute source retrieve`
 
@@ -593,7 +597,8 @@ USAGE
 
 FLAGS
   -d, --output-dir=<value>  [default: force-app/main/default/platformComputeApps] Directory to create the app in.
-  -n, --name=<value>        (required) Name of the compute app to retrieve.
+  -n, --name=<value>        (required) DeveloperName of the compute app to retrieve (or <namespace>\_\_<developerName>
+                            if it was deployed under a namespace).
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
 
@@ -621,6 +626,5 @@ FLAG DESCRIPTIONS
     subdirectory named after --name.
 ```
 
-_See code: [src/commands/compute/source/retrieve.ts](https://github.com/salesforcecli/plugin-compute/blob/v1.0.0/src/commands/compute/source/retrieve.ts)_
-
+_See code: [src/commands/compute/source/retrieve.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/source/retrieve.ts)_
 <!-- commandsstop -->

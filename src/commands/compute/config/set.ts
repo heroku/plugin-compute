@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
-import { Args } from '@oclif/core';
-import { Messages } from '@salesforce/core';
-import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
-import { resolveHerokuAppId } from '../../../shared/computeQuery.js';
-import { updateComputeConfigVarsViaProxy, fetchLatestReleaseVersionViaProxy } from '../../../shared/herokuProxyApi.js';
+import {Args} from '@oclif/core';
+import {Messages} from '@salesforce/core';
+import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
+
+import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
+import {resolveHerokuAppId} from '../../../shared/computeQuery.js';
+import {fetchLatestReleaseVersionViaProxy, updateComputeConfigVarsViaProxy} from '../../../shared/herokuProxyApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.config.set');
@@ -29,18 +30,12 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.co
 const PAIR_PATTERN = /^([^=]+)=(.*)$/;
 
 export type ComputeConfigSetResult = {
-  name: string;
   configVars: Record<string, string>;
+  name: string;
   release?: number;
 };
 
 export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
-  public static readonly summary = messages.getMessage('summary');
-  public static readonly description = messages.getMessage('description');
-  public static readonly examples = messages.getMessages('examples');
-  // Org-mediated lookup by --name -- no local project files are read.
-  public static readonly requiresProject = false;
-
   public static readonly args = {
     pair: Args.string({
       multiple: true,
@@ -48,17 +43,24 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
     }),
   };
 
+  public static readonly description = messages.getMessage('description');
+  public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
     name: Flags.string({
       char: 'n',
       env: 'COMPUTE_APP_NAME',
       summary: messages.getMessage('flags.name.summary'),
     }),
-    'target-org': Flags.requiredOrg({ char: 'o' }),
+    'target-org': Flags.requiredOrg({char: 'o'}),
   };
 
+  // Org-mediated lookup by --name -- no local project files are read.
+  public static readonly requiresProject = false;
+
+  public static readonly summary = messages.getMessage('summary');
+
   public async run(): Promise<ComputeConfigSetResult> {
-    const { args, flags } = await this.parse(ConfigSet);
+    const {args, flags} = await this.parse(ConfigSet);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
@@ -78,6 +80,7 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
       if (!match) {
         throw messages.createError('error.configSetInvalidPair', [token, token]);
       }
+
       const [, key, value] = match;
       updates[key] = value;
     }
@@ -88,10 +91,10 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
     const appId = await resolveHerokuAppId(connection, name);
     this.spinner.start(`Setting config vars and restarting ${name}`);
     try {
-      await updateComputeConfigVarsViaProxy(connection, { name, appId, updates });
-    } catch (err) {
+      await updateComputeConfigVarsViaProxy(connection, {name, appId, updates});
+    } catch (error) {
       this.spinner.stop('failed');
-      throw err;
+      throw error;
     }
 
     // Heroku's own PATCH response carries no release number, so this is a second, independent
@@ -99,16 +102,17 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
     // not fatal to the config-set operation the spinner already reported as done.
     let release: number | undefined;
     try {
-      release = await fetchLatestReleaseVersionViaProxy(connection, { name, appId });
+      release = await fetchLatestReleaseVersionViaProxy(connection, {name, appId});
     } catch {
       // Best-effort -- the config vars were already updated successfully above.
     }
+
     this.spinner.stop(release === undefined ? 'done' : `done, v${release}`);
 
-    for (const key of Object.keys(updates)) {
-      this.log(`${key}=${updates[key]}`);
+    for (const [key, value] of Object.entries(updates)) {
+      this.log(`${key}=${value}`);
     }
 
-    return release === undefined ? { name, configVars: updates } : { name, configVars: updates, release };
+    return release === undefined ? {name, configVars: updates} : {name, configVars: updates, release};
   }
 }

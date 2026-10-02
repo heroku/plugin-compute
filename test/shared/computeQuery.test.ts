@@ -1,3 +1,4 @@
+import {type Connection, SfError} from '@salesforce/core';
 /*
  * Copyright 2026, Salesforce, Inc.
  *
@@ -13,27 +14,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { expect } from 'chai';
+import {expect} from 'chai';
 import sinon from 'sinon';
-import { SfError, type Connection } from '@salesforce/core';
+
 import {
-  queryComputeApp,
   listComputeApps,
-  toComputeAppSummary,
   pickHerokuAppId,
+  queryComputeApp,
   requireHerokuAppId,
   resolveHerokuAppId,
+  toComputeAppSummary,
 } from '../../src/shared/computeQuery.js';
 
 const activeRecord = {
-  Id: '0abEE0000004CqYYAU',
-  DeveloperName: 'CreditRatingScorer',
-  MasterLabel: 'Lease Agreement Parser',
+  CurrentBuild: null,
   Description: 'Parses lease agreements.',
+  DeveloperName: 'CreditRatingScorer',
+  ExternalServiceRegistration: null,
+  Id: '0abEE0000004CqYYAU',
+  MasterLabel: 'Lease Agreement Parser',
   Status: 'ACTIVE' as const,
   StatusReason: null,
-  CurrentBuild: null,
-  ExternalServiceRegistration: null,
 };
 
 describe('computeQuery.queryComputeApp', () => {
@@ -43,13 +44,13 @@ describe('computeQuery.queryComputeApp', () => {
 
   it('queries PlatformComputeApp via the Tooling API with the CurrentBuild and ExternalServiceRegistration relationship fields', async () => {
     const singleRecordQuery = sinon.stub().resolves(activeRecord);
-    const connection = { singleRecordQuery } as unknown as Connection;
+    const connection = {singleRecordQuery} as unknown as Connection;
 
     const result = await queryComputeApp(connection, 'CreditRatingScorer');
 
     expect(result).to.deep.equal(activeRecord);
     expect(singleRecordQuery.calledOnce).to.be.true;
-    const [soql, options] = singleRecordQuery.firstCall.args as [string, { tooling?: boolean }];
+    const [soql, options] = singleRecordQuery.firstCall.args as [string, {tooling?: boolean}];
     expect(soql).to.include('FROM PlatformComputeApp');
     expect(soql).to.include("WHERE DeveloperName = 'CreditRatingScorer'");
     expect(soql).to.include('CurrentBuild.BuildStatus');
@@ -59,12 +60,12 @@ describe('computeQuery.queryComputeApp', () => {
     // even with the SfdcInternalQA client override applied (see ComputeAppRecord.
     // ExternalServiceRegistration.IsActive's comment in computeQuery.ts).
     expect(soql).to.not.include('ExternalServiceRegistration.IsActive');
-    expect(options).to.deep.equal({ tooling: true });
+    expect(options).to.deep.equal({tooling: true});
   });
 
   it('does not query ExternalAppIdentifier or CurrentBuild.ExternalBuildIdentifier by default', async () => {
     const singleRecordQuery = sinon.stub().resolves(activeRecord);
-    const connection = { singleRecordQuery } as unknown as Connection;
+    const connection = {singleRecordQuery} as unknown as Connection;
 
     await queryComputeApp(connection, 'CreditRatingScorer');
 
@@ -75,7 +76,7 @@ describe('computeQuery.queryComputeApp', () => {
 
   it('queries ExternalAppIdentifier and CurrentBuild.ExternalBuildIdentifier when SALESFORCE_INTERNAL_QA_CLIENT=true', async () => {
     const singleRecordQuery = sinon.stub().resolves(activeRecord);
-    const connection = { singleRecordQuery } as unknown as Connection;
+    const connection = {singleRecordQuery} as unknown as Connection;
     process.env.SALESFORCE_INTERNAL_QA_CLIENT = 'true';
     try {
       await queryComputeApp(connection, 'CreditRatingScorer');
@@ -89,8 +90,8 @@ describe('computeQuery.queryComputeApp', () => {
   });
 
   it('adds a Namespace filter when name is namespace-qualified', async () => {
-    const singleRecordQuery = sinon.stub().resolves({ ...activeRecord, DeveloperName: 'CreditRatingScorer' });
-    const connection = { singleRecordQuery } as unknown as Connection;
+    const singleRecordQuery = sinon.stub().resolves({...activeRecord, DeveloperName: 'CreditRatingScorer'});
+    const connection = {singleRecordQuery} as unknown as Connection;
 
     await queryComputeApp(connection, 'myns__CreditRatingScorer');
 
@@ -101,7 +102,7 @@ describe('computeQuery.queryComputeApp', () => {
 
   it('does not add a Namespace filter for a bare DeveloperName', async () => {
     const singleRecordQuery = sinon.stub().resolves(activeRecord);
-    const connection = { singleRecordQuery } as unknown as Connection;
+    const connection = {singleRecordQuery} as unknown as Connection;
 
     await queryComputeApp(connection, 'CreditRatingScorer');
 
@@ -111,26 +112,27 @@ describe('computeQuery.queryComputeApp', () => {
 
   it('rejects an invalid --name before issuing any query', async () => {
     const singleRecordQuery = sinon.stub().resolves(activeRecord);
-    const connection = { singleRecordQuery } as unknown as Connection;
+    const connection = {singleRecordQuery} as unknown as Connection;
 
     try {
       await queryComputeApp(connection, 'My-App');
       expect.fail('expected queryComputeApp to throw');
-    } catch (err) {
-      expect((err as Error).message).to.include("isn't valid");
+    } catch (error) {
+      expect((error as Error).message).to.include("isn't valid");
     }
+
     expect(singleRecordQuery.called).to.be.false;
   });
 
   it('maps a zero-record result to a deploy-hint error with the name filled into both the message and the actions', async () => {
     const singleRecordQuery = sinon.stub().rejects(new SfError('No records found', 'SingleRecordQuery_NoRecords'));
-    const connection = { singleRecordQuery } as unknown as Connection;
+    const connection = {singleRecordQuery} as unknown as Connection;
 
     try {
       await queryComputeApp(connection, 'NeverDeployed');
       expect.fail('expected queryComputeApp to throw');
-    } catch (err) {
-      const e = err as SfError;
+    } catch (error) {
+      const e = error as SfError;
       expect(e.message).to.include('No compute app named NeverDeployed was found in the org');
       const actions = e.actions ?? [];
       expect(actions.join('\n')).to.include('compute deploy');
@@ -142,38 +144,39 @@ describe('computeQuery.queryComputeApp', () => {
     const singleRecordQuery = sinon
       .stub()
       .rejects(new SfError('Multiple records found', 'SingleRecordQuery_MultipleRecords'));
-    const connection = { singleRecordQuery } as unknown as Connection;
+    const connection = {singleRecordQuery} as unknown as Connection;
 
     try {
       await queryComputeApp(connection, 'CreditRatingScorer');
       expect.fail('expected queryComputeApp to throw');
-    } catch (err) {
-      expect((err as Error).message).to.include('Found more than one compute app named CreditRatingScorer');
+    } catch (error) {
+      expect((error as Error).message).to.include('Found more than one compute app named CreditRatingScorer');
     }
   });
 
   it('wraps an unexpected Error-typed query failure', async () => {
     const singleRecordQuery = sinon.stub().rejects(new Error('INVALID_SESSION_ID'));
-    const connection = { singleRecordQuery } as unknown as Connection;
+    const connection = {singleRecordQuery} as unknown as Connection;
 
     try {
       await queryComputeApp(connection, 'CreditRatingScorer');
       expect.fail('expected queryComputeApp to throw');
-    } catch (err) {
-      expect((err as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
+    } catch (error) {
+      expect((error as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
     }
   });
 
   it('wraps a non-Error throw (e.g. a rejected string) without crashing', async () => {
-    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- deliberately non-Error, to test queryComputeApp's non-Error fallback
-    const singleRecordQuery = sinon.stub().callsFake(() => Promise.reject('INVALID_SESSION_ID'));
-    const connection = { singleRecordQuery } as unknown as Connection;
+    const singleRecordQuery = sinon.stub().callsFake(async () => {
+      throw 'INVALID_SESSION_ID';
+    });
+    const connection = {singleRecordQuery} as unknown as Connection;
 
     try {
       await queryComputeApp(connection, 'CreditRatingScorer');
       expect.fail('expected queryComputeApp to throw');
-    } catch (err) {
-      expect((err as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
+    } catch (error) {
+      expect((error as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
     }
   });
 });
@@ -184,23 +187,23 @@ describe('computeQuery.listComputeApps', () => {
   });
 
   it('lists every PlatformComputeApp in the org, ordered by DeveloperName, with no WHERE clause', async () => {
-    const autoFetchQuery = sinon.stub().resolves({ totalSize: 1, records: [activeRecord], done: true });
-    const connection = { autoFetchQuery } as unknown as Connection;
+    const autoFetchQuery = sinon.stub().resolves({done: true, records: [activeRecord], totalSize: 1});
+    const connection = {autoFetchQuery} as unknown as Connection;
 
     const result = await listComputeApps(connection);
 
     expect(result).to.deep.equal([activeRecord]);
     expect(autoFetchQuery.calledOnce).to.be.true;
-    const [soql, options] = autoFetchQuery.firstCall.args as [string, { tooling?: boolean }];
+    const [soql, options] = autoFetchQuery.firstCall.args as [string, {tooling?: boolean}];
     expect(soql).to.include('FROM PlatformComputeApp');
     expect(soql).to.include('ORDER BY DeveloperName ASC');
     expect(soql).to.not.include('WHERE');
-    expect(options).to.deep.equal({ tooling: true });
+    expect(options).to.deep.equal({tooling: true});
   });
 
   it('returns an empty array when the org has no compute apps', async () => {
-    const autoFetchQuery = sinon.stub().resolves({ totalSize: 0, records: [], done: true });
-    const connection = { autoFetchQuery } as unknown as Connection;
+    const autoFetchQuery = sinon.stub().resolves({done: true, records: [], totalSize: 0});
+    const connection = {autoFetchQuery} as unknown as Connection;
 
     const result = await listComputeApps(connection);
 
@@ -209,26 +212,27 @@ describe('computeQuery.listComputeApps', () => {
 
   it('wraps an unexpected Error-typed query failure', async () => {
     const autoFetchQuery = sinon.stub().rejects(new Error('INVALID_SESSION_ID'));
-    const connection = { autoFetchQuery } as unknown as Connection;
+    const connection = {autoFetchQuery} as unknown as Connection;
 
     try {
       await listComputeApps(connection);
       expect.fail('expected listComputeApps to throw');
-    } catch (err) {
-      expect((err as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
+    } catch (error) {
+      expect((error as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
     }
   });
 
   it('wraps a non-Error throw (e.g. a rejected string) without crashing', async () => {
-    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- deliberately non-Error, to test listComputeApps's non-Error fallback
-    const autoFetchQuery = sinon.stub().callsFake(() => Promise.reject('INVALID_SESSION_ID'));
-    const connection = { autoFetchQuery } as unknown as Connection;
+    const autoFetchQuery = sinon.stub().callsFake(async () => {
+      throw 'INVALID_SESSION_ID';
+    });
+    const connection = {autoFetchQuery} as unknown as Connection;
 
     try {
       await listComputeApps(connection);
       expect.fail('expected listComputeApps to throw');
-    } catch (err) {
-      expect((err as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
+    } catch (error) {
+      expect((error as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
     }
   });
 });
@@ -238,36 +242,36 @@ describe('computeQuery.toComputeAppSummary', () => {
     const result = toComputeAppSummary({
       ...activeRecord,
       CurrentBuild: {
-        Id: '0acEE0000004D1ZYAU',
-        BuildStatus: 'SUCCEEDED',
-        BuildStartedAt: '2026-08-04T14:23:50.000Z',
         BuildCompletedAt: '2026-08-04T14:25:32.000Z',
+        BuildStartedAt: '2026-08-04T14:23:50.000Z',
+        BuildStatus: 'SUCCEEDED',
         DeployedAt: '2026-08-04T14:25:32.000Z',
-        DeployedBy: { Username: 'dev@mycompany.com' },
+        DeployedBy: {Username: 'dev@mycompany.com'},
         Error: null,
+        Id: '0acEE0000004D1ZYAU',
       },
-      ExternalServiceRegistration: { Id: '0ES0x00000ABC456', IsActive: true },
+      ExternalServiceRegistration: {Id: '0ES0x00000ABC456', IsActive: true},
     });
 
     expect(result).to.deep.equal({
-      id: '0abEE0000004CqYYAU',
-      name: 'CreditRatingScorer',
-      masterLabel: 'Lease Agreement Parser',
-      description: 'Parses lease agreements.',
-      status: 'ACTIVE',
-      statusReason: undefined,
-      externalServiceId: '0ES0x00000ABC456',
-      externalServiceRegistered: true,
-      externalServiceActive: true,
       currentBuild: {
-        id: '0acEE0000004D1ZYAU',
-        buildStatus: 'SUCCEEDED',
-        buildStartedAt: '2026-08-04T14:23:50.000Z',
         buildCompletedAt: '2026-08-04T14:25:32.000Z',
+        buildStartedAt: '2026-08-04T14:23:50.000Z',
+        buildStatus: 'SUCCEEDED',
         deployedAt: '2026-08-04T14:25:32.000Z',
         deployedBy: 'dev@mycompany.com',
         error: undefined,
+        id: '0acEE0000004D1ZYAU',
       },
+      description: 'Parses lease agreements.',
+      externalServiceActive: true,
+      externalServiceId: '0ES0x00000ABC456',
+      externalServiceRegistered: true,
+      id: '0abEE0000004CqYYAU',
+      masterLabel: 'Lease Agreement Parser',
+      name: 'CreditRatingScorer',
+      status: 'ACTIVE',
+      statusReason: undefined,
     });
   });
 
@@ -294,8 +298,8 @@ describe('computeQuery.toComputeAppSummary', () => {
 
 describe('computeQuery.pickHerokuAppId', () => {
   it('returns the record ExternalAppIdentifier when present', () => {
-    expect(pickHerokuAppId({ ...activeRecord, ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id' })).to.equal(
-      'a1b2c3d4-heroku-app-id'
+    expect(pickHerokuAppId({...activeRecord, ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id'})).to.equal(
+      'a1b2c3d4-heroku-app-id',
     );
   });
 
@@ -304,14 +308,14 @@ describe('computeQuery.pickHerokuAppId', () => {
   });
 
   it('returns undefined when ExternalAppIdentifier is explicitly null', () => {
-    expect(pickHerokuAppId({ ...activeRecord, ExternalAppIdentifier: null })).to.be.undefined;
+    expect(pickHerokuAppId({...activeRecord, ExternalAppIdentifier: null})).to.be.undefined;
   });
 });
 
 describe('computeQuery.requireHerokuAppId', () => {
   it('returns the Heroku app id when present', () => {
     expect(
-      requireHerokuAppId({ ...activeRecord, ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id' }, 'CreditRatingScorer')
+      requireHerokuAppId({...activeRecord, ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id'}, 'CreditRatingScorer'),
     ).to.equal('a1b2c3d4-heroku-app-id');
   });
 
@@ -319,9 +323,9 @@ describe('computeQuery.requireHerokuAppId', () => {
     try {
       requireHerokuAppId(activeRecord, 'CreditRatingScorer');
       expect.fail('expected requireHerokuAppId to throw');
-    } catch (err) {
-      expect((err as Error).message).to.include('CreditRatingScorer');
-      expect((err as Error).message).to.include("doesn't have a Heroku app identifier yet");
+    } catch (error) {
+      expect((error as Error).message).to.include('CreditRatingScorer');
+      expect((error as Error).message).to.include("doesn't have a Heroku app identifier yet");
     }
   });
 });
@@ -334,8 +338,8 @@ describe('computeQuery.resolveHerokuAppId', () => {
   it('queries the app and returns its Heroku app id', async () => {
     const singleRecordQuery = sinon
       .stub()
-      .resolves({ ...activeRecord, ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id' });
-    const connection = { singleRecordQuery } as unknown as Connection;
+      .resolves({...activeRecord, ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id'});
+    const connection = {singleRecordQuery} as unknown as Connection;
 
     const result = await resolveHerokuAppId(connection, 'CreditRatingScorer');
 
@@ -344,25 +348,25 @@ describe('computeQuery.resolveHerokuAppId', () => {
 
   it('throws error.herokuAppIdentifierUnavailable when the queried record has no Heroku app id', async () => {
     const singleRecordQuery = sinon.stub().resolves(activeRecord);
-    const connection = { singleRecordQuery } as unknown as Connection;
+    const connection = {singleRecordQuery} as unknown as Connection;
 
     try {
       await resolveHerokuAppId(connection, 'CreditRatingScorer');
       expect.fail('expected resolveHerokuAppId to throw');
-    } catch (err) {
-      expect((err as Error).message).to.include("doesn't have a Heroku app identifier yet");
+    } catch (error) {
+      expect((error as Error).message).to.include("doesn't have a Heroku app identifier yet");
     }
   });
 
   it('propagates the underlying appNotFoundInOrg error when the app does not exist in the org', async () => {
     const singleRecordQuery = sinon.stub().rejects(new SfError('No records found', 'SingleRecordQuery_NoRecords'));
-    const connection = { singleRecordQuery } as unknown as Connection;
+    const connection = {singleRecordQuery} as unknown as Connection;
 
     try {
       await resolveHerokuAppId(connection, 'NeverDeployed');
       expect.fail('expected resolveHerokuAppId to throw');
-    } catch (err) {
-      expect((err as Error).message).to.include('No compute app named NeverDeployed was found in the org');
+    } catch (error) {
+      expect((error as Error).message).to.include('No compute app named NeverDeployed was found in the org');
     }
   });
 });

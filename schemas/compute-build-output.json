@@ -5,18 +5,25 @@
     "ComputeBuildOutputResult": {
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string"
-        },
         "buildStatus": {
           "type": "string",
-          "enum": ["PENDING", "BUILDING", "SUCCEEDED", "FAILED"]
+          "enum": [
+            "BUILDING",
+            "FAILED",
+            "PENDING",
+            "SUCCEEDED"
+          ]
         },
         "log": {
           "type": "string"
+        },
+        "name": {
+          "type": "string"
         }
       },
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false
     }
   }

@@ -14,30 +14,31 @@
  * limitations under the License.
  */
 
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
-import { Messages } from '@salesforce/core';
-import { resolveAppDir, validateName, pathExists } from '../../shared/computeApp.js';
-import { fetchTemplateSource, type FetchTemplateSource, type Language } from '../../shared/computeGenerateSource.js';
-import { GENERATED_SKELETONS } from '../../shared/computeGenerateSkeletons.js';
+import {Messages} from '@salesforce/core';
+import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
+import {mkdir, writeFile} from 'node:fs/promises';
+import {dirname, join} from 'node:path';
+
+import {pathExists, resolveAppDir, validateName} from '../../shared/computeApp.js';
+import {GENERATED_SKELETONS} from '../../shared/computeGenerateSkeletons.js';
+import {fetchTemplateSource, type FetchTemplateSource, type Language} from '../../shared/computeGenerateSource.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.generate');
 
 export type ComputeGenerateResult = {
+  files: string[];
+  language: Language;
   name: string;
   path: string;
-  language: Language;
-  files: string[];
 };
 
 export default class Generate extends SfCommand<ComputeGenerateResult> {
-  public static readonly summary = messages.getMessage('summary');
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
-  public static readonly requiresProject = true;
-
+  // Overridable by tests so generate.test.ts stays offline -- production always uses the real
+  // fetchTemplateSource (live HTTPS fetch of the pinned reference-app commit).
+  public static fetchTemplateSource: FetchTemplateSource = fetchTemplateSource;
   public static readonly flags = {
     name: Flags.string({
       char: 'n',
@@ -59,13 +60,13 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
     }),
   };
 
-  // Overridable by tests so generate.test.ts stays offline -- production always uses the real
-  // fetchTemplateSource (live HTTPS fetch of the pinned reference-app commit).
-  public static fetchTemplateSource: FetchTemplateSource = fetchTemplateSource;
+  public static readonly requiresProject = true;
+
+  public static readonly summary = messages.getMessage('summary');
 
   public async run(): Promise<ComputeGenerateResult> {
-    const { flags } = await this.parse(Generate);
-    const { name } = flags;
+    const {flags} = await this.parse(Generate);
+    const {name} = flags;
     const language = flags.language as Language;
 
     validateName(name);
@@ -81,10 +82,10 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
     const writtenFiles = await Promise.all(
       Object.entries(starterFiles).map(async ([relativePath, contents]) => {
         const filePath = join(appDir, relativePath);
-        await mkdir(dirname(filePath), { recursive: true });
+        await mkdir(dirname(filePath), {recursive: true});
         await writeFile(filePath, contents);
         return filePath;
-      })
+      }),
     );
     for (const filePath of writtenFiles) {
       this.log(messages.getMessage('info.created', [filePath]));
@@ -93,7 +94,9 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
     this.log('');
     this.logSuccess(messages.getMessage('info.done', [name]));
 
-    return { name, path: appDir, language, files: writtenFiles };
+    return {
+      name, path: appDir, language, files: writtenFiles,
+    };
   }
 }
 
@@ -128,7 +131,7 @@ const FETCHED_FILES: Record<Language, Record<string, ((raw: Buffer) => string) |
 async function buildStarterFiles(
   name: string,
   language: Language,
-  fetchSource: FetchTemplateSource
+  fetchSource: FetchTemplateSource,
 ): Promise<Record<string, string>> {
   const metaXml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -149,6 +152,7 @@ async function buildStarterFiles(
     if (!raw) {
       throw messages.createError('error.templateSourceMissingFile', [language, relativePath]);
     }
+
     files[relativePath] = transform ? transform(raw) : raw.toString('utf8');
   }
 
@@ -171,12 +175,12 @@ async function buildStarterFiles(
 // the generated app.
 function transformNodePackageJson(raw: Buffer): string {
   const upstream = JSON.parse(raw.toString('utf8')) as {
-    type?: string;
+    dependencies?: Record<string, string>;
+    engines?: Record<string, string>;
+    license?: string;
     main?: string;
     scripts?: Record<string, string>;
-    license?: string;
-    engines?: Record<string, string>;
-    dependencies?: Record<string, string>;
+    type?: string;
   };
   const pkg = {
     name: '__APP_NAME_LOWER__',
@@ -198,13 +202,13 @@ function transformNodePackageJson(raw: Buffer): string {
 // requirements.txt lists runtime and test dependencies on separate lines with no section
 // markers, so the only reliable split is an explicit runtime-package allowlist rather than a
 // positional/comment-based cut.
-const PYTHON_RUNTIME_PACKAGES = new Set(['fastapi', 'uvicorn', 'heroku-applink', 'pyyaml']);
+const PYTHON_RUNTIME_PACKAGES = new Set(['fastapi', 'heroku-applink', 'pyyaml', 'uvicorn']);
 
 function transformPythonRequirements(raw: Buffer): string {
   const lines = raw
     .toString('utf8')
     .split('\n')
-    .filter((line) => {
+    .filter(line => {
       const packageName = /^[A-Za-z0-9_.-]+/.exec(line.trim())?.[0];
       return packageName !== undefined && PYTHON_RUNTIME_PACKAGES.has(packageName.toLowerCase());
     });

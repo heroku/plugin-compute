@@ -1,3 +1,7 @@
+import {Org, type SfError} from '@salesforce/core';
+import {MockTestOrgData, TestContext} from '@salesforce/core/testSetup';
+import {stubSfCommandUx} from '@salesforce/sf-plugins-core';
+import {expect} from 'chai';
 /*
  * Copyright 2026, Salesforce, Inc.
  *
@@ -13,14 +17,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { expect } from 'chai';
+import {
+  mkdir,
+  mkdtemp,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import sinon from 'sinon';
-import { TestContext, MockTestOrgData } from '@salesforce/core/testSetup';
-import { Org, SfError } from '@salesforce/core';
-import { stubSfCommandUx } from '@salesforce/sf-plugins-core';
+
 import Display from '../../../src/commands/compute/display.js';
 
 describe('compute display', () => {
@@ -30,29 +36,29 @@ describe('compute display', () => {
   let toolingQueryStub: sinon.SinonStub;
 
   const activeRecord = {
-    Id: '0abEE0000004CqYYAU',
-    DeveloperName: 'CreditRatingScorer',
-    MasterLabel: 'Lease Agreement Parser',
+    CurrentBuild: {
+      BuildCompletedAt: '2026-08-04T14:25:32.000Z',
+      BuildStartedAt: '2026-08-04T14:23:50.000Z',
+      BuildStatus: 'SUCCEEDED',
+      DeployedAt: '2026-08-04T14:25:32.000Z',
+      DeployedBy: {Username: 'dev@mycompany.com'},
+      Error: null,
+      Id: '0acEE0000004D1ZYAU',
+    },
     Description: 'Parses lease agreements.',
+    DeveloperName: 'CreditRatingScorer',
+    ExternalServiceRegistration: {Id: '0ES0x00000ABC456', IsActive: true},
+    Id: '0abEE0000004CqYYAU',
+    MasterLabel: 'Lease Agreement Parser',
     Status: 'ACTIVE',
     StatusReason: null,
-    CurrentBuild: {
-      Id: '0acEE0000004D1ZYAU',
-      BuildStatus: 'SUCCEEDED',
-      BuildStartedAt: '2026-08-04T14:23:50.000Z',
-      BuildCompletedAt: '2026-08-04T14:25:32.000Z',
-      DeployedAt: '2026-08-04T14:25:32.000Z',
-      DeployedBy: { Username: 'dev@mycompany.com' },
-      Error: null,
-    },
-    ExternalServiceRegistration: { Id: '0ES0x00000ABC456', IsActive: true },
   };
 
   beforeEach(async () => {
     sfCommandStubs = stubSfCommandUx($$.SANDBOX);
     await $$.stubAuths(testOrg);
 
-    const org = await Org.create({ aliasOrUsername: testOrg.username });
+    const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
     toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
@@ -63,7 +69,7 @@ describe('compute display', () => {
   });
 
   function resolveWith(records: unknown[]): void {
-    toolingQueryStub.resolves({ totalSize: records.length, records, done: true });
+    toolingQueryStub.resolves({done: true, records, totalSize: records.length});
   }
 
   it('returns the flattened result for an active app with a current build', async () => {
@@ -72,27 +78,27 @@ describe('compute display', () => {
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).to.deep.equal({
-      id: '0abEE0000004CqYYAU',
-      name: 'CreditRatingScorer',
-      masterLabel: 'Lease Agreement Parser',
-      description: 'Parses lease agreements.',
-      status: 'ACTIVE',
-      statusReason: undefined,
-      externalServiceId: '0ES0x00000ABC456',
-      externalServiceRegistered: true,
-      externalServiceActive: true,
       currentBuild: {
-        id: '0acEE0000004D1ZYAU',
-        buildStatus: 'SUCCEEDED',
-        buildStartedAt: '2026-08-04T14:23:50.000Z',
         buildCompletedAt: '2026-08-04T14:25:32.000Z',
+        buildStartedAt: '2026-08-04T14:23:50.000Z',
+        buildStatus: 'SUCCEEDED',
         deployedAt: '2026-08-04T14:25:32.000Z',
         deployedBy: 'dev@mycompany.com',
         error: undefined,
+        id: '0acEE0000004D1ZYAU',
       },
-      orgId: testOrg.orgId,
+      description: 'Parses lease agreements.',
+      externalServiceActive: true,
+      externalServiceId: '0ES0x00000ABC456',
+      externalServiceRegistered: true,
       formation: undefined,
+      id: '0abEE0000004CqYYAU',
+      masterLabel: 'Lease Agreement Parser',
+      name: 'CreditRatingScorer',
+      orgId: testOrg.orgId,
       release: undefined,
+      status: 'ACTIVE',
+      statusReason: undefined,
     });
 
     const soql: string = toolingQueryStub.firstCall.args[0];
@@ -108,7 +114,7 @@ describe('compute display', () => {
     const output =
       sfCommandStubs.styledHeader
         ?.getCalls()
-        .flatMap((c) => c.args)
+        .flatMap(c => c.args)
         .join('\n') ?? '';
     expect(output).to.not.include('Current Build');
     expect(output).to.not.include('Latest Deployment');
@@ -120,7 +126,7 @@ describe('compute display', () => {
 
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
+    const headers = sfCommandStubs.styledHeader.getCalls().flatMap(c => c.args);
     expect(headers).to.include('Heroku App');
   });
 
@@ -129,7 +135,7 @@ describe('compute display', () => {
 
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--verbose']);
 
-    const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
+    const headers = sfCommandStubs.styledHeader.getCalls().flatMap(c => c.args);
     expect(headers).to.include('External Service');
     expect(headers).to.include('Current Build');
     expect(headers).to.include('Latest Deployment');
@@ -144,15 +150,15 @@ describe('compute display', () => {
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--verbose']);
 
     const tableCalls = sfCommandStubs.table.getCalls() as unknown as Array<{
-      args: [{ data: Array<{ key: string; value: string }> }];
+      args: [{data: Array<{key: string; value: string}>}];
     }>;
-    const allRows = tableCalls.flatMap((c) => c.args[0].data);
+    const allRows = tableCalls.flatMap(c => c.args[0].data);
 
-    expect(allRows).to.deep.include({ key: 'Compute App ID', value: '0abEE0000004CqYYAU' });
-    expect(allRows).to.deep.include({ key: 'Org ID', value: testOrg.orgId });
-    expect(allRows).to.deep.include({ key: 'Build ID', value: '0acEE0000004D1ZYAU' });
+    expect(allRows).to.deep.include({key: 'Compute App ID', value: '0abEE0000004CqYYAU'});
+    expect(allRows).to.deep.include({key: 'Org ID', value: testOrg.orgId});
+    expect(allRows).to.deep.include({key: 'Build ID', value: '0acEE0000004D1ZYAU'});
     // BuildStartedAt 14:23:50 -> BuildCompletedAt 14:25:32 is 1m 42s.
-    expect(allRows).to.deep.include({ key: 'Build Duration', value: '1m 42s' });
+    expect(allRows).to.deep.include({key: 'Build Duration', value: '1m 42s'});
   });
 
   // Slug and Deploy ID had no wired-up source (Salesforce or Heroku) and no GA scope to justify
@@ -167,9 +173,9 @@ describe('compute display', () => {
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--verbose']);
 
     const tableCalls = sfCommandStubs.table.getCalls() as unknown as Array<{
-      args: [{ data: Array<{ key: string; value: string }> }];
+      args: [{data: Array<{key: string; value: string}>}];
     }>;
-    const allKeys = tableCalls.flatMap((c) => c.args[0].data.map((row) => row.key));
+    const allKeys = tableCalls.flatMap(c => c.args[0].data.map(row => row.key));
 
     expect(allKeys).to.not.include('AppLink Add-on');
     expect(allKeys).to.not.include('Slug');
@@ -180,9 +186,9 @@ describe('compute display', () => {
     resolveWith([
       {
         ...activeRecord,
-        Status: 'DEPLOYING',
         CurrentBuild: null,
         ExternalServiceRegistration: null,
+        Status: 'DEPLOYING',
       },
     ]);
 
@@ -195,7 +201,7 @@ describe('compute display', () => {
   });
 
   it('skips both Heroku proxy calls and leaves formation/release undefined when ExternalAppIdentifier is missing, without warning', async () => {
-    resolveWith([{ ...activeRecord, ExternalAppIdentifier: undefined }]);
+    resolveWith([{...activeRecord, ExternalAppIdentifier: undefined}]);
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
@@ -208,10 +214,10 @@ describe('compute display', () => {
     resolveWith([
       {
         ...activeRecord,
+        CurrentBuild: null,
         Description: null,
         Status: 'FAILED',
         StatusReason: 'Buildpack detection failed.',
-        CurrentBuild: null,
       },
     ]);
 
@@ -237,9 +243,9 @@ describe('compute display', () => {
     try {
       await Display.run(['--name', 'NeverDeployed', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include('No compute app named NeverDeployed was found in the org');
-      const actions = (e as SfError).actions ?? [];
+    } catch (error) {
+      expect((error as Error).message).to.include('No compute app named NeverDeployed was found in the org');
+      const actions = (error as SfError).actions ?? [];
       expect(actions.join('\n')).to.include('compute deploy');
       expect(actions.join('\n')).to.not.include('%s');
     }
@@ -251,8 +257,8 @@ describe('compute display', () => {
     try {
       await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include('Found more than one compute app named CreditRatingScorer');
+    } catch (error) {
+      expect((error as Error).message).to.include('Found more than one compute app named CreditRatingScorer');
     }
   });
 
@@ -262,8 +268,8 @@ describe('compute display', () => {
     try {
       await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
+    } catch (error) {
+      expect((error as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
     }
   });
 
@@ -271,9 +277,10 @@ describe('compute display', () => {
     try {
       await Display.run(['--name', '../evil', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("isn't valid");
+    } catch (error) {
+      expect((error as Error).message).to.include("isn't valid");
     }
+
     expect(toolingQueryStub.called).to.be.false;
   });
 
@@ -327,7 +334,7 @@ describe('compute display', () => {
       expect(result.name).to.equal('CreditRatingScorer');
     } finally {
       process.chdir(originalCwd);
-      await rm(tmp, { recursive: true, force: true });
+      await rm(tmp, {force: true, recursive: true});
     }
   });
 
@@ -338,12 +345,13 @@ describe('compute display', () => {
     try {
       await Display.run(['--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("Couldn't determine which compute app to use");
+    } catch (error) {
+      expect((error as Error).message).to.include("Couldn't determine which compute app to use");
     } finally {
       process.chdir(originalCwd);
-      await rm(tmp, { recursive: true, force: true });
+      await rm(tmp, {force: true, recursive: true});
     }
+
     expect(toolingQueryStub.called).to.be.false;
   });
 });
@@ -356,34 +364,34 @@ describe('compute display via the Heroku proxy', () => {
   let requestStub: sinon.SinonStub;
 
   const activeRecord = {
-    Id: '0abEE0000004CqYYAU',
-    DeveloperName: 'CreditRatingScorer',
-    MasterLabel: 'Lease Agreement Parser',
+    CurrentBuild: {
+      BuildCompletedAt: '2026-08-04T14:25:32.000Z',
+      BuildStartedAt: '2026-08-04T14:23:50.000Z',
+      BuildStatus: 'SUCCEEDED',
+      DeployedAt: '2026-08-04T14:25:32.000Z',
+      DeployedBy: {Username: 'dev@mycompany.com'},
+      Error: null,
+      Id: '0acEE0000004D1ZYAU',
+    },
     Description: 'Parses lease agreements.',
+    DeveloperName: 'CreditRatingScorer',
+    ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id',
+    ExternalServiceRegistration: {Id: '0ES0x00000ABC456', IsActive: true},
+    Id: '0abEE0000004CqYYAU',
+    MasterLabel: 'Lease Agreement Parser',
     Status: 'ACTIVE',
     StatusReason: null,
-    CurrentBuild: {
-      Id: '0acEE0000004D1ZYAU',
-      BuildStatus: 'SUCCEEDED',
-      BuildStartedAt: '2026-08-04T14:23:50.000Z',
-      BuildCompletedAt: '2026-08-04T14:25:32.000Z',
-      DeployedAt: '2026-08-04T14:25:32.000Z',
-      DeployedBy: { Username: 'dev@mycompany.com' },
-      Error: null,
-    },
-    ExternalServiceRegistration: { Id: '0ES0x00000ABC456', IsActive: true },
-    ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id',
   };
 
   beforeEach(async () => {
     sfCommandStubs = stubSfCommandUx($$.SANDBOX);
     await $$.stubAuths(testOrg);
 
-    const org = await Org.create({ aliasOrUsername: testOrg.username });
+    const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
     toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
-    toolingQueryStub.resolves({ totalSize: 1, records: [activeRecord], done: true });
+    toolingQueryStub.resolves({done: true, records: [activeRecord], totalSize: 1});
 
     // connection.request is already wrapped by TestContext's own beforeEach (see stubContext in
     // @salesforce/core/testSetup) and dispatches through $$.fakeConnectionRequest -- stubbing it
@@ -400,38 +408,38 @@ describe('compute display via the Heroku proxy', () => {
   // calls by their proxy_url target path rather than call order, since the two fetches in
   // display.ts run in an order that's an implementation detail, not a contract.
   function stubProxyResponses(formation: unknown, release: unknown): void {
-    requestStub.callsFake(async (req: { url: string }) => {
+    requestStub.callsFake(async (req: {url: string}) => {
       if (req.url.includes(encodeURIComponent('/formation'))) {
         return formation;
       }
+
       if (req.url.includes(encodeURIComponent('/releases'))) {
         return release;
       }
+
       throw new Error(`unexpected proxy request: ${req.url}`);
     });
   }
 
   it('supplements the org-side result with the dyno formation and release, and renders both in the Heroku App table', async () => {
-    /* eslint-disable camelcase -- dyno_size is Heroku's Formation field name */
     stubProxyResponses(
-      [{ type: 'web', quantity: 2, dyno_size: { id: 'sz1', name: 'Standard-1X' } }],
-      [{ version: 11 }]
+      [{dyno_size: {id: 'sz1', name: 'Standard-1X'}, quantity: 2, type: 'web'}],
+      [{version: 11}],
     );
-    /* eslint-enable camelcase */
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.formation).to.deep.equal([{ type: 'web', dynoSize: 'Standard-1X', quantity: 2 }]);
+    expect(result.formation).to.deep.equal([{dynoSize: 'Standard-1X', quantity: 2, type: 'web'}]);
     expect(result.release).to.equal(11);
-    const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
+    const headers = sfCommandStubs.styledHeader.getCalls().flatMap(c => c.args);
     expect(headers).to.include('Heroku App');
 
     const tableCalls = sfCommandStubs.table.getCalls() as unknown as Array<{
-      args: [{ data: Array<{ key: string; value: string }> }];
+      args: [{data: Array<{key: string; value: string}>}];
     }>;
-    const allRows = tableCalls.flatMap((c) => c.args[0].data);
-    expect(allRows).to.deep.include({ key: 'Formation', value: 'web=2:Standard-1X' });
-    expect(allRows).to.deep.include({ key: 'Release', value: '11' });
+    const allRows = tableCalls.flatMap(c => c.args[0].data);
+    expect(allRows).to.deep.include({key: 'Formation', value: 'web=2:Standard-1X'});
+    expect(allRows).to.deep.include({key: 'Release', value: '11'});
   });
 
   it('still renders the Heroku App table (with a placeholder Formation row) when the formation is empty', async () => {
@@ -441,15 +449,16 @@ describe('compute display via the Heroku proxy', () => {
 
     expect(result.formation).to.deep.equal([]);
     expect(result.release).to.be.undefined;
-    const headers = sfCommandStubs.styledHeader.getCalls().flatMap((c) => c.args);
+    const headers = sfCommandStubs.styledHeader.getCalls().flatMap(c => c.args);
     expect(headers).to.include('Heroku App');
   });
 
   it('warns and still returns the org-side result when the formation proxy call fails, without formation in the result', async () => {
-    requestStub.callsFake(async (req: { url: string }) => {
+    requestStub.callsFake(async (req: {url: string}) => {
       if (req.url.includes(encodeURIComponent('/formation'))) {
         throw new Error('socket hang up');
       }
+
       return [];
     });
 
@@ -461,16 +470,17 @@ describe('compute display via the Heroku proxy', () => {
     expect(
       sfCommandStubs.warn
         .getCalls()
-        .map((c) => c.args[0] as string)
-        .join('\n')
+        .map(c => c.args[0] as string)
+        .join('\n'),
     ).to.include("Couldn't fetch dyno formation from Heroku");
   });
 
   it('warns and still returns the org-side result when the release proxy call fails, without release in the result', async () => {
-    requestStub.callsFake(async (req: { url: string }) => {
+    requestStub.callsFake(async (req: {url: string}) => {
       if (req.url.includes(encodeURIComponent('/releases'))) {
         throw new Error('socket hang up');
       }
+
       return [];
     });
 
@@ -482,8 +492,8 @@ describe('compute display via the Heroku proxy', () => {
     expect(
       sfCommandStubs.warn
         .getCalls()
-        .map((c) => c.args[0] as string)
-        .join('\n')
+        .map(c => c.args[0] as string)
+        .join('\n'),
     ).to.include("Couldn't fetch the latest release from Heroku");
   });
 

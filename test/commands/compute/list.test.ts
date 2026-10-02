@@ -1,3 +1,8 @@
+import type sinon from 'sinon';
+
+import {Org} from '@salesforce/core';
+import {MockTestOrgData, TestContext} from '@salesforce/core/testSetup';
+import {stubSfCommandUx} from '@salesforce/sf-plugins-core';
 /*
  * Copyright 2026, Salesforce, Inc.
  *
@@ -13,11 +18,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { expect } from 'chai';
-import sinon from 'sinon';
-import { TestContext, MockTestOrgData } from '@salesforce/core/testSetup';
-import { Org } from '@salesforce/core';
-import { stubSfCommandUx } from '@salesforce/sf-plugins-core';
+import {expect} from 'chai';
+
 import List from '../../../src/commands/compute/list.js';
 
 describe('compute list', () => {
@@ -27,40 +29,40 @@ describe('compute list', () => {
   let toolingQueryStub: sinon.SinonStub;
 
   const activeRecord = {
-    Id: '0abEE0000004CqYYAU',
-    DeveloperName: 'CreditRatingScorer',
-    MasterLabel: 'Lease Agreement Parser',
+    CurrentBuild: {
+      BuildCompletedAt: '2026-08-04T14:25:32.000Z',
+      BuildStartedAt: '2026-08-04T14:23:50.000Z',
+      BuildStatus: 'SUCCEEDED',
+      DeployedAt: '2026-08-04T14:25:32.000Z',
+      DeployedBy: {Username: 'dev@mycompany.com'},
+      Error: null,
+      Id: '0acEE0000004D1ZYAU',
+    },
     Description: 'Parses lease agreements.',
+    DeveloperName: 'CreditRatingScorer',
+    ExternalServiceRegistration: {Id: '0ES0x00000ABC456', IsActive: true},
+    Id: '0abEE0000004CqYYAU',
+    MasterLabel: 'Lease Agreement Parser',
     Status: 'ACTIVE',
     StatusReason: null,
-    CurrentBuild: {
-      Id: '0acEE0000004D1ZYAU',
-      BuildStatus: 'SUCCEEDED',
-      BuildStartedAt: '2026-08-04T14:23:50.000Z',
-      BuildCompletedAt: '2026-08-04T14:25:32.000Z',
-      DeployedAt: '2026-08-04T14:25:32.000Z',
-      DeployedBy: { Username: 'dev@mycompany.com' },
-      Error: null,
-    },
-    ExternalServiceRegistration: { Id: '0ES0x00000ABC456', IsActive: true },
   };
 
   const deployingRecord = {
-    Id: '0abEE0000004CqZYAU',
-    DeveloperName: 'InvoiceMatcher',
-    MasterLabel: 'Invoice Matcher',
+    CurrentBuild: null,
     Description: null,
+    DeveloperName: 'InvoiceMatcher',
+    ExternalServiceRegistration: null,
+    Id: '0abEE0000004CqZYAU',
+    MasterLabel: 'Invoice Matcher',
     Status: 'DEPLOYING',
     StatusReason: null,
-    CurrentBuild: null,
-    ExternalServiceRegistration: null,
   };
 
   beforeEach(async () => {
     sfCommandStubs = stubSfCommandUx($$.SANDBOX);
     await $$.stubAuths(testOrg);
 
-    const org = await Org.create({ aliasOrUsername: testOrg.username });
+    const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
     toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
@@ -71,7 +73,7 @@ describe('compute list', () => {
   });
 
   function resolveWith(records: unknown[]): void {
-    toolingQueryStub.resolves({ totalSize: records.length, records, done: true });
+    toolingQueryStub.resolves({done: true, records, totalSize: records.length});
   }
 
   it('returns the flattened list of every compute app in the org', async () => {
@@ -81,36 +83,36 @@ describe('compute list', () => {
 
     expect(result).to.deep.equal([
       {
-        id: '0abEE0000004CqYYAU',
-        name: 'CreditRatingScorer',
-        masterLabel: 'Lease Agreement Parser',
-        description: 'Parses lease agreements.',
-        status: 'ACTIVE',
-        statusReason: undefined,
-        externalServiceId: '0ES0x00000ABC456',
-        externalServiceRegistered: true,
-        externalServiceActive: true,
         currentBuild: {
-          id: '0acEE0000004D1ZYAU',
-          buildStatus: 'SUCCEEDED',
-          buildStartedAt: '2026-08-04T14:23:50.000Z',
           buildCompletedAt: '2026-08-04T14:25:32.000Z',
+          buildStartedAt: '2026-08-04T14:23:50.000Z',
+          buildStatus: 'SUCCEEDED',
           deployedAt: '2026-08-04T14:25:32.000Z',
           deployedBy: 'dev@mycompany.com',
           error: undefined,
+          id: '0acEE0000004D1ZYAU',
         },
+        description: 'Parses lease agreements.',
+        externalServiceActive: true,
+        externalServiceId: '0ES0x00000ABC456',
+        externalServiceRegistered: true,
+        id: '0abEE0000004CqYYAU',
+        masterLabel: 'Lease Agreement Parser',
+        name: 'CreditRatingScorer',
+        status: 'ACTIVE',
+        statusReason: undefined,
       },
       {
-        id: '0abEE0000004CqZYAU',
-        name: 'InvoiceMatcher',
-        masterLabel: 'Invoice Matcher',
+        currentBuild: undefined,
         description: undefined,
-        status: 'DEPLOYING',
-        statusReason: undefined,
+        externalServiceActive: undefined,
         externalServiceId: undefined,
         externalServiceRegistered: false,
-        externalServiceActive: undefined,
-        currentBuild: undefined,
+        id: '0abEE0000004CqZYAU',
+        masterLabel: 'Invoice Matcher',
+        name: 'InvoiceMatcher',
+        status: 'DEPLOYING',
+        statusReason: undefined,
       },
     ]);
   });
@@ -132,7 +134,7 @@ describe('compute list', () => {
     await List.run(['--target-org', testOrg.username]);
 
     expect(sfCommandStubs.styledHeader.calledWith('Compute Apps')).to.be.true;
-    const [{ columns, data }] = sfCommandStubs.table.firstCall.args as [{ columns: string[]; data: unknown[] }];
+    const [{columns, data}] = sfCommandStubs.table.firstCall.args as [{columns: string[]; data: unknown[]}];
     expect(columns).to.deep.equal(['name', 'masterLabel', 'status', 'statusReason']);
     expect(data).to.have.lengthOf(1);
   });
@@ -154,8 +156,8 @@ describe('compute list', () => {
     try {
       await List.run(['--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
+    } catch (error) {
+      expect((error as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
     }
   });
 });

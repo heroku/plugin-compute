@@ -2,8 +2,8 @@
   "name": "@salesforce/plugin-compute",
   "description": "CLI for Compute",
   "version": "1.0.0",
-  "author": "Salesforce",
-  "bugs": "https://github.com/forcedotcom/cli/issues",
+  "author": "Heroku",
+  "bugs": "https://github.com/heroku/plugin-compute/issues",
   "dependencies": {
     "@oclif/core": "^4",
     "@salesforce/core": "^8.32.6",
@@ -44,7 +44,7 @@
     "/oclif.manifest.json",
     "/schemas"
   ],
-  "homepage": "https://github.com/salesforcecli/plugin-compute",
+  "homepage": "https://github.com/heroku/plugin-compute",
   "keywords": [
     "force",
     "salesforce",
@@ -71,7 +71,10 @@
     },
     "flexibleTaxonomy": true
   },
-  "repository": "salesforcecli/plugin-compute",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/heroku/plugin-compute"
+  },
   "scripts": {
     "build": "wireit",
     "clean": "sf-clean",
@@ -92,7 +95,7 @@
     "version": "oclif readme"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "restricted"
   },
   "resolutions": {
     "fast-uri": "^3.1.8",

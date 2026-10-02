@@ -1,22 +1,36 @@
 version: 2
 updates:
-  - package-ecosystem: 'npm'
+  - package-ecosystem: 'github-actions'
     directory: '/'
+    open-pull-requests-limit: 5
     schedule:
       interval: 'weekly'
-      day: 'saturday'
-    versioning-strategy: 'increase'
-    labels:
-      - 'dependencies'
-    open-pull-requests-limit: 5
-    pull-request-branch-name:
-      separator: '-'
+      time: '12:00'
+      day: 'sunday'
+      timezone: 'America/Los_Angeles'
     commit-message:
-      # cause a release for non-dev-deps
-      prefix: fix(deps)
-      # no release for dev-deps
-      prefix-development: chore(dev-deps)
+      prefix: 'deps(dev)'
+  - package-ecosystem: 'npm'
+    directory: '/'
+    open-pull-requests-limit: 5
+    schedule:
+      interval: 'weekly'
+      time: '12:00'
+      day: 'sunday'
+      timezone: 'America/Los_Angeles'
+    commit-message:
+      prefix: 'deps'
+      prefix-development: 'deps(dev)'
+    groups:
+      dev-patch-minor-dependencies:
+        dependency-type: 'development'
+        update-types:
+          - 'patch'
+          - 'minor'
     ignore:
-      - dependency-name: '@salesforce/dev-scripts'
-      - dependency-name: '*'
+      # TypeScript majors are coordinated manually (toolchain-wide impact).
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
+      # @oclif/core majors are coordinated manually (oclif plugin runtime).
+      - dependency-name: '@oclif/core'
         update-types: ['version-update:semver-major']

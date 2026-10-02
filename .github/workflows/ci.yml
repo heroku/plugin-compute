@@ -51,6 +51,12 @@ jobs:
           node-version: 22.x
       - run: yarn install --frozen-lockfile --ignore-engines
       - run: yarn build
+      - name: Generate oclif manifest
+        # NUTs shell out to ./bin/run.js via cli-plugins-testkit. Vitest sets NODE_ENV=test,
+        # which the child CLI inherits, flipping oclif into transpile mode so it resolves commands
+        # from src/*.ts (whose ESM .js import specifiers do not exist in src/) instead of lib/.
+        # A generated manifest makes oclif load commands straight from lib/, bypassing that.
+        run: yarn oclif manifest
       - name: Install Salesforce CLI
         run: npm install --global @salesforce/cli
       - name: nuts

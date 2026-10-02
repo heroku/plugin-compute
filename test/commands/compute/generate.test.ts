@@ -95,8 +95,8 @@ describe('compute generate', () => {
     expect(result.name).to.equal('CreditRatingScorer');
     expect(result.language).to.equal('node');
     expect(result.files).to.have.length(9);
-    expect(result.files.some(f => f.endsWith('src/app.js'))).to.be.true;
-    expect(result.files.some(f => f.endsWith('src/plugins/heroku-applink.js'))).to.be.true;
+    expect(result.files.some(f => f.endsWith(join('src', 'app.js')))).to.be.true;
+    expect(result.files.some(f => f.endsWith(join('src', 'plugins', 'heroku-applink.js')))).to.be.true;
 
     const metaXml = await readFile(
       join(
@@ -136,7 +136,7 @@ describe('compute generate', () => {
 
     expect(result.language).to.equal('python');
     expect(result.files.some(f => f.endsWith('requirements.txt'))).to.be.true;
-    expect(result.files.some(f => f.endsWith('app/main.py'))).to.be.true;
+    expect(result.files.some(f => f.endsWith(join('app', 'main.py')))).to.be.true;
 
     const mainPy = await readFile(
       join(projectDir, 'force-app/main/default/platformComputeApps/ReceiptOcr/app/main.py'),

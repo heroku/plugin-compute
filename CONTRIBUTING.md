@@ -10,7 +10,7 @@ The intent and goal of open sourcing this project is to increase the contributor
 
 # Getting started
 
-Please join the community on {Here list Slack channels, Email lists, Glitter, Discord, etc... links}. Also please make sure to take a look at the project [roadmap](ROADMAP.md) to see where we are headed.
+Clone the repo and see the [README](README.md) for build, test, and usage instructions. Use the [GitHub Issues](https://github.com/heroku/plugin-compute/issues) page to ask questions, report bugs, and discuss ideas.
 
 # Issues, requests & ideas
 
@@ -46,20 +46,20 @@ Issues labelled `good first contribution`.
 
 # Contribution Checklist
 
-- [x] Clean, simple, well styled code
-- [x] Commits should be atomic and messages must be descriptive. Related issues should be mentioned by Issue number.
-- [x] Comments
+- Clean, simple, well styled code.
+- Commits should be atomic and messages must be descriptive. Related issues should be mentioned by Issue number. PR titles follow [Conventional Commits](https://www.conventionalcommits.org/) (enforced in CI).
+- Comments
   - Module-level & function-level comments.
   - Comments on complex blocks of code or algorithms (include references to sources).
-- [x] Tests
-  - The test suite, if provided, must be complete and pass
-  - Increase code coverage, not versa.
-  - Use any of our testkits that contains a bunch of testing facilities you would need. For example: `import com.salesforce.op.test._` and borrow inspiration from existing tests.
-- [x] Dependencies
+- Tests
+  - The test suite must be complete and pass (`npm test`).
+  - Increase code coverage, don't decrease it.
+  - Reuse the existing helpers and patterns in `test/` for inspiration.
+- Dependencies
   - Minimize number of dependencies.
   - Prefer Apache 2.0, BSD3, MIT, ISC and MPL licenses.
-- [x] Reviews
-  - Changes must be approved via peer code review
+- Reviews
+  - Changes must be approved via peer code review.
 
 # Creating a Pull Request
 

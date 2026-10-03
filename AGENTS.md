@@ -118,6 +118,28 @@ A cold regen also re-resolves `^` ranges and can float third-party `@types`
 `test/tsconfig.json` set `skipLibCheck: true` so upstream `.d.ts` drift we don't
 own can't break `tsc`.
 
+## Test stack: vitest only — but `@types/sinon` stays (don't remove it)
+
+Tests use vitest's built-in `vi` + global `expect`. The `sinon` and `chai`
+**libraries** (and `@types/chai`) are intentionally NOT direct deps — no test
+file imports them. Our own test doubles are `vi.fn()` / `vi.spyOn()`, and
+assertions use the global vitest `expect`.
+
+**But `@types/sinon` is a required devDep even though nothing imports `sinon`.**
+`@salesforce/core`'s `TestContext` (`$$.SANDBOX.stub(...).returns(...)`,
+`$$.fakeConnectionRequest`) and `@salesforce/sf-plugins-core`'s
+`stubSfCommandUx` / `stubSpinner` return sinon-typed stubs, and the tests read
+`.getCalls()` / `.firstCall` / `.lastCall` / `.returns` / `.stub` on them. Those
+framework packages carry `@types/sinon` only as a *devDep*, so it isn't resolved
+transitively for consumers — without our own direct `@types/sinon` the stub
+types collapse to `any`, which `tsc` tolerates (via `skipLibCheck`) but the
+type-aware `@typescript-eslint/no-unsafe-*` rules reject across the whole suite
+(70+ errors on every `.getCalls`/`.firstCall`/`.returns`/`.stub` access). It is
+type-only (no runtime, no supply-chain surface), so keeping it is the correct
+posture. The vitest `expect` matchers (`toHaveBeenCalledWith`, …) only work on
+`vi.fn()` mocks — never on these framework sinon stubs; wrap sinon-stub property
+reads in `expect(...)` instead (e.g. `expect(stub.firstCall.args[0]).to…`).
+
 ## Verification workflow after changing any command's flags or output shape
 
 1. `npx tsc -p .` and `npx tsc -p ./test`

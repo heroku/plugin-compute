@@ -13,31 +13,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {expect} from 'chai';
 
 import {formatConfigVarLines, requireConfigVar} from '../../src/shared/computeConfig.js';
 
 describe('computeConfig.requireConfigVar', () => {
   it('returns the value when the key exists', () => {
-    expect(requireConfigVar({FOO: 'bar'}, 'CreditRatingScorer', 'FOO')).to.equal('bar');
+    expect(requireConfigVar({FOO: 'bar'}, 'CreditRatingScorer', 'FOO')).toBe('bar');
   });
 
   it('throws error.configVarNotFound, naming the app and the missing key, when it does not', () => {
+    // Capture-then-assert (rather than expect(...).toThrow()) so the message check is exact
+    // equality, preserving the original chai `.to.equal` fidelity on the full message --
+    // toThrow(string) only substring-matches, and toThrow(new Error(...)) also compares the
+    // error class, which here is ConfigVarNotFoundError, not Error.
+    let error: Error | undefined;
     try {
       requireConfigVar({FOO: 'bar'}, 'CreditRatingScorer', 'MISSING');
-      expect.fail('expected requireConfigVar to throw');
-    } catch (error) {
-      expect((error as Error).message).to.equal('CreditRatingScorer has no config var named "MISSING".');
+    } catch (error_) {
+      error = error_ as Error;
     }
+
+    expect(error?.message).toBe('CreditRatingScorer has no config var named "MISSING".');
   });
 
   it('is case-sensitive about key existence', () => {
-    try {
-      requireConfigVar({FOO_BAR: 'x'}, 'CreditRatingScorer', 'foo_bar');
-      expect.fail('expected requireConfigVar to throw');
-    } catch (error) {
-      expect((error as Error).message).to.include('"foo_bar"');
-    }
+    expect(() => requireConfigVar({FOO_BAR: 'x'}, 'CreditRatingScorer', 'foo_bar')).toThrow('"foo_bar"');
   });
 });
 
@@ -49,7 +49,7 @@ describe('computeConfig.formatConfigVarLines', () => {
       STRIPE_KEY: 'sk_live_abc123',
     });
 
-    expect(lines).to.deep.equal([
+    expect(lines).toEqual([
       'DATABASE_URL:  postgres://user:pass@host:5432/db',
       'LOG_LEVEL:     info',
       'STRIPE_KEY:    sk_live_abc123',
@@ -57,10 +57,10 @@ describe('computeConfig.formatConfigVarLines', () => {
   });
 
   it('returns one line per key with a single key', () => {
-    expect(formatConfigVarLines({FOO: 'bar'})).to.deep.equal(['FOO:  bar']);
+    expect(formatConfigVarLines({FOO: 'bar'})).toEqual(['FOO:  bar']);
   });
 
   it('returns an empty array for an empty map', () => {
-    expect(formatConfigVarLines({})).to.deep.equal([]);
+    expect(formatConfigVarLines({})).toEqual([]);
   });
 });

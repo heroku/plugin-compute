@@ -1,7 +1,6 @@
 {
   "compilerOptions": {
-    // Inlined from @salesforce/dev-config/tsconfig-test-strict-esm (retired with
-    // @salesforce/dev-scripts): the strict-esm base plus noEmit for a typecheck-only pass.
+    // Strict-esm base plus noEmit for a typecheck-only pass over the test sources.
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "es2024",

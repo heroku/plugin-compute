@@ -1,9 +1,7 @@
 {
   "compilerOptions": {
-    // Inlined from @salesforce/dev-config/tsconfig-strict-esm (retired with
-    // @salesforce/dev-scripts); matches the zero-`extends` pattern the Heroku fleet uses.
-    // NodeNext (vs dev-config's frozen Node16) tracks current Node resolution semantics,
-    // which fits this plugin's engines.node >=22 floor.
+    // NodeNext tracks current Node resolution semantics, which fits this plugin's
+    // engines.node >=22 floor.
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "es2024",

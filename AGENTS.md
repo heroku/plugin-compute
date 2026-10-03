@@ -101,12 +101,12 @@ which is now fixed by pinning that parser as a direct devDep. The only remaining
 skew is a harmless `peerOptional typescript@>=6` from `eslint-config-xo`, which
 npm resolves with a warning.
 
-A dev `~/.npmrc` in this environment sets `min-release-age=3` (npm 11's
-supply-chain guard, hiding versions published in the last 3 days). A **cold**
-`npm install` (empty `node_modules` + no lockfile) then fails `ETARGET` on
-pinned pre-releases like `@heroku-cli/test-utils@2.0.0-beta.0`. `npm ci` from a
-complete committed lockfile is unaffected (it uses pinned tarball URLs). To
-regenerate the lockfile from scratch, override the guard for that one command:
+If an `npm config` `min-release-age` guard is active (npm 11's supply-chain
+feature, hiding versions published in the last N days), a **cold** `npm install`
+(empty `node_modules` + no lockfile) can fail `ETARGET` on pinned pre-releases
+like `@heroku-cli/test-utils@2.0.0-beta.0`. `npm ci` from a complete committed
+lockfile is unaffected (it uses pinned tarball URLs). To regenerate the lockfile
+from scratch when the guard is in effect, override it for that one command:
 
 ```bash
 rm -rf node_modules package-lock.json

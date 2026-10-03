@@ -17,21 +17,26 @@
     "tar-stream": "^3.2.1"
   },
   "devDependencies": {
+    "@heroku-cli/test-utils": "2.0.0-beta.0",
     "@oclif/plugin-command-snapshot": "^5.3.35",
     "@salesforce/cli-plugins-testkit": "^5.3.66",
     "@salesforce/dev-scripts": "^13.0.2",
     "@salesforce/plugin-command-reference": "^3.1.132",
     "@types/chai": "^4.3.17",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "^18",
+    "@types/node": "^22",
     "@types/sinon": "^10.0.20",
+    "@vitest/coverage-v8": "^5",
+    "@vitest/eslint-plugin": "^1.6.27",
+    "chai": "^4.5",
     "eslint": "^10.4.0",
-    "eslint-config-salesforce-typescript": "^6.0.0",
-    "eslint-plugin-sf-plugin": "^1.20.33",
+    "eslint-config-oclif": "^7",
     "oclif": "^4.23.30",
     "openapi-typescript": "^7.13.0",
+    "sinon": "^10",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vite": "^7",
+    "vitest": "^5"
   },
   "engines": {
     "node": ">=22.0.0"
@@ -81,16 +86,13 @@
     "clean-all": "sf-clean all",
     "compile": "wireit",
     "docs": "sf-docs",
-    "fix-license": "eslint src test --fix --rule \"header/header: [2]\"",
-    "format": "wireit",
     "generate:types": "openapi-typescript api-specs/salesforce-connect-compute.yaml -o src/generated/salesforce-connect-compute.d.ts && openapi-typescript api-specs/heroku-platform-api.yaml -o src/generated/heroku-platform-api.d.ts",
     "link-check": "wireit",
     "lint": "wireit",
     "postpack": "sf-clean --ignore-signing-artifacts",
     "prepack": "sf-prepack",
-    "prepare": "sf-install",
     "test": "wireit",
-    "test:nuts": "nyc mocha \"**/*.nut.ts\" --slow 4500 --timeout 600000 --parallel",
+    "test:nuts": "vitest run --config vitest.nut.config.ts",
     "test:only": "wireit",
     "version": "oclif readme"
   },
@@ -121,17 +123,6 @@
       ],
       "clean": "if-file-deleted"
     },
-    "format": {
-      "command": "prettier --write \"+(src|test|schemas)/**/*.+(ts|js|json)|command-snapshot.json\"",
-      "files": [
-        "src/**/*.ts",
-        "test/**/*.ts",
-        "schemas/**/*.json",
-        "command-snapshot.json",
-        ".prettier*"
-      ],
-      "output": []
-    },
     "lint": {
       "command": "eslint src test --color --cache --cache-location .eslintcache",
       "files": [
@@ -139,7 +130,6 @@
         "test/**/*.ts",
         "messages/**",
         "**/eslint.config.*",
-        "**/.eslint*",
         "**/tsconfig.json"
       ],
       "output": []
@@ -164,7 +154,7 @@
       ]
     },
     "test:only": {
-      "command": "nyc mocha \"test/**/*.test.ts\"",
+      "command": "vitest run --coverage",
       "env": {
         "FORCE_COLOR": "2"
       },
@@ -172,9 +162,8 @@
         "test/**/*.ts",
         "src/**/*.ts",
         "**/tsconfig.json",
-        ".mocha*",
-        "!*.nut.ts",
-        ".nycrc"
+        "vitest.config.ts",
+        "!**/*.nut.ts"
       ],
       "output": []
     },

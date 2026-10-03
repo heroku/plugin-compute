@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-import type { Connection, SfError } from '@salesforce/core';
-import { Messages } from '@salesforce/core';
-import type { components } from '../generated/heroku-platform-api.js';
-import { resolveComputeApiVersion } from './metadataApiVersion.js';
+import {type Connection, Messages, type SfError} from '@salesforce/core';
+
+import type {components} from '../generated/heroku-platform-api.js';
+
+import {resolveComputeApiVersion} from './metadataApiVersion.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
@@ -34,12 +35,12 @@ const HEROKU_ACCEPT_HEADER = 'application/vnd.heroku+json; version=3';
 //   status as a typed field, only the parsed body, so callers key off `herokuErrorId`, not a
 //   status code).
 export class HerokuProxyError extends Error {
-  public readonly origin: 'proxy' | 'heroku';
   // Heroku's own machine-readable `id` (e.g. 'not_found') when origin === 'heroku'; undefined for
   // a proxy-originated error, which has no equivalent field.
   public readonly herokuErrorId?: string;
+  public readonly origin: 'heroku' | 'proxy';
 
-  public constructor(message: string, origin: 'proxy' | 'heroku', herokuErrorId?: string) {
+  public constructor(message: string, origin: 'heroku' | 'proxy', herokuErrorId?: string) {
     super(message);
     this.name = 'HerokuProxyError';
     this.origin = origin;
@@ -56,22 +57,23 @@ export class HerokuProxyError extends Error {
 //   undefined -- classified via err.data.id instead. err.data always holds the raw parsed error
 //   object either way (HttpApiError's contract).
 function toHerokuProxyError(err: unknown): HerokuProxyError {
-  const httpErr = err as { errorCode?: string; message?: string; data?: { id?: string } };
+  const httpErr = err as {data?: {id?: string}; errorCode?: string; message?: string};
   if (httpErr.errorCode === 'HEROKU_PROXY_ERROR') {
     return new HerokuProxyError(httpErr.message ?? 'The Salesforce Heroku proxy rejected the request.', 'proxy');
   }
+
   return new HerokuProxyError(httpErr.message ?? 'Heroku rejected the request.', 'heroku', httpErr.data?.id);
 }
 
 type HerokuProxyRequestOptions = {
-  method: 'GET' | 'PATCH' | 'POST' | 'DELETE';
-  /** Heroku Platform API path, e.g. `/apps/{app_id_or_name}/formation`. */
-  path: string;
-  /** Path params substituted into `path`'s `{...}` placeholders. */
-  params?: Record<string, string>;
+  body?: unknown;
   /** Extra headers forwarded to Heroku through the proxy (e.g. Range for release pagination). */
   headers?: Record<string, string>;
-  body?: unknown;
+  method: 'DELETE' | 'GET' | 'PATCH' | 'POST';
+  /** Path params substituted into `path`'s `{...}` placeholders. */
+  params?: Record<string, string>;
+  /** Heroku Platform API path, e.g. `/apps/{app_id_or_name}/formation`. */
+  path: string;
 };
 
 // THE ONLY function in this plugin that knows the /services/data/vXX.0/heroku/proxy?proxy_url=...
@@ -86,8 +88,10 @@ type HerokuProxyRequestOptions = {
 async function herokuProxyRequest<T>(connection: Connection, opts: HerokuProxyRequestOptions): Promise<T> {
   let targetPath = opts.path;
   for (const [key, value] of Object.entries(opts.params ?? {})) {
-    targetPath = targetPath.replace(`{${key}}`, encodeURIComponent(value));
+    // Replacer function so the encoded value is inserted verbatim, never read as a $-pattern.
+    targetPath = targetPath.replace(`{${key}}`, () => encodeURIComponent(value));
   }
+
   const targetUrl = `${HEROKU_API_BASE_URL}${targetPath}`;
   const version = resolveComputeApiVersion(connection);
   const proxyUrl = `/services/data/v${version}/heroku/proxy?proxy_url=${encodeURIComponent(targetUrl)}`;
@@ -97,10 +101,10 @@ async function herokuProxyRequest<T>(connection: Connection, opts: HerokuProxyRe
       method: opts.method,
       url: proxyUrl,
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
-      headers: { 'Content-Type': 'application/json', Accept: HEROKU_ACCEPT_HEADER, ...opts.headers },
+      headers: {'Content-Type': 'application/json', Accept: HEROKU_ACCEPT_HEADER, ...opts.headers},
     });
-  } catch (err) {
-    throw toHerokuProxyError(err);
+  } catch (error) {
+    throw toHerokuProxyError(error);
   }
 }
 
@@ -111,28 +115,30 @@ function throwHerokuProxyComputeError(err: unknown, name: string, notFoundMessag
   if (err instanceof HerokuProxyError && err.origin === 'heroku' && err.herokuErrorId === 'not_found') {
     throw notFoundMessage ?? messages.createError('error.herokuAppNotFound', [name]);
   }
+
   if (err instanceof HerokuProxyError && err.origin === 'proxy') {
     throw messages.createError('error.herokuProxyRequestFailed', [err.message]);
   }
+
   throw messages.createError('error.herokuApiRequestFailed', [err instanceof Error ? err.message : String(err)]);
 }
 
-export type HerokuFormationSummary = Array<{ type: string; dynoSize?: string; quantity: number }>;
+export type HerokuFormationSummary = Array<{dynoSize?: string; quantity: number; type: string}>;
 
 export async function fetchComputeFormationViaProxy(
   connection: Connection,
-  params: { name: string; appId: string }
+  params: {appId: string; name: string},
 ): Promise<HerokuFormationSummary> {
   try {
     const formation = await herokuProxyRequest<Array<components['schemas']['Formation']>>(connection, {
       method: 'GET',
       path: '/apps/{app_id_or_name}/formation',
-      // eslint-disable-next-line camelcase -- app_id_or_name mirrors Heroku's own path param name
-      params: { app_id_or_name: params.appId },
+
+      params: {app_id_or_name: params.appId},
     });
-    return formation.map((f) => ({ type: f.type ?? '-', dynoSize: f.dyno_size?.name, quantity: f.quantity ?? 0 }));
-  } catch (err) {
-    throwHerokuProxyComputeError(err, params.name);
+    return formation.map(f => ({type: f.type ?? '-', dynoSize: f.dyno_size?.name, quantity: f.quantity ?? 0}));
+  } catch (error) {
+    throwHerokuProxyComputeError(error, params.name);
   }
 }
 
@@ -141,25 +147,25 @@ export async function fetchComputeFormationViaProxy(
 // Compute<Cmd>Result type, or `bin/dev.js schema generate` fails with a ts-json-schema-generator
 // "multiple definitions" error (it resolves exported type names globally across src/, not
 // per-file). Same reason HerokuFormationSummary above isn't named ComputeDisplayResult.
-export type HerokuFormationUpdate = { type: string; dynoSize?: string; quantity: number };
+export type HerokuFormationUpdate = {dynoSize?: string; quantity: number; type: string};
 
 export async function scaleComputeFormationViaProxy(
   connection: Connection,
-  params: { name: string; appId: string; processType: string; dynoSize?: string; quantity?: number }
+  params: {appId: string; dynoSize?: string; name: string; processType: string; quantity?: number},
 ): Promise<HerokuFormationUpdate> {
   try {
     const formation = await herokuProxyRequest<components['schemas']['Formation']>(connection, {
       method: 'PATCH',
       path: '/apps/{app_id_or_name}/formation/{formation_id_or_type}',
       params: {
-        // eslint-disable-next-line camelcase -- mirrors Heroku's own path param names
+
         app_id_or_name: params.appId,
-        // eslint-disable-next-line camelcase
+
         formation_id_or_type: params.processType,
       },
       body: {
-        // eslint-disable-next-line camelcase -- dyno_size mirrors Heroku's FormationUpdateRequest field name
-        dyno_size: params.dynoSize ? { name: params.dynoSize } : undefined,
+
+        dyno_size: params.dynoSize ? {name: params.dynoSize} : undefined,
         quantity: params.quantity,
       } satisfies components['schemas']['FormationUpdateRequest'],
     });
@@ -168,45 +174,45 @@ export async function scaleComputeFormationViaProxy(
       dynoSize: formation.dyno_size?.name,
       quantity: formation.quantity ?? 0,
     };
-  } catch (err) {
+  } catch (error) {
     throwHerokuProxyComputeError(
-      err,
+      error,
       params.name,
-      messages.createError('error.herokuFormationNotFound', [params.name, params.processType])
+      messages.createError('error.herokuFormationNotFound', [params.name, params.processType]),
     );
   }
 }
 
 export async function fetchComputeConfigVarsViaProxy(
   connection: Connection,
-  params: { name: string; appId: string }
+  params: {appId: string; name: string},
 ): Promise<Record<string, string>> {
   try {
     return await herokuProxyRequest<components['schemas']['ConfigVars']>(connection, {
       method: 'GET',
       path: '/apps/{app_id_or_name}/config-vars',
-      // eslint-disable-next-line camelcase -- app_id_or_name mirrors Heroku's own path param name
-      params: { app_id_or_name: params.appId },
+
+      params: {app_id_or_name: params.appId},
     });
-  } catch (err) {
-    throwHerokuProxyComputeError(err, params.name);
+  } catch (error) {
+    throwHerokuProxyComputeError(error, params.name);
   }
 }
 
 export async function updateComputeConfigVarsViaProxy(
   connection: Connection,
-  params: { name: string; appId: string; updates: Record<string, string | null> }
+  params: {appId: string; name: string; updates: Record<string, null | string>},
 ): Promise<Record<string, string>> {
   try {
     return await herokuProxyRequest<components['schemas']['ConfigVars']>(connection, {
       method: 'PATCH',
       path: '/apps/{app_id_or_name}/config-vars',
-      // eslint-disable-next-line camelcase -- app_id_or_name mirrors Heroku's own path param name
-      params: { app_id_or_name: params.appId },
+
+      params: {app_id_or_name: params.appId},
       body: params.updates satisfies components['schemas']['ConfigVarsUpdate'],
     });
-  } catch (err) {
-    throwHerokuProxyComputeError(err, params.name);
+  } catch (error) {
+    throwHerokuProxyComputeError(error, params.name);
   }
 }
 
@@ -217,38 +223,38 @@ export async function updateComputeConfigVarsViaProxy(
 // one element. Returns undefined (not an error) for a brand-new app with no releases yet.
 export async function fetchLatestReleaseVersionViaProxy(
   connection: Connection,
-  params: { name: string; appId: string }
+  params: {appId: string; name: string},
 ): Promise<number | undefined> {
   try {
     const releases = await herokuProxyRequest<Array<components['schemas']['Release']>>(connection, {
       method: 'GET',
       path: '/apps/{app_id_or_name}/releases',
-      // eslint-disable-next-line camelcase -- app_id_or_name mirrors Heroku's own path param name
-      params: { app_id_or_name: params.appId },
-      headers: { Range: 'version ..; max=1; order=desc' },
+
+      params: {app_id_or_name: params.appId},
+      headers: {Range: 'version ..; max=1; order=desc'},
     });
-    const versions = releases.map((r) => r.version).filter((v): v is number => v !== undefined);
+    const versions = releases.map(r => r.version).filter((v): v is number => v !== undefined);
     return versions.length === 0 ? undefined : Math.max(...versions);
-  } catch (err) {
-    throwHerokuProxyComputeError(err, params.name);
+  } catch (error) {
+    throwHerokuProxyComputeError(error, params.name);
   }
 }
 
-export type HerokuLogSession = { logplexUrl: string };
+export type HerokuLogSession = {logplexUrl: string};
 
 // Used by logs.ts. `name` rides in the path (app_id_or_name), not the request body -- unlike the
 // old /connect/compute/logs/session Connect resource, Heroku's own createLogSession takes the app
 // only as a path param.
 export async function createComputeLogSessionViaProxy(
   connection: Connection,
-  params: { name: string; appId: string; lines?: number; tail?: boolean }
+  params: {appId: string; lines?: number; name: string; tail?: boolean},
 ): Promise<HerokuLogSession> {
   try {
     const session = await herokuProxyRequest<components['schemas']['LogSession']>(connection, {
       method: 'POST',
       path: '/apps/{app_id_or_name}/log-sessions',
-      // eslint-disable-next-line camelcase -- app_id_or_name mirrors Heroku's own path param name
-      params: { app_id_or_name: params.appId },
+
+      params: {app_id_or_name: params.appId},
       body: {
         lines: params.lines,
         tail: params.tail,
@@ -259,9 +265,10 @@ export async function createComputeLogSessionViaProxy(
         'Heroku returned a log session with no logplex_url.',
       ]);
     }
-    return { logplexUrl: session.logplex_url };
-  } catch (err) {
-    throwHerokuProxyComputeError(err, params.name);
+
+    return {logplexUrl: session.logplex_url};
+  } catch (error) {
+    throwHerokuProxyComputeError(error, params.name);
   }
 }
 
@@ -273,17 +280,17 @@ export async function createComputeLogSessionViaProxy(
 // output_stream_url yet -- build/output.ts treats both the same as the old Connect resource's 404.
 export async function fetchLatestBuildOutputStreamUrlViaProxy(
   connection: Connection,
-  params: { name: string; appId: string }
+  params: {appId: string; name: string},
 ): Promise<string | undefined> {
   try {
     const builds = await herokuProxyRequest<Array<components['schemas']['Build']>>(connection, {
       method: 'GET',
       path: '/apps/{app_id_or_name}/builds',
-      // eslint-disable-next-line camelcase -- app_id_or_name mirrors Heroku's own path param name
-      params: { app_id_or_name: params.appId },
+
+      params: {app_id_or_name: params.appId},
     });
     return builds.at(-1)?.output_stream_url;
-  } catch (err) {
-    throwHerokuProxyComputeError(err, params.name);
+  } catch (error) {
+    throwHerokuProxyComputeError(error, params.name);
   }
 }

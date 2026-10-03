@@ -14,48 +14,50 @@
  * limitations under the License.
  */
 
-import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
-import { Messages } from '@salesforce/core';
-import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
-import { resolveHerokuAppId } from '../../shared/computeQuery.js';
-import { formatConfigVarLines } from '../../shared/computeConfig.js';
-import { fetchComputeConfigVarsViaProxy } from '../../shared/herokuProxyApi.js';
+import {Messages} from '@salesforce/core';
+import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
+
+import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../shared/computeApp.js';
+import {formatConfigVarLines} from '../../shared/computeConfig.js';
+import {resolveHerokuAppId} from '../../shared/computeQuery.js';
+import {fetchComputeConfigVarsViaProxy} from '../../shared/herokuProxyApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.config');
 
 export type ComputeConfigResult = {
-  name: string;
   configVars: Record<string, string>;
+  name: string;
 };
 
 export default class Config extends SfCommand<ComputeConfigResult> {
-  public static readonly summary = messages.getMessage('summary');
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
-  // Org-mediated lookup by --name -- no local project files are read.
-  public static readonly requiresProject = false;
-
   public static readonly flags = {
     name: Flags.string({
       char: 'n',
       env: 'COMPUTE_APP_NAME',
       summary: messages.getMessage('flags.name.summary'),
     }),
-    'target-org': Flags.requiredOrg({ char: 'o' }),
+    'target-org': Flags.requiredOrg({char: 'o'}),
   };
 
+  // Org-mediated lookup by --name -- no local project files are read.
+  public static readonly requiresProject = false;
+
+  public static readonly summary = messages.getMessage('summary');
+
   public async run(): Promise<ComputeConfigResult> {
-    const { flags } = await this.parse(Config);
+    const {flags} = await this.parse(Config);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
     const connection = flags['target-org'].getConnection();
     const appId = await resolveHerokuAppId(connection, name);
-    const fetched = await fetchComputeConfigVarsViaProxy(connection, { name, appId });
+    const fetched = await fetchComputeConfigVarsViaProxy(connection, {name, appId});
 
     const configVars: Record<string, string> = {};
-    for (const key of Object.keys(fetched).sort()) {
+    for (const key of Object.keys(fetched).toSorted()) {
       configVars[key] = fetched[key];
     }
 
@@ -64,6 +66,6 @@ export default class Config extends SfCommand<ComputeConfigResult> {
       this.log(line);
     }
 
-    return { name, configVars };
+    return {name, configVars};
   }
 }

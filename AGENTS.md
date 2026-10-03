@@ -88,13 +88,15 @@ env -u NODE_ENV ./bin/dev.js snapshot generate
 env -u NODE_ENV ./bin/dev.js schema generate
 ```
 
-After regenerating, run `npx prettier --write command-snapshot.json schemas/*.json`.
+Both generators emit their own formatted JSON, so no post-formatting step is
+needed (this repo has no prettier — the test runner is vitest and lint is the
+`@heroku-cli/test-utils` eslint-config).
 
 ## Verification workflow after changing any command's flags or output shape
 
 1. `npx tsc -p .` and `npx tsc -p ./test`
 2. `npx eslint src test --ext .ts`
-3. `npx mocha "test/**/*.test.ts"`
+3. `npx vitest run` (unit tests; add `--coverage` to mirror CI)
 4. `env -u NODE_ENV yarn build && env -u NODE_ENV yarn test` — the `test`
    wireit target chains `test:compile`, `test:only`, `test:command-reference`,
    `test:deprecation-policy`, `lint`, `test:json-schema`, `link-check`.

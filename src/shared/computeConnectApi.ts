@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
+import {type Connection, Messages} from '@salesforce/core';
 import FormData from 'form-data';
-import type { Connection } from '@salesforce/core';
-import { Messages } from '@salesforce/core';
-import type { components } from '../generated/salesforce-connect-compute.js';
+
+import type {components} from '../generated/salesforce-connect-compute.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
@@ -26,10 +26,10 @@ export type ComputeSourceUpload = components['schemas']['ComputeSourceUpload'];
 export type ConnectError = components['schemas']['ConnectError'];
 
 export type UploadComputeSourceParams = {
-  /** DeveloperName of the PlatformComputeApp to deploy source for. */
-  name: string;
   /** Deployment bundle tarball contents (OpenAPI spec plus application source). */
   bundle: Buffer;
+  /** DeveloperName of the PlatformComputeApp to deploy source for. */
+  name: string;
 };
 
 // Calls through connection.request() (never raw fetch/got) so token refresh, the
@@ -37,7 +37,7 @@ export type UploadComputeSourceParams = {
 // api-specs/salesforce-connect-compute.yaml for the resource this wraps.
 export async function uploadComputeSource(
   connection: Connection,
-  params: UploadComputeSourceParams
+  params: UploadComputeSourceParams,
 ): Promise<ComputeSourceUpload> {
   const form = new FormData();
   form.append('name', params.name);
@@ -53,8 +53,8 @@ export async function uploadComputeSource(
       body: form,
       headers: form.getHeaders(),
     });
-  } catch (err) {
-    throw messages.createError('error.connectApiRequestFailed', [(err as Error).message]);
+  } catch (error) {
+    throw messages.createError('error.connectApiRequestFailed', [(error as Error).message]);
   }
 }
 
@@ -72,15 +72,15 @@ export type DownloadComputeSourceParams = {
 // exact original bytes.
 export async function downloadComputeSource(
   connection: Connection,
-  params: DownloadComputeSourceParams
+  params: DownloadComputeSourceParams,
 ): Promise<Buffer> {
   try {
     const body = await connection.request<string>(
-      { method: 'GET', url: `/connect/compute/${encodeURIComponent(params.appIdOrName)}/source` },
-      { encoding: 'binary' }
+      {method: 'GET', url: `/connect/compute/${encodeURIComponent(params.appIdOrName)}/source`},
+      {encoding: 'binary'},
     );
     return Buffer.from(body, 'binary');
-  } catch (err) {
-    throw messages.createError('error.sourceDownloadFailed', [(err as Error).message]);
+  } catch (error) {
+    throw messages.createError('error.sourceDownloadFailed', [(error as Error).message]);
   }
 }

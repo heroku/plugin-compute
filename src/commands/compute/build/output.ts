@@ -14,63 +14,65 @@
  * limitations under the License.
  */
 
-import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
-import { Messages } from '@salesforce/core';
-import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
-import { queryComputeApp, toComputeAppSummary, requireHerokuAppId } from '../../../shared/computeQuery.js';
-import { fetchLatestBuildOutputStreamUrlViaProxy } from '../../../shared/herokuProxyApi.js';
-import { fetchBuildOutputStream } from '../../../shared/computeLogStream.js';
+import {Messages} from '@salesforce/core';
+import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
+
+import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
+import {fetchBuildOutputStream} from '../../../shared/computeLogStream.js';
+import {queryComputeApp, requireHerokuAppId, toComputeAppSummary} from '../../../shared/computeQuery.js';
+import {fetchLatestBuildOutputStreamUrlViaProxy} from '../../../shared/herokuProxyApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.build.output');
 
 export type ComputeBuildOutputResult = {
-  name: string;
-  buildStatus?: 'PENDING' | 'BUILDING' | 'SUCCEEDED' | 'FAILED';
+  buildStatus?: 'BUILDING' | 'FAILED' | 'PENDING' | 'SUCCEEDED';
   log?: string;
+  name: string;
 };
 
 export default class Output extends SfCommand<ComputeBuildOutputResult> {
-  public static readonly summary = messages.getMessage('summary');
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
-  // Org-mediated lookup by --name -- no local project files are read.
-  public static readonly requiresProject = false;
-
   public static readonly flags = {
     name: Flags.string({
       char: 'n',
       env: 'COMPUTE_APP_NAME',
       summary: messages.getMessage('flags.name.summary'),
     }),
-    'target-org': Flags.requiredOrg({ char: 'o' }),
+    'target-org': Flags.requiredOrg({char: 'o'}),
   };
 
+  // Org-mediated lookup by --name -- no local project files are read.
+  public static readonly requiresProject = false;
+
+  public static readonly summary = messages.getMessage('summary');
+
   public async run(): Promise<ComputeBuildOutputResult> {
-    const { flags } = await this.parse(Output);
+    const {flags} = await this.parse(Output);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
     const connection = flags['target-org'].getConnection();
     const record = await queryComputeApp(connection, name);
-    const { currentBuild } = toComputeAppSummary(record);
+    const {currentBuild} = toComputeAppSummary(record);
 
     if (!currentBuild) {
       this.info(messages.getMessage('info.noBuildsFound', [name]));
-      return { name };
+      return {name};
     }
 
-    const { buildStatus } = currentBuild;
+    const {buildStatus} = currentBuild;
     const appId = requireHerokuAppId(record, name);
-    const outputStreamUrl = await fetchLatestBuildOutputStreamUrlViaProxy(connection, { name, appId });
+    const outputStreamUrl = await fetchLatestBuildOutputStreamUrlViaProxy(connection, {name, appId});
 
     if (outputStreamUrl === undefined) {
       this.info(messages.getMessage('info.buildOutputNotYetAvailable', [name, buildStatus]));
-      return { name, buildStatus };
+      return {name, buildStatus};
     }
 
     const log = await fetchBuildOutputStream(outputStreamUrl);
     this.log(log);
-    return { name, buildStatus, log };
+    return {name, buildStatus, log};
   }
 }

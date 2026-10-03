@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { Connection } from '@salesforce/core';
+import type {Connection} from '@salesforce/core';
 
 // PlatformComputeApp was introduced as a metadata type in API 68.0. Deploying/retrieving it at
 // a lower version (e.g. an org's negotiated default, or a lower sourceApiVersion in

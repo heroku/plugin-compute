@@ -1,3 +1,7 @@
+import {Org} from '@salesforce/core';
+import {MockTestOrgData, TestContext} from '@salesforce/core/testSetup';
+import {stubSfCommandUx} from '@salesforce/sf-plugins-core';
+import {expect} from 'chai';
 /*
  * Copyright 2026, Salesforce, Inc.
  *
@@ -13,21 +17,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { expect } from 'chai';
+import {
+  mkdir,
+  mkdtemp,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import sinon from 'sinon';
-import { TestContext, MockTestOrgData } from '@salesforce/core/testSetup';
-import { Org } from '@salesforce/core';
-import { stubSfCommandUx } from '@salesforce/sf-plugins-core';
+
 import Output from '../../../../src/commands/compute/build/output.js';
 
 // jsforce's HttpApi.getError() sets both .name and .errorCode to the parsed error body's
 // errorCode, falling back to `ERROR_HTTP_${status}` when the body isn't a recognizable
-// { message, errorCode } shape -- this is the exact shape a 404 with no body takes.
+// { message, errorCode } shape -- this is the exact shape a 404 with no body takes. Modeled as
+// a subclass so .name is set in the constructor rather than assigned onto a built-in Error.
+class HttpError extends Error {
+  public readonly errorCode: string;
+
+  public constructor(status: number, message = 'Not Found') {
+    super(message);
+    this.name = `ERROR_HTTP_${status}`;
+    this.errorCode = `ERROR_HTTP_${status}`;
+  }
+}
+
 function httpError(status: number, message = 'Not Found'): Error {
-  return Object.assign(new Error(message), { name: `ERROR_HTTP_${status}`, errorCode: `ERROR_HTTP_${status}` });
+  return new HttpError(status, message);
 }
 
 // Every proxy-bound request lands on the same /services/data/vXX.0/heroku/proxy path with the
@@ -42,8 +59,8 @@ function proxyTarget(url: string): string {
 // shared requestStub while resolving --target-org, so callCount/called on the stub itself is
 // unreliable -- filter for the specific listBuilds call instead (mirrors logs.test.ts).
 function findListBuildsCall(stub: sinon.SinonStub): sinon.SinonSpyCall | undefined {
-  return stub.getCalls().find((call) => {
-    const req = call.args[0] as { url?: string } | undefined;
+  return stub.getCalls().find(call => {
+    const req = call.args[0] as undefined | {url?: string};
     return req?.url !== undefined && proxyTarget(req.url).endsWith('/builds');
   });
 }
@@ -57,53 +74,52 @@ describe('compute build output', () => {
   let fetchStub: sinon.SinonStub;
 
   const buildingRecord = {
-    Id: '0abEE0000004CqYYAU',
-    DeveloperName: 'CreditRatingScorer',
-    MasterLabel: 'Credit Rating Scorer',
-    Description: null,
-    Status: 'DEPLOYING',
-    StatusReason: null,
     CurrentBuild: {
-      Id: '0acEE0000004D1ZYAU',
-      BuildStatus: 'BUILDING',
-      BuildStartedAt: '2026-08-31T14:23:50.000Z',
       BuildCompletedAt: null,
+      BuildStartedAt: '2026-08-31T14:23:50.000Z',
+      BuildStatus: 'BUILDING',
       DeployedAt: null,
       DeployedBy: null,
       Error: null,
+      Id: '0acEE0000004D1ZYAU',
     },
-    ExternalServiceRegistration: null,
+    Description: null,
+    DeveloperName: 'CreditRatingScorer',
     ExternalAppIdentifier: 'a1b2c3d4-heroku-app-id',
+    ExternalServiceRegistration: null,
+    Id: '0abEE0000004CqYYAU',
+    MasterLabel: 'Credit Rating Scorer',
+    Status: 'DEPLOYING',
+    StatusReason: null,
   };
 
   const succeededRecord = {
     ...buildingRecord,
-    Status: 'ACTIVE',
     CurrentBuild: {
       ...buildingRecord.CurrentBuild,
-      BuildStatus: 'SUCCEEDED',
       BuildCompletedAt: '2026-08-31T14:25:32.000Z',
+      BuildStatus: 'SUCCEEDED',
       DeployedAt: '2026-08-31T14:25:32.000Z',
-      DeployedBy: { Username: 'dev@mycompany.com' },
+      DeployedBy: {Username: 'dev@mycompany.com'},
     },
+    Status: 'ACTIVE',
   };
 
   beforeEach(async () => {
     sfCommandStubs = stubSfCommandUx($$.SANDBOX);
     await $$.stubAuths(testOrg);
 
-    const org = await Org.create({ aliasOrUsername: testOrg.username });
+    const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
     toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
-    /* eslint-disable camelcase -- output_stream_url mirrors Heroku's Build field name */
-    requestStub = sinon.stub().resolves([{ output_stream_url: 'https://build-output.heroku.com/streams/abc' }]);
-    /* eslint-enable camelcase */
+    requestStub = sinon.stub().resolves([{output_stream_url: 'https://build-output.heroku.com/streams/abc'}]);
+
     $$.fakeConnectionRequest = requestStub;
 
     fetchStub = $$.SANDBOX.stub(globalThis, 'fetch').resolves(
-      new Response('-----> Building on the Heroku-24 stack\nBuild succeeded!\n', { status: 200 })
+      new Response('-----> Building on the Heroku-24 stack\nBuild succeeded!\n', {status: 200}),
     );
   });
 
@@ -112,7 +128,7 @@ describe('compute build output', () => {
   });
 
   function resolveWith(records: unknown[]): void {
-    toolingQueryStub.resolves({ totalSize: records.length, records, done: true });
+    toolingQueryStub.resolves({done: true, records, totalSize: records.length});
   }
 
   it('prints the log and returns name, buildStatus, and log on the happy path', async () => {
@@ -121,43 +137,44 @@ describe('compute build output', () => {
     const result = await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).to.deep.equal({
-      name: 'CreditRatingScorer',
       buildStatus: 'SUCCEEDED',
       log: '-----> Building on the Heroku-24 stack\nBuild succeeded!\n',
+      name: 'CreditRatingScorer',
     });
     const output = sfCommandStubs.log
       .getCalls()
-      .flatMap((c) => c.args)
+      .flatMap(c => c.args)
       .join('\n');
     expect(output).to.include('Build succeeded!');
 
     const call = findListBuildsCall(requestStub);
     expect(call, 'expected a GET to the Heroku proxy listBuilds path').to.not.be.undefined;
-    expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/builds'
+    expect(proxyTarget((call!.args[0] as {url: string}).url)).to.equal(
+      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/builds',
     );
     expect(fetchStub.calledWith('https://build-output.heroku.com/streams/abc')).to.be.true;
   });
 
   it('throws error.herokuAppIdentifierUnavailable when the app has a build but no ExternalAppIdentifier yet, without calling the proxy or fetch', async () => {
-    resolveWith([{ ...buildingRecord, ExternalAppIdentifier: undefined }]);
+    resolveWith([{...buildingRecord, ExternalAppIdentifier: undefined}]);
 
     try {
       await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("doesn't have a Heroku app identifier yet");
+    } catch (error) {
+      expect((error as Error).message).to.include("doesn't have a Heroku app identifier yet");
     }
+
     expect(findListBuildsCall(requestStub)).to.be.undefined;
     expect(fetchStub.called).to.be.false;
   });
 
   it('reports no builds yet and returns just the name when CurrentBuild is null', async () => {
-    resolveWith([{ ...buildingRecord, CurrentBuild: null }]);
+    resolveWith([{...buildingRecord, CurrentBuild: null}]);
 
     const result = await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({ name: 'CreditRatingScorer' });
+    expect(result).to.deep.equal({name: 'CreditRatingScorer'});
     expect(sfCommandStubs.info.firstCall.args[0]).to.include('has no builds yet');
     expect(findListBuildsCall(requestStub)).to.be.undefined;
     expect(fetchStub.called).to.be.false;
@@ -169,7 +186,7 @@ describe('compute build output', () => {
 
     const result = await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({ name: 'CreditRatingScorer', buildStatus: 'BUILDING' });
+    expect(result).to.deep.equal({buildStatus: 'BUILDING', name: 'CreditRatingScorer'});
     expect(sfCommandStubs.info.firstCall.args[0]).to.include("hasn't produced output yet");
     expect(sfCommandStubs.log.called).to.be.false;
     expect(fetchStub.called).to.be.false;
@@ -181,18 +198,17 @@ describe('compute build output', () => {
 
     const result = await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({ name: 'CreditRatingScorer', buildStatus: 'BUILDING' });
+    expect(result).to.deep.equal({buildStatus: 'BUILDING', name: 'CreditRatingScorer'});
     expect(sfCommandStubs.info.firstCall.args[0]).to.include("hasn't produced output yet");
   });
 
   it('takes the last build when listBuilds returns several, oldest-first', async () => {
     resolveWith([succeededRecord]);
-    /* eslint-disable camelcase -- output_stream_url mirrors Heroku's Build field name */
+
     requestStub.resolves([
-      { output_stream_url: 'https://build-output.heroku.com/streams/old' },
-      { output_stream_url: 'https://build-output.heroku.com/streams/latest' },
+      {output_stream_url: 'https://build-output.heroku.com/streams/old'},
+      {output_stream_url: 'https://build-output.heroku.com/streams/latest'},
     ]);
-    /* eslint-enable camelcase */
 
     await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
@@ -201,13 +217,13 @@ describe('compute build output', () => {
 
   it('surfaces error.herokuAppNotFound when Heroku 404s listBuilds', async () => {
     resolveWith([buildingRecord]);
-    requestStub.rejects(Object.assign(new Error("Couldn't find that app."), { data: { id: 'not_found' } }));
+    requestStub.rejects(Object.assign(new Error("Couldn't find that app."), {data: {id: 'not_found'}}));
 
     try {
       await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("Heroku didn't find an app named CreditRatingScorer");
+    } catch (error) {
+      expect((error as Error).message).to.include("Heroku didn't find an app named CreditRatingScorer");
     }
   });
 
@@ -217,9 +233,10 @@ describe('compute build output', () => {
     try {
       await Output.run(['--name', 'NeverDeployed', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include('No compute app named NeverDeployed was found in the org');
+    } catch (error) {
+      expect((error as Error).message).to.include('No compute app named NeverDeployed was found in the org');
     }
+
     expect(findListBuildsCall(requestStub)).to.be.undefined;
   });
 
@@ -229,9 +246,10 @@ describe('compute build output', () => {
     try {
       await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include('Found more than one compute app named CreditRatingScorer');
+    } catch (error) {
+      expect((error as Error).message).to.include('Found more than one compute app named CreditRatingScorer');
     }
+
     expect(findListBuildsCall(requestStub)).to.be.undefined;
   });
 
@@ -242,9 +260,9 @@ describe('compute build output', () => {
     try {
       await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include(
-        "Couldn't reach the Heroku Platform API through Salesforce: socket hang up"
+    } catch (error) {
+      expect((error as Error).message).to.include(
+        "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
       );
     }
   });
@@ -256,29 +274,29 @@ describe('compute build output', () => {
     try {
       await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("Couldn't fetch build output");
+    } catch (error) {
+      expect((error as Error).message).to.include("Couldn't fetch build output");
     }
   });
 
   it('still logs and returns an empty-string build log rather than treating it as not-yet-available', async () => {
     resolveWith([succeededRecord]);
-    fetchStub.resolves(new Response('', { status: 200 }));
+    fetchStub.resolves(new Response('', {status: 200}));
 
     const result = await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({ name: 'CreditRatingScorer', buildStatus: 'SUCCEEDED', log: '' });
+    expect(result).to.deep.equal({buildStatus: 'SUCCEEDED', log: '', name: 'CreditRatingScorer'});
   });
 
   it('drops undefined keys under --json for the no-builds-yet case', async () => {
-    resolveWith([{ ...buildingRecord, CurrentBuild: null }]);
+    resolveWith([{...buildingRecord, CurrentBuild: null}]);
 
     const result = await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
     const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as Record<string, unknown>;
 
     expect(JSON.stringify(jsonOutput)).to.not.include('buildStatus');
     expect(JSON.stringify(jsonOutput)).to.not.include('"log"');
-    expect(result).to.deep.equal({ name: 'CreditRatingScorer' });
+    expect(result).to.deep.equal({name: 'CreditRatingScorer'});
   });
 
   it('preserves the exact case of --name in the SOQL filter and targets the resolved Heroku app id', async () => {
@@ -286,11 +304,11 @@ describe('compute build output', () => {
 
     await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    const soql: string = toolingQueryStub.firstCall.args[0];
+    const soql = toolingQueryStub.firstCall.args[0] as string;
     expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
     const call = findListBuildsCall(requestStub);
-    expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/builds'
+    expect(proxyTarget((call!.args[0] as {url: string}).url)).to.equal(
+      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/builds',
     );
   });
 
@@ -298,9 +316,10 @@ describe('compute build output', () => {
     try {
       await Output.run(['--name', '../evil', '--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("isn't valid");
+    } catch (error) {
+      expect((error as Error).message).to.include("isn't valid");
     }
+
     expect(toolingQueryStub.called).to.be.false;
     expect(findListBuildsCall(requestStub)).to.be.undefined;
   });
@@ -311,11 +330,11 @@ describe('compute build output', () => {
     try {
       const result = await Output.run(['--target-org', testOrg.username]);
       expect(result.name).to.equal('CreditRatingScorer');
-      const soql: string = toolingQueryStub.firstCall.args[0];
+      const soql = toolingQueryStub.firstCall.args[0] as string;
       expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
       const call = findListBuildsCall(requestStub);
-      expect(proxyTarget((call!.args[0] as { url: string }).url)).to.equal(
-        'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/builds'
+      expect(proxyTarget((call!.args[0] as {url: string}).url)).to.equal(
+        'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/builds',
       );
     } finally {
       delete process.env.COMPUTE_APP_NAME;
@@ -335,7 +354,7 @@ describe('compute build output', () => {
       expect(result.name).to.equal('CreditRatingScorer');
     } finally {
       process.chdir(originalCwd);
-      await rm(tmp, { recursive: true, force: true });
+      await rm(tmp, {force: true, recursive: true});
     }
   });
 
@@ -346,12 +365,13 @@ describe('compute build output', () => {
     try {
       await Output.run(['--target-org', testOrg.username]);
       expect.fail('expected an error');
-    } catch (e) {
-      expect((e as Error).message).to.include("Couldn't determine which compute app to use");
+    } catch (error) {
+      expect((error as Error).message).to.include("Couldn't determine which compute app to use");
     } finally {
       process.chdir(originalCwd);
-      await rm(tmp, { recursive: true, force: true });
+      await rm(tmp, {force: true, recursive: true});
     }
+
     expect(toolingQueryStub.called).to.be.false;
   });
 });

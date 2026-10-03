@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { access } from 'node:fs/promises';
-import { basename, join } from 'node:path';
-import { Messages } from '@salesforce/core';
+import {Messages} from '@salesforce/core';
+import {access} from 'node:fs/promises';
+import {basename, join} from 'node:path';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
@@ -24,15 +24,15 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.er
 // Mirrors Salesforce's DeveloperName grammar (starts with a letter, alphanumeric/underscore only,
 // no trailing or double underscore) -- every --name is now resolved as a DeveloperName via SOQL,
 // so this also guards against path traversal, since `name` is joined directly into a filesystem path.
-const NAME_PATTERN = /^(?!.*__)(?!.*_$)[A-Za-z]\w*$/;
+const NAME_PATTERN = /^(?!.*__)(?!.*_$)[A-Za-z]\w*$/v;
 
 // Mirrors Salesforce's namespace grammar (starts with a letter, alphanumeric/underscore only,
 // 1-15 characters total, no double underscore).
-const NAMESPACE_PATTERN = /^[A-Za-z](?!.*__)[A-Za-z0-9_]{0,14}$/;
+const NAMESPACE_PATTERN = /^[A-Za-z](?!.*__)[A-Za-z0-9_]{0,14}$/v;
 
 export type ParsedComputeAppName = {
-  namespace?: string;
   developerName: string;
+  namespace?: string;
 };
 
 // Splits a --name value on its first "__" into { namespace, developerName } when it's a
@@ -47,14 +47,17 @@ export function parseName(name: string): ParsedComputeAppName {
     if (!NAME_PATTERN.test(name)) {
       throw messages.createError('error.invalidName', [name]);
     }
-    return { developerName: name };
+
+    return {developerName: name};
   }
+
   const namespace = name.slice(0, separatorIndex);
   const developerName = name.slice(separatorIndex + 2);
   if (!NAMESPACE_PATTERN.test(namespace) || !NAME_PATTERN.test(developerName)) {
     throw messages.createError('error.invalidName', [name]);
   }
-  return { namespace, developerName };
+
+  return {namespace, developerName};
 }
 
 // Shared by every command that takes --name, so the path-traversal/SOQL-injection guard has one
@@ -90,5 +93,6 @@ export function requireAppName(name: string | undefined): string {
   if (!name) {
     throw messages.createError('error.cannotResolveAppName');
   }
+
   return name;
 }

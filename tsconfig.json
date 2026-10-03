@@ -3,6 +3,8 @@
   "compilerOptions": {
     "outDir": "lib",
     "rootDir": "src",
+    "target": "es2024",
+    "lib": ["es2024"],
     // @salesforce/source-deploy-retrieve's own .d.ts imports a co-located .json registry file
     // (registry/standardvalueset.d.ts -> ./stdValueSetRegistry.json) without this flag set.
     "resolveJsonModule": true

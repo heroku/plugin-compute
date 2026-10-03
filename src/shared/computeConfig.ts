@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Messages } from '@salesforce/core';
+import {Messages} from '@salesforce/core';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
@@ -23,9 +23,10 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.er
 // fetched map and must raise byte-identical text for a missing key, so this is the one source of
 // truth for that check rather than duplicating the message in each command's own .md file.
 export function requireConfigVar(configVars: Record<string, string>, name: string, key: string): string {
-  if (!(key in configVars)) {
+  if (!Object.hasOwn(configVars, key)) {
     throw messages.createError('error.configVarNotFound', [name, key]);
   }
+
   return configVars[key];
 }
 
@@ -34,6 +35,6 @@ export function requireConfigVar(configVars: Record<string, string>, name: strin
 // commands agree visually when run back-to-back.
 export function formatConfigVarLines(configVars: Record<string, string>): string[] {
   const keys = Object.keys(configVars);
-  const width = Math.max(0, ...keys.map((key) => key.length));
-  return keys.map((key) => `${key}:${' '.repeat(width - key.length + 2)}${configVars[key]}`);
+  const width = Math.max(0, ...keys.map(key => key.length));
+  return keys.map(key => `${key}:${' '.repeat(width - key.length + 2)}${configVars[key]}`);
 }

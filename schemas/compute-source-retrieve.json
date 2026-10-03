@@ -5,17 +5,21 @@
     "ComputeSourceRetrieveResult": {
       "type": "object",
       "properties": {
+        "files": {
+          "type": "number"
+        },
         "name": {
           "type": "string"
         },
         "path": {
           "type": "string"
-        },
-        "files": {
-          "type": "number"
         }
       },
-      "required": ["name", "path", "files"],
+      "required": [
+        "files",
+        "name",
+        "path"
+      ],
       "additionalProperties": false
     }
   }

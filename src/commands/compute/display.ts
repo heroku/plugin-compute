@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
-import { Messages } from '@salesforce/core';
-import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
+import {Messages} from '@salesforce/core';
+import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
+
+import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../shared/computeApp.js';
 import {
+  type ComputeAppSummary,
+  pickHerokuAppId,
   queryComputeApp,
   toComputeAppSummary,
-  pickHerokuAppId,
-  type ComputeAppSummary,
 } from '../../shared/computeQuery.js';
 import {
   fetchComputeFormationViaProxy,
@@ -36,8 +37,8 @@ const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.di
 // from Heroku via the Salesforce proxy -- never a replacement for the org-side fields, and never
 // fatal to the command if either fetch fails.
 export type ComputeDisplayResult = ComputeAppSummary & {
-  orgId: string;
   formation?: HerokuFormationSummary;
+  orgId: string;
   release?: number;
 };
 
@@ -47,44 +48,48 @@ function formatFormation(formation: HerokuFormationSummary | undefined): string 
   if (!formation || formation.length === 0) {
     return '-';
   }
-  return formation.map((f) => `${f.type}=${f.quantity}${f.dynoSize ? `:${f.dynoSize}` : ''}`).join(', ');
+
+  return formation.map(f => `${f.type}=${f.quantity}${f.dynoSize ? `:${f.dynoSize}` : ''}`).join(', ');
 }
 
 function formatBuildDuration(startedAt?: string, completedAt?: string): string {
   if (!startedAt || !completedAt) {
     return '-';
   }
+
   const totalSeconds = Math.round((new Date(completedAt).getTime() - new Date(startedAt).getTime()) / 1000);
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
     return '-';
   }
+
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 }
 
 export default class Display extends SfCommand<ComputeDisplayResult> {
-  public static readonly summary = messages.getMessage('summary');
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
-  // Pure org-side lookup by --name (DeveloperName) -- no local project files are read.
-  public static readonly requiresProject = false;
-
   public static readonly flags = {
     name: Flags.string({
       char: 'n',
       env: 'COMPUTE_APP_NAME',
       summary: messages.getMessage('flags.name.summary'),
     }),
-    'target-org': Flags.requiredOrg({ char: 'o' }),
+    'target-org': Flags.requiredOrg({char: 'o'}),
     verbose: Flags.boolean({
       char: 'v',
       summary: messages.getMessage('flags.verbose.summary'),
     }),
   };
 
+  // Pure org-side lookup by --name (DeveloperName) -- no local project files are read.
+  public static readonly requiresProject = false;
+
+  public static readonly summary = messages.getMessage('summary');
+
   public async run(): Promise<ComputeDisplayResult> {
-    const { flags } = await this.parse(Display);
+    const {flags} = await this.parse(Display);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
@@ -103,15 +108,15 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
       // Independent try/catch blocks -- a release-fetch failure must never blank out formation
       // display, and vice versa.
       try {
-        formation = await fetchComputeFormationViaProxy(connection, { name, appId });
-      } catch (err) {
-        this.warn(messages.getMessage('warning.herokuFormationUnavailable', [(err as Error).message]));
+        formation = await fetchComputeFormationViaProxy(connection, {name, appId});
+      } catch (error) {
+        this.warn(messages.getMessage('warning.herokuFormationUnavailable', [(error as Error).message]));
       }
 
       try {
-        release = await fetchLatestReleaseVersionViaProxy(connection, { name, appId });
-      } catch (err) {
-        this.warn(messages.getMessage('warning.herokuReleaseUnavailable', [(err as Error).message]));
+        release = await fetchLatestReleaseVersionViaProxy(connection, {name, appId});
+      } catch (error) {
+        this.warn(messages.getMessage('warning.herokuReleaseUnavailable', [(error as Error).message]));
       }
     }
 
@@ -123,7 +128,9 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
       this.renderLatestDeploymentTable(result);
     }
 
-    return { ...result, name, orgId, formation, release };
+    return {
+      ...result, name, orgId, formation, release,
+    };
   }
 
   // Renders the --name value the caller passed in (e.g. myns__CreditRatingScorer), not
@@ -133,13 +140,46 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     this.styledHeader('Compute App');
     this.table({
       data: [
-        { key: 'Compute App ID', value: result.id },
-        { key: 'Compute App Name', value: name },
-        { key: 'Master Label', value: result.masterLabel },
-        { key: 'Status', value: result.status },
-        { key: 'Org ID', value: orgId },
-        { key: 'Description', value: result.description ?? '-' },
-        { key: 'Status Reason', value: result.statusReason ?? '-' },
+        {key: 'Compute App ID', value: result.id},
+        {key: 'Compute App Name', value: name},
+        {key: 'Master Label', value: result.masterLabel},
+        {key: 'Status', value: result.status},
+        {key: 'Org ID', value: orgId},
+        {key: 'Description', value: result.description ?? '-'},
+        {key: 'Status Reason', value: result.statusReason ?? '-'},
+      ],
+      columns: ['key', 'value'],
+    });
+  }
+
+  // Build Duration is computed client-side from the two timestamps we do have, rather than
+  // sourced from anywhere new.
+  private renderCurrentBuildTable(result: ComputeAppSummary): void {
+    this.styledHeader('Current Build');
+    this.table({
+      data: [
+        {key: 'Build ID', value: result.currentBuild?.id ?? '-'},
+        {key: 'Build Status', value: result.currentBuild?.buildStatus ?? '-'},
+        {key: 'Build Started', value: result.currentBuild?.buildStartedAt ?? '-'},
+        {key: 'Build Completed', value: result.currentBuild?.buildCompletedAt ?? '-'},
+        {
+          key: 'Build Duration',
+          value: formatBuildDuration(result.currentBuild?.buildStartedAt, result.currentBuild?.buildCompletedAt),
+        },
+      ],
+      columns: ['key', 'value'],
+    });
+  }
+
+  // API Spec Published has no source yet -- placeholder dash. AppLink Add-on was removed --
+  // it's redundant with External Service ID (both are set together by deploy's first-time
+  // provisioning flow; there's no state where one exists without the other).
+  private renderExternalServiceTable(result: ComputeAppSummary): void {
+    this.styledHeader('External Service');
+    this.table({
+      data: [
+        {key: 'External Service ID', value: result.externalServiceId ?? '-'},
+        {key: 'API Spec Published', value: '-'},
       ],
       columns: ['key', 'value'],
     });
@@ -153,44 +193,11 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     this.styledHeader('Heroku App');
     this.table({
       data: [
-        { key: 'App Name', value: '-' },
-        { key: 'Region', value: '-' },
-        { key: 'Generation', value: '-' },
-        { key: 'Release', value: release === undefined ? '-' : String(release) },
-        { key: 'Formation', value: formatFormation(formation) },
-      ],
-      columns: ['key', 'value'],
-    });
-  }
-
-  // API Spec Published has no source yet -- placeholder dash. AppLink Add-on was removed --
-  // it's redundant with External Service ID (both are set together by deploy's first-time
-  // provisioning flow; there's no state where one exists without the other).
-  private renderExternalServiceTable(result: ComputeAppSummary): void {
-    this.styledHeader('External Service');
-    this.table({
-      data: [
-        { key: 'External Service ID', value: result.externalServiceId ?? '-' },
-        { key: 'API Spec Published', value: '-' },
-      ],
-      columns: ['key', 'value'],
-    });
-  }
-
-  // Build Duration is computed client-side from the two timestamps we do have, rather than
-  // sourced from anywhere new.
-  private renderCurrentBuildTable(result: ComputeAppSummary): void {
-    this.styledHeader('Current Build');
-    this.table({
-      data: [
-        { key: 'Build ID', value: result.currentBuild?.id ?? '-' },
-        { key: 'Build Status', value: result.currentBuild?.buildStatus ?? '-' },
-        { key: 'Build Started', value: result.currentBuild?.buildStartedAt ?? '-' },
-        { key: 'Build Completed', value: result.currentBuild?.buildCompletedAt ?? '-' },
-        {
-          key: 'Build Duration',
-          value: formatBuildDuration(result.currentBuild?.buildStartedAt, result.currentBuild?.buildCompletedAt),
-        },
+        {key: 'App Name', value: '-'},
+        {key: 'Region', value: '-'},
+        {key: 'Generation', value: '-'},
+        {key: 'Release', value: release === undefined ? '-' : String(release)},
+        {key: 'Formation', value: formatFormation(formation)},
       ],
       columns: ['key', 'value'],
     });
@@ -200,8 +207,8 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     this.styledHeader('Latest Deployment');
     this.table({
       data: [
-        { key: 'Deployed At', value: result.currentBuild?.deployedAt ?? '-' },
-        { key: 'Deployed By', value: result.currentBuild?.deployedBy ?? '-' },
+        {key: 'Deployed At', value: result.currentBuild?.deployedAt ?? '-'},
+        {key: 'Deployed By', value: result.currentBuild?.deployedBy ?? '-'},
       ],
       columns: ['key', 'value'],
     });

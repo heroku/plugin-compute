@@ -14,45 +14,43 @@
  * limitations under the License.
  */
 
-import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
-import { Messages } from '@salesforce/core';
-import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../shared/computeApp.js';
-import { queryComputeApp, toComputeAppSummary, requireHerokuAppId } from '../../shared/computeQuery.js';
-import { createComputeLogSessionViaProxy } from '../../shared/herokuProxyApi.js';
-import { fetchLogplexOutput, streamLogplexOutput } from '../../shared/computeLogStream.js';
+import {Messages} from '@salesforce/core';
+import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
+
+import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../shared/computeApp.js';
+import {fetchLogplexOutput, streamLogplexOutput} from '../../shared/computeLogStream.js';
+import {queryComputeApp, requireHerokuAppId, toComputeAppSummary} from '../../shared/computeQuery.js';
+import {createComputeLogSessionViaProxy} from '../../shared/herokuProxyApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.logs');
 
 export type ComputeLogsResult = {
-  name: string;
   lines?: string[];
+  name: string;
 };
 
 // Drops the single trailing empty element split('\n') produces when the text ends in a newline,
 // without dropping genuine blank lines in the middle of the output.
 function splitLines(text: string): string[] {
   const lines = text.split('\n');
-  if (lines.length > 0 && lines[lines.length - 1] === '') {
+  if (lines.length > 0 && lines.at(-1) === '') {
     lines.pop();
   }
+
   return lines;
 }
 
 export default class Logs extends SfCommand<ComputeLogsResult> {
-  public static readonly summary = messages.getMessage('summary');
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
-  // Org-mediated lookup by --name -- no local project files are read.
-  public static readonly requiresProject = false;
-
   public static readonly flags = {
     name: Flags.string({
       char: 'n',
       env: 'COMPUTE_APP_NAME',
       summary: messages.getMessage('flags.name.summary'),
     }),
-    'target-org': Flags.requiredOrg({ char: 'o' }),
+    'target-org': Flags.requiredOrg({char: 'o'}),
     num: Flags.integer({
       default: 100,
       summary: messages.getMessage('flags.num.summary'),
@@ -66,49 +64,63 @@ export default class Logs extends SfCommand<ComputeLogsResult> {
     }),
   };
 
+  // Org-mediated lookup by --name -- no local project files are read.
+  public static readonly requiresProject = false;
+
+  public static readonly summary = messages.getMessage('summary');
+
   public async run(): Promise<ComputeLogsResult> {
-    const { flags } = await this.parse(Logs);
-    const { num, tail } = flags;
+    const {flags} = await this.parse(Logs);
+    const {num, tail} = flags;
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
     const connection = flags['target-org'].getConnection();
     const record = await queryComputeApp(connection, name);
-    const { currentBuild } = toComputeAppSummary(record);
+    const {currentBuild} = toComputeAppSummary(record);
 
     if (!currentBuild) {
       this.info(messages.getMessage('info.noBuildsFound', [name]));
-      return { name };
+      return {name};
     }
 
     const appId = requireHerokuAppId(record, name);
-    const session = await createComputeLogSessionViaProxy(connection, { name, appId, lines: num, tail });
+    const session = await createComputeLogSessionViaProxy(connection, {
+      name, appId, lines: num, tail,
+    });
 
     if (!tail) {
       const output = await fetchLogplexOutput(session.logplexUrl);
       const lines = splitLines(output);
       if (lines.length === 0) {
         this.info(messages.getMessage('info.noLogLines', [name]));
-        return { name };
+        return {name};
       }
-      lines.forEach((line) => this.log(line));
-      return { name, lines };
+
+      for (const line of lines) this.log(line);
+      return {name, lines};
     }
 
     this.info(messages.getMessage('info.tailStarting', [name]));
     const controller = new AbortController();
-    const onSigint = (): void => controller.abort();
+    const onSigint = (): void => {
+      controller.abort();
+    };
+
     process.once('SIGINT', onSigint);
     try {
-      const reason = await streamLogplexOutput(session.logplexUrl, (line) => this.log(line), controller.signal);
+      const reason = await streamLogplexOutput(session.logplexUrl, line => {
+        this.log(line);
+      }, controller.signal);
       this.info(
         reason === 'aborted'
           ? messages.getMessage('info.tailStopped', [name])
-          : messages.getMessage('info.tailStreamEnded', [name])
+          : messages.getMessage('info.tailStreamEnded', [name]),
       );
     } finally {
       process.off('SIGINT', onSigint);
     }
-    return { name };
+
+    return {name};
   }
 }

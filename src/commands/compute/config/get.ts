@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
-import { Args } from '@oclif/core';
-import { Messages } from '@salesforce/core';
-import { validateName, requireAppName, resolveComputeAppNameFromDir } from '../../../shared/computeApp.js';
-import { resolveHerokuAppId } from '../../../shared/computeQuery.js';
-import { formatConfigVarLines, requireConfigVar } from '../../../shared/computeConfig.js';
-import { fetchComputeConfigVarsViaProxy } from '../../../shared/herokuProxyApi.js';
+import {Args} from '@oclif/core';
+import {Messages} from '@salesforce/core';
+import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
+
+import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
+import {formatConfigVarLines, requireConfigVar} from '../../../shared/computeConfig.js';
+import {resolveHerokuAppId} from '../../../shared/computeQuery.js';
+import {fetchComputeConfigVarsViaProxy} from '../../../shared/herokuProxyApi.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.config.get');
@@ -31,12 +32,6 @@ export type ComputeConfigGetResult = {
 };
 
 export default class ConfigGet extends SfCommand<ComputeConfigGetResult> {
-  public static readonly summary = messages.getMessage('summary');
-  public static readonly description = messages.getMessage('description');
-  public static readonly examples = messages.getMessages('examples');
-  // Org-mediated lookup by --name -- no local project files are read.
-  public static readonly requiresProject = false;
-
   public static readonly args = {
     key: Args.string({
       multiple: true,
@@ -44,17 +39,24 @@ export default class ConfigGet extends SfCommand<ComputeConfigGetResult> {
     }),
   };
 
+  public static readonly description = messages.getMessage('description');
+  public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
     name: Flags.string({
       char: 'n',
       env: 'COMPUTE_APP_NAME',
       summary: messages.getMessage('flags.name.summary'),
     }),
-    'target-org': Flags.requiredOrg({ char: 'o' }),
+    'target-org': Flags.requiredOrg({char: 'o'}),
   };
 
+  // Org-mediated lookup by --name -- no local project files are read.
+  public static readonly requiresProject = false;
+
+  public static readonly summary = messages.getMessage('summary');
+
   public async run(): Promise<ComputeConfigGetResult> {
-    const { args, flags } = await this.parse(ConfigGet);
+    const {args, flags} = await this.parse(ConfigGet);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
@@ -65,11 +67,12 @@ export default class ConfigGet extends SfCommand<ComputeConfigGetResult> {
     if (tokens.length === 0) {
       throw messages.createError('error.configGetNoKeysSpecified');
     }
+
     const keys = [...new Set(tokens)];
 
     const connection = flags['target-org'].getConnection();
     const appId = await resolveHerokuAppId(connection, name);
-    const configVars = await fetchComputeConfigVarsViaProxy(connection, { name, appId });
+    const configVars = await fetchComputeConfigVarsViaProxy(connection, {name, appId});
 
     const values: Record<string, string> = {};
     for (const key of keys) {
@@ -84,6 +87,6 @@ export default class ConfigGet extends SfCommand<ComputeConfigGetResult> {
       }
     }
 
-    return { name, values };
+    return {name, values};
   }
 }

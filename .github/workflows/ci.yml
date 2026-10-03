@@ -1,0 +1,63 @@
+name: Test
+on:
+  push:
+    # Only run on pushes to main; PRs trigger via pull_request to avoid duplicate runs.
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Cross-platform gate. This repo's `yarn test` wireit target is a superset of a
+  # plain unit-test run: it chains test:compile, the vitest unit tests, the oclif
+  # command-reference and deprecation-policy checks, lint, the JSON-schema check,
+  # and the link check -- so a dedicated lint job (as in the stock dev-tools
+  # ci.yml) would be redundant. Private repo -> self-hosted sfdc-hk-* runners
+  # (matching push_dependabot_metadata.yml); GitHub-hosted labels would never
+  # schedule here.
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        node-version: [22.x, 24.x]
+        os:
+          [sfdc-hk-ubuntu-latest, sfdc-hk-macos-latest, sfdc-hk-windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: yarn install --frozen-lockfile --ignore-engines
+      - name: unit tests + lint + schema/snapshot gates
+        run: yarn test
+
+  # NUTs (not-unit-tests) shell out through the built plugin via
+  # @salesforce/cli-plugins-testkit, so they need lib/ compiled first (yarn
+  # build). `sf compute generate` scaffolds locally and fetches starter source
+  # from GitHub -- no org auth or scratch org, hence no secrets.
+  nuts:
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [sfdc-hk-ubuntu-latest, sfdc-hk-windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+      - run: yarn install --frozen-lockfile --ignore-engines
+      - run: yarn build
+      - name: Generate oclif manifest
+        # NUTs shell out to ./bin/run.js via cli-plugins-testkit. Vitest sets NODE_ENV=test,
+        # which the child CLI inherits, flipping oclif into transpile mode so it resolves commands
+        # from src/*.ts (whose ESM .js import specifiers do not exist in src/) instead of lib/.
+        # A generated manifest makes oclif load commands straight from lib/, bypassing that.
+        run: yarn oclif manifest
+      - name: Install Salesforce CLI
+        run: npm install --global @salesforce/cli
+      - name: nuts
+        run: yarn test:nuts

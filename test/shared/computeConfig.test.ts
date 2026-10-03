@@ -13,29 +13,30 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { expect } from 'chai';
-import { requireConfigVar, formatConfigVarLines } from '../../src/shared/computeConfig.js';
+import {expect} from 'chai';
+
+import {formatConfigVarLines, requireConfigVar} from '../../src/shared/computeConfig.js';
 
 describe('computeConfig.requireConfigVar', () => {
   it('returns the value when the key exists', () => {
-    expect(requireConfigVar({ FOO: 'bar' }, 'CreditRatingScorer', 'FOO')).to.equal('bar');
+    expect(requireConfigVar({FOO: 'bar'}, 'CreditRatingScorer', 'FOO')).to.equal('bar');
   });
 
   it('throws error.configVarNotFound, naming the app and the missing key, when it does not', () => {
     try {
-      requireConfigVar({ FOO: 'bar' }, 'CreditRatingScorer', 'MISSING');
+      requireConfigVar({FOO: 'bar'}, 'CreditRatingScorer', 'MISSING');
       expect.fail('expected requireConfigVar to throw');
-    } catch (err) {
-      expect((err as Error).message).to.equal('CreditRatingScorer has no config var named "MISSING".');
+    } catch (error) {
+      expect((error as Error).message).to.equal('CreditRatingScorer has no config var named "MISSING".');
     }
   });
 
   it('is case-sensitive about key existence', () => {
     try {
-      requireConfigVar({ FOO_BAR: 'x' }, 'CreditRatingScorer', 'foo_bar');
+      requireConfigVar({FOO_BAR: 'x'}, 'CreditRatingScorer', 'foo_bar');
       expect.fail('expected requireConfigVar to throw');
-    } catch (err) {
-      expect((err as Error).message).to.include('"foo_bar"');
+    } catch (error) {
+      expect((error as Error).message).to.include('"foo_bar"');
     }
   });
 });
@@ -56,7 +57,7 @@ describe('computeConfig.formatConfigVarLines', () => {
   });
 
   it('returns one line per key with a single key', () => {
-    expect(formatConfigVarLines({ FOO: 'bar' })).to.deep.equal(['FOO:  bar']);
+    expect(formatConfigVarLines({FOO: 'bar'})).to.deep.equal(['FOO:  bar']);
   });
 
   it('returns an empty array for an empty map', () => {

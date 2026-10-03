@@ -14,4 +14,8 @@
  * limitations under the License.
  */
 
-export default {};
+// oclif discovers commands via the `oclif.commands` directory in package.json,
+// not this barrel, so the plugin entry point is intentionally empty.
+const plugin = {};
+
+export default plugin;

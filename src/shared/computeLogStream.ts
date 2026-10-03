@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Messages } from '@salesforce/core';
+import {Messages} from '@salesforce/core';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
@@ -30,9 +30,10 @@ export async function fetchLogplexOutput(logplexUrl: string): Promise<string> {
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
+
     return await response.text();
-  } catch (err) {
-    throw messages.createError('error.logStreamFailed', [(err as Error).message]);
+  } catch (error) {
+    throw messages.createError('error.logStreamFailed', [(error as Error).message]);
   }
 }
 
@@ -41,17 +42,18 @@ export async function fetchLogplexOutput(logplexUrl: string): Promise<string> {
 // serves either text/plain or text/event-stream, and this call wants the plain-text snapshot.
 export async function fetchBuildOutputStream(outputStreamUrl: string): Promise<string> {
   try {
-    const response = await fetch(outputStreamUrl, { headers: { Accept: 'text/plain' } });
+    const response = await fetch(outputStreamUrl, {headers: {Accept: 'text/plain'}});
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
+
     return await response.text();
-  } catch (err) {
-    throw messages.createError('error.buildOutputFetchFailed', [(err as Error).message]);
+  } catch (error) {
+    throw messages.createError('error.buildOutputFetchFailed', [(error as Error).message]);
   }
 }
 
-export type StreamEndReason = 'eof' | 'aborted';
+export type StreamEndReason = 'aborted' | 'eof';
 
 // Reports whether the stream ended because the server closed it (EOF) or because the caller's
 // AbortSignal fired, rather than leaving the caller to re-derive that from signal.aborted after
@@ -60,21 +62,23 @@ export type StreamEndReason = 'eof' | 'aborted';
 export async function streamLogplexOutput(
   logplexUrl: string,
   onLine: (line: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<StreamEndReason> {
   let response: Response;
   try {
-    response = await fetch(logplexUrl, { signal });
-  } catch (err) {
+    response = await fetch(logplexUrl, {signal});
+  } catch (error) {
     if (signal?.aborted) {
       return 'aborted';
     }
-    throw messages.createError('error.logStreamFailed', [(err as Error).message]);
+
+    throw messages.createError('error.logStreamFailed', [(error as Error).message]);
   }
 
   if (!response.ok) {
     throw messages.createError('error.logStreamFailed', [`HTTP ${response.status}`]);
   }
+
   if (!response.body) {
     return 'eof';
   }
@@ -89,22 +93,24 @@ export async function streamLogplexOutput(
     while (true) {
       // Sequential reads of one ordered stream -- there's nothing to parallelize.
       // eslint-disable-next-line no-await-in-loop
-      const { done, value } = await reader.read();
+      const {done, value} = await reader.read();
       if (done) {
         break;
       }
-      buffer += decoder.decode(value, { stream: true });
+
+      buffer += decoder.decode(value, {stream: true});
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
       for (const line of lines) {
         onLine(line);
       }
     }
-  } catch (err) {
+  } catch (error) {
     if (signal?.aborted) {
       return 'aborted';
     }
-    throw messages.createError('error.logStreamFailed', [(err as Error).message]);
+
+    throw messages.createError('error.logStreamFailed', [(error as Error).message]);
   }
 
   // Reaching here means reader.read() resolved with done:true, i.e. a genuine server-side close
@@ -113,5 +119,6 @@ export async function streamLogplexOutput(
   if (buffer.length > 0) {
     onLine(buffer);
   }
+
   return 'eof';
 }

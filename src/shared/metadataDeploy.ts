@@ -14,22 +14,27 @@
  * limitations under the License.
  */
 
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import {getLogger} from '@oclif/core';
+import {type Connection, Messages} from '@salesforce/core';
+import {ensureArray} from '@salesforce/kit';
+import {MetadataApiDeploy} from '@salesforce/source-deploy-retrieve';
 import JSZip from 'jszip';
-import type { Connection } from '@salesforce/core';
-import { Messages } from '@salesforce/core';
-import { ensureArray } from '@salesforce/kit';
-import { MetadataApiDeploy } from '@salesforce/source-deploy-retrieve';
-import { getLogger } from '@oclif/core';
-import { resolveComputeApiVersion } from './metadataApiVersion.js';
+import {
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+
+import {resolveComputeApiVersion} from './metadataApiVersion.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
 
 // Gated by DEBUG=sf:compute:metadataDeploy (or DEBUG=*).
-const debug = getLogger('sf:compute:metadataDeploy').debug;
+const {debug} = getLogger('sf:compute:metadataDeploy');
 
 export type ComputeMetadataDeployResult = {
   id: string;
@@ -46,7 +51,7 @@ export type ComputeMetadataDeployResult = {
 export async function deployComputeMetadata(
   connection: Connection,
   appDir: string,
-  name: string
+  name: string,
 ): Promise<ComputeMetadataDeployResult> {
   const metaXml = await readFile(join(appDir, `${name}.compute-meta.xml`), 'utf8');
 
@@ -63,7 +68,7 @@ export async function deployComputeMetadata(
       `    <version>${resolveComputeApiVersion(connection)}</version>`,
       '</Package>',
       '',
-    ].join('\n')
+    ].join('\n'),
   );
   // PlatformComputeApp is a standard (non-bundle) metadata type -- flat
   // directoryName/<name>.<suffix>, not a per-component subdirectory like LWC/Aura bundles use.
@@ -72,7 +77,7 @@ export async function deployComputeMetadata(
   // file on the wire -- that's purely our own on-disk source-format convention.
   zip.file(`platformComputeApps/${name}.compute`, metaXml);
 
-  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+  const zipBuffer = await zip.generateAsync({type: 'nodebuffer'});
 
   // MetadataApiDeploy's getZipBuffer() only accepts a ComponentSet, an mdapiPath directory, or a
   // zipPath file -- there's no "hand it a Buffer directly" option, so the in-memory zip built
@@ -85,10 +90,10 @@ export async function deployComputeMetadata(
     const deploy = new MetadataApiDeploy({
       usernameOrConnection: connection,
       zipPath,
-      apiOptions: { singlePackage: true },
+      apiOptions: {singlePackage: true},
     });
 
-    const { id } = await deploy.start();
+    const {id} = await deploy.start();
     debug('started metadata deploy %s for %s', id, name);
 
     // MetadataApiDeploy.pollStatus() sizes its own polling frequency from the zip it just
@@ -98,14 +103,14 @@ export async function deployComputeMetadata(
 
     if (!result.response.success) {
       const failureDetail = ensureArray(result.response.details.componentFailures)
-        .map((f) => f.problem)
+        .map(f => f.problem)
         .filter(Boolean)
         .join('; ');
       throw messages.createError('error.metadataDeployFailed', [name, failureDetail || 'Unknown error.']);
     }
 
-    return { id };
+    return {id};
   } finally {
-    await rm(tempDir, { recursive: true, force: true });
+    await rm(tempDir, {recursive: true, force: true});
   }
 }

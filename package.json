@@ -36,7 +36,7 @@
     "rimraf": "^6.0.1",
     "sinon": "^10",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.4",
+    "typescript": "^6.0.3",
     "vite": "^7",
     "vitest": "^5"
   },
@@ -108,7 +108,8 @@
   },
   "overrides": {
     "fast-uri": "^3.1.8",
-    "@jsforce/jsforce-node": "^3.10.27"
+    "@jsforce/jsforce-node": "^3.10.27",
+    "typescript": "$typescript"
   },
   "exports": "./lib/index.js",
   "type": "module"

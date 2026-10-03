@@ -1,10 +1,20 @@
 {
-  "extends": "@salesforce/dev-config/tsconfig-test-strict-esm",
-  "include": ["./**/*.ts"],
   "compilerOptions": {
-    "skipLibCheck": true,
-    "types": ["vitest/globals"],
+    // Inlined from @salesforce/dev-config/tsconfig-test-strict-esm (retired with
+    // @salesforce/dev-scripts): the strict-esm base plus noEmit for a typecheck-only pass.
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "target": "es2024",
-    "lib": ["es2024"]
-  }
+    "lib": ["es2024"],
+    "alwaysStrict": true,
+    "noUnusedLocals": true,
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["vitest/globals"]
+  },
+  "ts-node": {
+    "esm": true
+  },
+  "include": ["./**/*.ts"]
 }

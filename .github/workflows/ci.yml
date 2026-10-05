@@ -22,7 +22,7 @@ jobs:
       - run: npm run lint
 
   # Cross-platform gate: `npm test` runs compile, the vitest unit tests, the oclif
-  # command-reference/snapshot/schema gates, and link-check. Lint is a separate job.
+  # snapshot/schema gates, and link-check. Lint is a separate job.
   test:
     runs-on: ${{ matrix.os }}
     strategy:

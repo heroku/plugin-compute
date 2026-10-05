@@ -130,7 +130,7 @@ describe('computeBundle.packageComputeBundle', () => {
   it('reports the source file count including api-spec.yaml and project.toml, excluding only meta xml', async () => {
     const {fileCount} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
-    expect(fileCount).to.equal(5); // Procfile, project.toml, src/app.js, api-spec.yaml (in source.tar.gz), plus the outer api-spec.yaml entry
+    expect(fileCount).to.equal(4); // Procfile, project.toml, src/app.js, api-spec.yaml
   });
 
   it('excludes files matching the app-level .forceignore', async () => {
@@ -200,9 +200,9 @@ describe('computeBundle.packageComputeBundle', () => {
   });
 
   it('excludes Procfile if a .forceignore pattern happens to match it', async () => {
-    // packageComputeBundle only guards the meta-xml/.forceignore itself from user-authored
-    // ignore rules -- api-spec.yaml, project.toml, and Procfile are not special-cased, so a
-    // broad pattern here silently produces an unbuildable bundle. Locking in current behavior;
+    // packageComputeBundle only guards the meta-xml/.forceignore, api-spec.yaml, and project.toml
+    // from user-authored ignore rules -- Procfile is not special-cased, so a broad pattern here
+    // silently produces an unbuildable bundle. Locking in current behavior;
     // deploy.ts is responsible for surfacing this earlier if it becomes a problem in practice.
     await writeFile(join(appDir, '.forceignore'), 'Procfile\n');
 
@@ -210,6 +210,17 @@ describe('computeBundle.packageComputeBundle', () => {
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
     expect(Object.keys(source).toSorted()).to.deep.equal(['api-spec.yaml', 'project.toml', 'src/app.js'].toSorted());
+  });
+
+  it('keeps api-spec.yaml and project.toml even when a .forceignore pattern matches them', async () => {
+    await writeFile(join(appDir, '.forceignore'), '*.yaml\nproject.toml\n');
+
+    const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
+
+    const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
+    expect(Object.keys(source).toSorted()).to.deep.equal(
+      ['Procfile', 'api-spec.yaml', 'project.toml', 'src/app.js'].toSorted(),
+    );
   });
 });
 
@@ -238,7 +249,7 @@ describe('computeBundle.unpackComputeBundle', () => {
 
       const {fileCount} = await unpackComputeBundle(buffer, outputDir);
 
-      expect(fileCount).to.equal(5); // Procfile, project.toml, src/app.js, api-spec.yaml (in source.tar.gz), plus the outer api-spec.yaml
+      expect(fileCount).to.equal(4); // Procfile, project.toml, src/app.js, api-spec.yaml
       expect(await readFile(join(outputDir, 'api-spec.yaml'), 'utf8')).to.equal('openapi: 3.0.0\n');
       expect(await readFile(join(outputDir, 'Procfile'), 'utf8')).to.equal('web: node src/app.js\n');
       expect(await readFile(join(outputDir, 'src', 'app.js'), 'utf8')).to.equal('console.log("hi");\n');

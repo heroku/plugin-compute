@@ -2,7 +2,7 @@
 
 All notable changes to `@salesforce/plugin-compute` are documented here.
 
-## [1.0.0](https://github.com/heroku/plugin-compute/compare/56a7283...eea44cd) (2026-09-03)
+## [0.1.0](https://github.com/heroku/plugin-compute/compare/56a7283...eea44cd) (2026-09-03)
 
 ### Features
 

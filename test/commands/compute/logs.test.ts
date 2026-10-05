@@ -118,7 +118,7 @@ describe('compute logs', () => {
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).toEqual({lines: ['line one', 'line two'], name: 'CreditRatingScorer'});
+    expect(result).toStrictEqual({lines: ['line one', 'line two'], name: 'CreditRatingScorer'});
     const output = sfCommandStubs.log
       .getCalls()
       .flatMap(c => c.args)
@@ -141,7 +141,7 @@ describe('compute logs', () => {
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).toEqual({name: 'CreditRatingScorer'});
+    expect(result).toStrictEqual({name: 'CreditRatingScorer'});
     expect(sfCommandStubs.info.firstCall.args[0]).toContain('has no builds yet');
     expect(findLogSessionCall(requestStub)).toBeUndefined();
     expect(fetchStub).not.toHaveBeenCalled();
@@ -153,7 +153,7 @@ describe('compute logs', () => {
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).toEqual({name: 'CreditRatingScorer'});
+    expect(result).toStrictEqual({name: 'CreditRatingScorer'});
     expect(sfCommandStubs.info.lastCall.args[0]).toContain('no log output yet');
   });
 
@@ -173,7 +173,7 @@ describe('compute logs', () => {
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--tail', '--target-org', testOrg.username]);
 
-    expect(result).toEqual({name: 'CreditRatingScorer'});
+    expect(result).toStrictEqual({name: 'CreditRatingScorer'});
     const output = sfCommandStubs.log
       .getCalls()
       .flatMap(c => c.args)
@@ -293,6 +293,7 @@ describe('compute logs', () => {
       await rm(tmp, {force: true, recursive: true});
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("Couldn't determine which compute app to use");
 
     expect(toolingQueryStub).not.toHaveBeenCalled();
@@ -305,6 +306,6 @@ describe('compute logs', () => {
     const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as Record<string, unknown>;
 
     expect(JSON.stringify(jsonOutput)).not.toContain('"lines"');
-    expect(result).toEqual({name: 'CreditRatingScorer'});
+    expect(result).toStrictEqual({name: 'CreditRatingScorer'});
   });
 });

@@ -61,6 +61,7 @@ describe('computeLogStream.fetchLogplexOutput', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('HTTP 410');
   });
 });
@@ -119,6 +120,7 @@ describe('computeLogStream.streamLogplexOutput', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('HTTP 410');
   });
 
@@ -139,6 +141,7 @@ describe('computeLogStream.streamLogplexOutput', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('connection reset');
   });
 });

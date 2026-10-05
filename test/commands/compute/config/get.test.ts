@@ -139,6 +139,7 @@ describe('compute config get', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toBe('CreditRatingScorer has no config var named "ZEBRA".');
   });
 
@@ -246,6 +247,7 @@ describe('compute config get', () => {
       await rm(tmp, {force: true, recursive: true});
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("Couldn't determine which compute app to use");
 
     expect(findConfigVarsCall(requestStub)).toBeUndefined();

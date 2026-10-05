@@ -260,6 +260,7 @@ describe('compute config set', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toBe('"FOO_BAR" is not a valid KEY=VALUE pair. Use FOO_BAR=value.');
 
     expect(findConfigVarsCall(requestStub)).toBeUndefined();
@@ -395,6 +396,7 @@ describe('compute config set', () => {
       await rm(tmp, {force: true, recursive: true});
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("Couldn't determine which compute app to use");
 
     expect(findConfigVarsCall(requestStub)).toBeUndefined();

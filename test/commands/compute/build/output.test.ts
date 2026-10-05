@@ -338,6 +338,7 @@ describe('compute build output', () => {
       await rm(tmp, {force: true, recursive: true});
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("Couldn't determine which compute app to use");
 
     expect(toolingQueryStub).not.toHaveBeenCalled();

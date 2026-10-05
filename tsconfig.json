@@ -11,10 +11,9 @@
     "alwaysStrict": true,
     "noUnusedLocals": true,
     "strict": true,
-    // Skip type-checking third-party .d.ts files. Upstream @types drift (e.g. @types/sinon
-    // vs a newer @sinonjs/fake-timers, @salesforce/core vs pino, @types/cacheable-request vs
-    // keyv) otherwise fails our compile with errors we can't fix and don't own. This matches
-    // test/tsconfig.json and is the standard posture for a library consuming floating @types.
+    // Skip type-checking third-party .d.ts files, so upstream @types drift we don't own can't
+    // break our compile (e.g. @salesforce/core's .d.ts references pino.TransportSingleOptions,
+    // which the resolved pino types no longer export). Matches test/tsconfig.json.
     "skipLibCheck": true,
     "outDir": "lib",
     "rootDir": "src",

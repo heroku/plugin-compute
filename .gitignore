@@ -4,6 +4,9 @@ tmp/
 # generated at pack time by prepack, removed by postpack -- never committed
 npm-shrinkwrap.json
 
+# npm config may hold a registry auth token or a local min-release-age override -- never commit
+.npmrc
+
 # debug logs
 npm-error.log
 yarn-error.log

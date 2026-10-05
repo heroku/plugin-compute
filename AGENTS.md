@@ -113,10 +113,11 @@ rm -rf node_modules package-lock.json
 env -u NODE_ENV npm_config_min_release_age=0 npm install
 ```
 
-A cold regen also re-resolves `^` ranges and can float third-party `@types`
-(e.g. `@types/sinon` vs a newer `@sinonjs/fake-timers`); both `tsconfig.json` and
-`test/tsconfig.json` set `skipLibCheck: true` so upstream `.d.ts` drift we don't
-own can't break `tsc`.
+A cold regen also re-resolves `^` ranges and can float third-party `@types` out
+of step with the packages they describe (currently `@salesforce/core`'s `.d.ts`
+references `pino.TransportSingleOptions`, which the resolved `pino` types no
+longer export); both `tsconfig.json` and `test/tsconfig.json` set
+`skipLibCheck: true` so upstream `.d.ts` drift we don't own can't break `tsc`.
 
 ## Test stack: vitest only — but `@types/sinon` stays (don't remove it)
 
@@ -132,11 +133,17 @@ assertions use the global vitest `expect`.
 `.getCalls()` / `.firstCall` / `.lastCall` / `.returns` / `.stub` on them. Those
 framework packages carry `@types/sinon` only as a *devDep*, so it isn't resolved
 transitively for consumers — without our own direct `@types/sinon` the stub
-types collapse to `any`, which `tsc` tolerates (via `skipLibCheck`) but the
-type-aware `@typescript-eslint/no-unsafe-*` rules reject across the whole suite
+types collapse to `any`. Plain `any` reads don't error under `tsc` on their own
+(this is just how an unresolved type degrades — not something `skipLibCheck`
+buys us; `noImplicitAny` only fires on un-annotated *declaration* positions,
+which these stub property reads aren't), but the type-aware
+`@typescript-eslint/no-unsafe-*` rules reject them across the whole suite
 (70+ errors on every `.getCalls`/`.firstCall`/`.returns`/`.stub` access). It is
 type-only (no runtime, no supply-chain surface), so keeping it is the correct
-posture. The vitest `expect` matchers (`toHaveBeenCalledWith`, …) only work on
+posture. We pin `^10` even though the transitively-present `sinon` runtime is
+v17: `@salesforce/core` itself builds against `@types/sinon@^10`, so v10 matches
+the stub shapes the framework exposes, and the runtime major is irrelevant to
+type-only consumption — the version skew is harmless, not a hazard. The vitest `expect` matchers (`toHaveBeenCalledWith`, …) only work on
 `vi.fn()` mocks — never on these framework sinon stubs; wrap sinon-stub property
 reads in `expect(...)` instead (e.g. `expect(stub.firstCall.args[0]).to…`).
 

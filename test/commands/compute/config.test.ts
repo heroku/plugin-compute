@@ -226,6 +226,7 @@ describe('compute config', () => {
       await rm(tmp, {force: true, recursive: true});
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("Couldn't determine which compute app to use");
 
     expect(findConfigVarsCall(requestStub)).toBeUndefined();

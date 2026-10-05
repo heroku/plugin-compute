@@ -122,6 +122,7 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('CreditRatingScorer');
     expect(error?.message).toContain('No such app');
   });
@@ -137,6 +138,7 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('platformComputeApps/CreditRatingScorer.compute');
   });
 });

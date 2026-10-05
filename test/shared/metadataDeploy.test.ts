@@ -129,6 +129,7 @@ describe('metadataDeploy.deployComputeMetadata', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('CreditRatingScorer');
     expect(error?.message).toContain('Invalid metadata type PlatformComputeApp');
   });

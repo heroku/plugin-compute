@@ -119,6 +119,7 @@ describe('computeQuery.queryComputeApp', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("isn't valid");
 
     expect(singleRecordQuery).not.toHaveBeenCalled();
@@ -135,6 +136,7 @@ describe('computeQuery.queryComputeApp', () => {
       error = error_ as SfError;
     }
 
+    expect(error).toBeDefined();
     const e = error!;
     expect(e.message).toContain('No compute app named NeverDeployed was found in the org');
     const actions = e.actions ?? [];
@@ -153,6 +155,7 @@ describe('computeQuery.queryComputeApp', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('Found more than one compute app named CreditRatingScorer');
   });
 
@@ -167,6 +170,7 @@ describe('computeQuery.queryComputeApp', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("Couldn't query compute app details: INVALID_SESSION_ID");
   });
 
@@ -184,6 +188,7 @@ describe('computeQuery.queryComputeApp', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("Couldn't query compute app details: INVALID_SESSION_ID");
   });
 });
@@ -228,6 +233,7 @@ describe('computeQuery.listComputeApps', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("Couldn't query compute app details: INVALID_SESSION_ID");
   });
 
@@ -245,6 +251,7 @@ describe('computeQuery.listComputeApps', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("Couldn't query compute app details: INVALID_SESSION_ID");
   });
 });
@@ -339,6 +346,7 @@ describe('computeQuery.requireHerokuAppId', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('CreditRatingScorer');
     expect(error?.message).toContain("doesn't have a Heroku app identifier yet");
   });
@@ -369,6 +377,7 @@ describe('computeQuery.resolveHerokuAppId', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("doesn't have a Heroku app identifier yet");
   });
 
@@ -383,6 +392,7 @@ describe('computeQuery.resolveHerokuAppId', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('No compute app named NeverDeployed was found in the org');
   });
 });

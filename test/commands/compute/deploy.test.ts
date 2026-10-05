@@ -245,6 +245,7 @@ describe('compute deploy', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('Not-Valid.compute-meta.xml');
     expect(error?.message).not.toContain("isn't valid");
 

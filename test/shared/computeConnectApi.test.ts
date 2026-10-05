@@ -56,6 +56,7 @@ describe('computeConnectApi.uploadComputeSource', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('socket hang up');
     expect(error?.message).toContain('Connect API');
   });
@@ -104,6 +105,7 @@ describe('computeConnectApi.downloadComputeSource', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('socket hang up');
     expect(error?.message).toContain('source');
   });

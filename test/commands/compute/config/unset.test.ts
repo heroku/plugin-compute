@@ -182,6 +182,7 @@ describe('compute config unset', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toBe('CreditRatingScorer has no config var named "MISSING".');
 
     expect(findConfigVarsCall(requestStub, 'PATCH')).toBeUndefined();
@@ -383,6 +384,7 @@ describe('compute config unset', () => {
       await rm(tmp, {force: true, recursive: true});
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("Couldn't determine which compute app to use");
 
     expect(findConfigVarsCall(requestStub)).toBeUndefined();

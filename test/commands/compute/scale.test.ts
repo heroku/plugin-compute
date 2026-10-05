@@ -277,6 +277,7 @@ describe('compute scale', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('"xl" is not a valid size');
     expect(error?.message).toContain(
       'dyno-1c-0.5gb, dyno-2c-1gb, dyno-1c-4gb, dyno-2c-8gb, dyno-4c-16gb, dyno-8c-32gb, dyno-16c-64gb, '
@@ -297,6 +298,7 @@ describe('compute scale', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain('CreditRatingScorer');
     expect(error?.message).toContain('web');
   });
@@ -357,6 +359,7 @@ describe('compute scale', () => {
       delete process.env.COMPUTE_APP_NAME;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("isn't valid");
     expect(toolingQueryStub).not.toHaveBeenCalled();
     expect(findFormationCall(requestStub)).toBeUndefined();
@@ -392,6 +395,7 @@ describe('compute scale', () => {
       await rm(tmp, {force: true, recursive: true});
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toContain("Couldn't determine which compute app to use");
     expect(findFormationCall(requestStub)).toBeUndefined();
   });

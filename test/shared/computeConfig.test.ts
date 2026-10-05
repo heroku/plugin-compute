@@ -33,6 +33,7 @@ describe('computeConfig.requireConfigVar', () => {
       error = error_ as Error;
     }
 
+    expect(error).toBeDefined();
     expect(error?.message).toBe('CreditRatingScorer has no config var named "MISSING".');
   });
 

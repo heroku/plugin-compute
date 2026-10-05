@@ -17,9 +17,10 @@
 import {type Connection, Messages} from '@salesforce/core';
 
 import {parseName} from './computeApp.js';
+import {PLUGIN_NAME} from './plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 
 // @salesforce/core doesn't re-export SingleRecordQueryErrors from its package root (only from
 // the internal org/connection module), so match the stable error names it throws by value.

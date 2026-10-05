@@ -1,6 +1,6 @@
 # plugin-compute
 
-[![NPM](https://img.shields.io/npm/v/@salesforce/plugin-compute.svg?label=@salesforce/plugin-compute)](https://www.npmjs.com/package/@salesforce/plugin-compute) [![Downloads/week](https://img.shields.io/npm/dw/@salesforce/plugin-compute.svg)](https://npmjs.org/package/@salesforce/plugin-compute) [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://opensource.org/license/apache-2-0)
+[![NPM](https://img.shields.io/npm/v/@heroku/plugin-compute.svg?label=@heroku/plugin-compute)](https://www.npmjs.com/package/@heroku/plugin-compute) [![Downloads/week](https://img.shields.io/npm/dw/@heroku/plugin-compute.svg)](https://npmjs.org/package/@heroku/plugin-compute) [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://opensource.org/license/apache-2-0)
 
 `sf compute` -- the CLI for Salesforce Compute: generate, deploy, and operate
 org-resident custom app logic (built on Heroku) invocable from Apex/Flow via
@@ -29,7 +29,7 @@ We always recommend using the latest version of these commands bundled with the 
 ## Install
 
 ```bash
-sf plugins install @salesforce/plugin-compute@x.y.z
+sf plugins install @heroku/plugin-compute@x.y.z
 ```
 
 ## Issues

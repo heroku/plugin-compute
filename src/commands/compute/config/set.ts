@@ -21,9 +21,10 @@ import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
 import {resolveHerokuAppId} from '../../../shared/computeQuery.js';
 import {fetchLatestReleaseVersionViaProxy, updateComputeConfigVarsViaProxy} from '../../../shared/herokuProxyApi.js';
+import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.config.set');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.config.set');
 
 // Splits on the first = only, so a value that itself contains one (e.g. a connection string's
 // query params) isn't truncated. Requires a non-empty key.

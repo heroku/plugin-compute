@@ -22,9 +22,10 @@ import {dirname, join} from 'node:path';
 import {pathExists, resolveAppDir, validateName} from '../../shared/computeApp.js';
 import {GENERATED_SKELETONS} from '../../shared/computeGenerateSkeletons.js';
 import {fetchTemplateSource, type FetchTemplateSource, type Language} from '../../shared/computeGenerateSource.js';
+import {PLUGIN_NAME} from '../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.generate');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.generate');
 
 export type ComputeGenerateResult = {
   files: string[];

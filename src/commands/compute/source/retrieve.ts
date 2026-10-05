@@ -22,9 +22,10 @@ import {pathExists, resolveAppDir, validateName} from '../../../shared/computeAp
 import {unpackComputeBundle} from '../../../shared/computeBundle.js';
 import {downloadComputeSource} from '../../../shared/computeConnectApi.js';
 import {retrieveComputeMetadata} from '../../../shared/metadataRetrieve.js';
+import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.source.retrieve');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.source.retrieve');
 
 export type ComputeSourceRetrieveResult = {
   files: number;

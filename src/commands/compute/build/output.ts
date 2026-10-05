@@ -21,9 +21,10 @@ import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../
 import {fetchBuildOutputStream} from '../../../shared/computeLogStream.js';
 import {queryComputeApp, requireHerokuAppId, toComputeAppSummary} from '../../../shared/computeQuery.js';
 import {fetchLatestBuildOutputStreamUrlViaProxy} from '../../../shared/herokuProxyApi.js';
+import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.build.output');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.build.output');
 
 export type ComputeBuildOutputResult = {
   buildStatus?: 'BUILDING' | 'FAILED' | 'PENDING' | 'SUCCEEDED';

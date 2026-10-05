@@ -35,9 +35,10 @@ import {createGzip, gunzipSync} from 'node:zlib';
 import tarStream from 'tar-stream';
 
 import {pathExists} from './computeApp.js';
+import {PLUGIN_NAME} from './plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 
 // Gated by DEBUG=sf:compute:bundle (or DEBUG=*) -- see @oclif/core's Command#debug, which this
 // mirrors for code that isn't a command instance.

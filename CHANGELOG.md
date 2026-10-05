@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@salesforce/plugin-compute` are documented here.
+All notable changes to `@heroku/plugin-compute` are documented here.
 
 ## [0.1.0](https://github.com/heroku/plugin-compute/compare/56a7283...eea44cd) (2026-09-03)
 

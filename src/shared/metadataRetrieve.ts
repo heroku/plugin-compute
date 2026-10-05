@@ -21,9 +21,10 @@ import {writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 
 import {resolveComputeApiVersion} from './metadataApiVersion.js';
+import {PLUGIN_NAME} from './plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 
 // Gated by DEBUG=sf:compute:metadataRetrieve (or DEBUG=*).
 const {debug} = getLogger('sf:compute:metadataRetrieve');

@@ -21,9 +21,10 @@ import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../
 import {fetchLogplexOutput, streamLogplexOutput} from '../../shared/computeLogStream.js';
 import {queryComputeApp, requireHerokuAppId, toComputeAppSummary} from '../../shared/computeQuery.js';
 import {createComputeLogSessionViaProxy} from '../../shared/herokuProxyApi.js';
+import {PLUGIN_NAME} from '../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.logs');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.logs');
 
 export type ComputeLogsResult = {
   lines?: string[];

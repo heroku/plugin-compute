@@ -18,9 +18,10 @@ import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 
 import {type ComputeAppSummary, listComputeApps, toComputeAppSummary} from '../../shared/computeQuery.js';
+import {PLUGIN_NAME} from '../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.list');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.list');
 
 export type ComputeListResult = ComputeAppSummary[];
 

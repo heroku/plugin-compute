@@ -5,7 +5,7 @@
     "flagAliases": [],
     "flagChars": ["n", "o"],
     "flags": ["flags-dir", "json", "name", "target-org"],
-    "plugin": "@salesforce/plugin-compute"
+    "plugin": "@heroku/plugin-compute"
   },
   {
     "alias": [],
@@ -13,7 +13,7 @@
     "flagAliases": [],
     "flagChars": ["n", "o"],
     "flags": ["flags-dir", "json", "name", "target-org"],
-    "plugin": "@salesforce/plugin-compute"
+    "plugin": "@heroku/plugin-compute"
   },
   {
     "alias": [],
@@ -21,7 +21,7 @@
     "flagAliases": [],
     "flagChars": ["n", "o"],
     "flags": ["flags-dir", "json", "name", "target-org"],
-    "plugin": "@salesforce/plugin-compute"
+    "plugin": "@heroku/plugin-compute"
   },
   {
     "alias": [],
@@ -29,7 +29,7 @@
     "flagAliases": [],
     "flagChars": ["n", "o"],
     "flags": ["flags-dir", "json", "name", "target-org"],
-    "plugin": "@salesforce/plugin-compute"
+    "plugin": "@heroku/plugin-compute"
   },
   {
     "alias": [],
@@ -37,7 +37,7 @@
     "flagAliases": [],
     "flagChars": ["n", "o"],
     "flags": ["flags-dir", "json", "name", "target-org"],
-    "plugin": "@salesforce/plugin-compute"
+    "plugin": "@heroku/plugin-compute"
   },
   {
     "alias": [],
@@ -45,7 +45,7 @@
     "flagAliases": [],
     "flagChars": ["d", "o"],
     "flags": ["flags-dir", "json", "source-dir", "target-org"],
-    "plugin": "@salesforce/plugin-compute"
+    "plugin": "@heroku/plugin-compute"
   },
   {
     "alias": [],
@@ -53,7 +53,7 @@
     "flagAliases": [],
     "flagChars": ["n", "o", "v"],
     "flags": ["flags-dir", "json", "name", "target-org", "verbose"],
-    "plugin": "@salesforce/plugin-compute"
+    "plugin": "@heroku/plugin-compute"
   },
   {
     "alias": [],
@@ -61,7 +61,7 @@
     "flagAliases": [],
     "flagChars": ["d", "l", "n"],
     "flags": ["flags-dir", "json", "language", "name", "output-dir"],
-    "plugin": "@salesforce/plugin-compute"
+    "plugin": "@heroku/plugin-compute"
   },
   {
     "alias": [],
@@ -69,7 +69,7 @@
     "flagAliases": [],
     "flagChars": ["o"],
     "flags": ["flags-dir", "json", "target-org"],
-    "plugin": "@salesforce/plugin-compute"
+    "plugin": "@heroku/plugin-compute"
   },
   {
     "alias": [],
@@ -77,7 +77,7 @@
     "flagAliases": [],
     "flagChars": ["n", "o"],
     "flags": ["flags-dir", "json", "name", "num", "tail", "target-org"],
-    "plugin": "@salesforce/plugin-compute"
+    "plugin": "@heroku/plugin-compute"
   },
   {
     "alias": [],
@@ -85,7 +85,7 @@
     "flagAliases": [],
     "flagChars": ["n", "o"],
     "flags": ["flags-dir", "json", "name", "target-org"],
-    "plugin": "@salesforce/plugin-compute"
+    "plugin": "@heroku/plugin-compute"
   },
   {
     "alias": [],
@@ -93,6 +93,6 @@
     "flagAliases": [],
     "flagChars": ["d", "n", "o"],
     "flags": ["flags-dir", "json", "name", "output-dir", "target-org"],
-    "plugin": "@salesforce/plugin-compute"
+    "plugin": "@heroku/plugin-compute"
   }
 ]

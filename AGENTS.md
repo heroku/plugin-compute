@@ -1,11 +1,29 @@
 # AGENTS.md — plugin-compute
 
-`@salesforce/plugin-compute` is a Salesforce CLI (`sf`) plugin, built on the
+`@heroku/plugin-compute` is a Salesforce CLI (`sf`) plugin, built on the
 oclif plugin framework and `@salesforce/sf-plugins-core`, that adds
 `sf compute deploy|display|generate|list|logs|build output|scale|config|config
 get|config set|config unset` — commands for managing "compute apps"
 (Heroku-backed `PlatformComputeApp` metadata invocable from Apex/Flow via
 AppLink External Services).
+
+## Package name: `@heroku/plugin-compute` (temporary — will become `@salesforce/`)
+
+The npm package name is **`@heroku/plugin-compute`**. This is deliberate and
+temporary: while the plugin is private/pre-GA it publishes under the `@heroku`
+scope. **Once it goes public, the name switches to `@salesforce/plugin-compute`.**
+The CLI binary (`sf`) and the `sf compute …` command surface are unaffected —
+only the npm identifier changes. The package name is load-bearing beyond
+`package.json`: every `Messages.loadMessages(PLUGIN_NAME, …)` call in `src/`
+must match it (or message loading throws at runtime), and
+`command-snapshot.json`'s `plugin` field must match it (or `snapshot:compare`
+fails). The `loadMessages` first arg is centralized in one place — the
+`PLUGIN_NAME` const in `src/shared/plugin-name.ts` — so the message-bundle key
+is a single edit, not a `src/`-wide sweep. When the eventual `@salesforce/`
+rename happens, update all three in lockstep (`package.json` +
+`package-lock.json` name, the `PLUGIN_NAME` const in
+`src/shared/plugin-name.ts`, and the snapshot `plugin` field) plus the
+README/CHANGELOG/CONTRIBUTING references.
 
 Standard oclif/sf-plugins-core layout: commands in `src/commands/compute/`,
 shared logic in `src/shared/`, user-facing strings in `messages/*.md`

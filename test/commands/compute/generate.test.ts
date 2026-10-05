@@ -23,7 +23,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {join, sep} from 'node:path';
 
 import type {FetchTemplateSource, Language} from '../../../src/shared/computeGenerateSource.js';
 
@@ -77,6 +77,12 @@ const FIXTURE_SOURCE: Record<Language, Record<string, string>> = {
   },
 };
 
+// Forward-slash path of a generated file relative to its app dir, so assertions hold on Windows.
+function appRelative(filePath: string, appName: string): string {
+  const appDir = join('platformComputeApps', appName) + sep;
+  return filePath.slice(filePath.indexOf(appDir) + appDir.length).split(sep).join('/');
+}
+
 const stubFetchTemplateSource: FetchTemplateSource = async language => {
   const entries: Record<string, Buffer> = {};
   for (const [path, contents] of Object.entries(FIXTURE_SOURCE[language])) {
@@ -119,8 +125,8 @@ describe('compute generate', () => {
     expect(result.name).to.equal('CreditRatingScorer');
     expect(result.language).to.equal('node');
     expect(result.files).to.have.length(12);
-    expect(result.files.some(f => f.endsWith('src/app.js'))).to.be.true;
-    expect(result.files.some(f => f.endsWith('src/plugins/heroku-applink.js'))).to.be.true;
+    expect(result.files.some(f => f.endsWith(join('src', 'app.js')))).to.be.true;
+    expect(result.files.some(f => f.endsWith(join('src', 'plugins', 'heroku-applink.js')))).to.be.true;
     expect(result.files.some(f => f.endsWith('package-lock.json'))).to.be.true;
     expect(result.files.some(f => f.endsWith(join('test', 'routes', 'healthcheck.test.js')))).to.be.true;
 
@@ -243,7 +249,7 @@ describe('compute generate', () => {
 
   it('omits upstream governance files and example tests from the node app', async () => {
     const result = await Generate.run(['--name', 'CleanNode']);
-    const relative = result.files.map(f => f.split('CleanNode/', 2)[1]);
+    const relative = result.files.map(f => appRelative(f, 'CleanNode'));
 
     for (const denied of ['CODEOWNERS', 'LICENSE.txt', 'app.json', 'test/routes/accounts.test.js']) {
       expect(relative, denied).to.not.include(denied);
@@ -252,7 +258,7 @@ describe('compute generate', () => {
 
   it('omits upstream governance files, example routers, and example router tests from the python app', async () => {
     const result = await Generate.run(['--name', 'CleanPython', '--language', 'python']);
-    const relative = result.files.map(f => f.split('CleanPython/', 2)[1]);
+    const relative = result.files.map(f => appRelative(f, 'CleanPython'));
 
     for (const denied of ['SECURITY.md', 'app/routers/accounts.py', 'tests/routers/test_accounts.py']) {
       expect(relative, denied).to.not.include(denied);

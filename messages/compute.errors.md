@@ -128,7 +128,7 @@ Compute app %s doesn't have a Heroku app identifier yet.
 
 # error.configVarNotFound.actions
 
-- Run sf compute config --name <name> --target-org <org> to see the app's current config vars.
+- Run sf compute config list --name <name> --target-org <org> to see the app's current config vars.
 
 # error.metadataRetrieveFailed
 

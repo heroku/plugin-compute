@@ -27,7 +27,7 @@ import {
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-import Config from '../../../src/commands/compute/config.js';
+import ConfigList from '../../../../src/commands/compute/config/list.js';
 
 // Decode the real Heroku target URL out of the proxy_url query param -- mirrors
 // herokuProxyRequest's proxyUrl construction in herokuProxyApi.ts.
@@ -60,7 +60,7 @@ const computeAppRecord = {
   StatusReason: null,
 };
 
-describe('compute config', () => {
+describe('compute config list', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
@@ -92,7 +92,7 @@ describe('compute config', () => {
   });
 
   it('lists config vars sorted alphabetically, aligned to the widest key', async () => {
-    const result = await Config.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    const result = await ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).toEqual({
       configVars: {
@@ -118,17 +118,17 @@ describe('compute config', () => {
   it('prints only the header when there are no config vars', async () => {
     requestStub.mockResolvedValue({});
 
-    const result = await Config.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    const result = await ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).toEqual({configVars: {}, name: 'CreditRatingScorer'});
     expect(sfCommandStubs.log.called).toBe(false);
   });
 
-  // Now that config.ts always pre-flights a SOQL lookup by DeveloperName before proxying to
+  // Now that config/list.ts always pre-flights a SOQL lookup by DeveloperName before proxying to
   // Heroku, --name must be a valid DeveloperName -- a hyphenated Heroku-style value is rejected
   // by validateName rather than passed through, unlike before resolveHerokuAppId existed.
   it('rejects a hyphenated --name before querying or calling the Heroku proxy', async () => {
-    await expect(Config.run(['--name', 'my-heroku-style-app', '--target-org', testOrg.username])).rejects.toThrow("isn't valid");
+    await expect(ConfigList.run(['--name', 'my-heroku-style-app', '--target-org', testOrg.username])).rejects.toThrow("isn't valid");
 
     expect(toolingQueryStub).not.toHaveBeenCalled();
     expect(findConfigVarsCall(requestStub)).toBeUndefined();
@@ -141,7 +141,7 @@ describe('compute config', () => {
       totalSize: 1,
     });
 
-    await expect(Config.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("doesn't have a Heroku app identifier yet");
+    await expect(ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("doesn't have a Heroku app identifier yet");
 
     expect(findConfigVarsCall(requestStub)).toBeUndefined();
   });
@@ -149,13 +149,13 @@ describe('compute config', () => {
   it('surfaces error.herokuAppNotFound when Heroku 404s the app', async () => {
     requestStub.mockRejectedValue(Object.assign(new Error("Couldn't find that app."), {data: {id: 'not_found'}}));
 
-    await expect(Config.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('CreditRatingScorer');
+    await expect(ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('CreditRatingScorer');
   });
 
   it('wraps a proxy-rejection failure as error.herokuProxyRequestFailed', async () => {
     requestStub.mockRejectedValue(Object.assign(new Error('bad proxy_url'), {errorCode: 'HEROKU_PROXY_ERROR'}));
 
-    await expect(Config.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
+    await expect(ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
       'The Salesforce Heroku API proxy rejected the request: bad proxy_url',
     );
   });
@@ -163,13 +163,13 @@ describe('compute config', () => {
   it('wraps an unrecognized proxy failure as error.herokuApiRequestFailed', async () => {
     requestStub.mockRejectedValue(new Error('socket hang up'));
 
-    await expect(Config.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
+    await expect(ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
       "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
     );
   });
 
   it('returns the flattened result under --json, not the full status envelope', async () => {
-    await Config.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
+    await ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
 
     const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as {result: unknown};
     expect(jsonOutput.result).toEqual({
@@ -185,7 +185,7 @@ describe('compute config', () => {
   it('resolves --name from COMPUTE_APP_NAME when --name is not passed', async () => {
     process.env.COMPUTE_APP_NAME = 'CreditRatingScorer';
     try {
-      const result = await Config.run(['--target-org', testOrg.username]);
+      const result = await ConfigList.run(['--target-org', testOrg.username]);
       expect(result.name).toBe('CreditRatingScorer');
       const call = findConfigVarsCall(requestStub, 'GET');
       expect(proxyTarget((call![0] as {url: string}).url)).toBe(
@@ -204,7 +204,7 @@ describe('compute config', () => {
     await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
     process.chdir(appDir);
     try {
-      const result = await Config.run(['--target-org', testOrg.username]);
+      const result = await ConfigList.run(['--target-org', testOrg.username]);
       expect(result.name).toBe('CreditRatingScorer');
     } finally {
       process.chdir(originalCwd);
@@ -218,7 +218,7 @@ describe('compute config', () => {
     process.chdir(tmp);
     let error: Error | undefined;
     try {
-      await Config.run(['--target-org', testOrg.username]);
+      await ConfigList.run(['--target-org', testOrg.username]);
     } catch (error_) {
       error = error_ as Error;
     } finally {

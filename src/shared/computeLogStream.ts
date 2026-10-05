@@ -16,8 +16,10 @@
 
 import {Messages} from '@salesforce/core';
 
+import {PLUGIN_NAME} from './plugin-name.js';
+
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 
 // logplexUrl/outputStreamUrl are themselves the auth mechanism (short-lived, pre-authorized URLs
 // handed back by a Heroku proxy call) -- these calls are raw fetch against the URL Heroku gave

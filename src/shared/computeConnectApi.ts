@@ -19,8 +19,10 @@ import FormData from 'form-data';
 
 import type {components} from '../generated/salesforce-connect-compute.js';
 
+import {PLUGIN_NAME} from './plugin-name.js';
+
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 
 export type ComputeSourceUpload = components['schemas']['ComputeSourceUpload'];
 export type ConnectError = components['schemas']['ConnectError'];

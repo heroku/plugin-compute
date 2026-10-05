@@ -21,9 +21,10 @@ import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../shared/computeApp.js';
 import {resolveHerokuAppId} from '../../shared/computeQuery.js';
 import {scaleComputeFormationViaProxy} from '../../shared/herokuProxyApi.js';
+import {PLUGIN_NAME} from '../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.scale');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.scale');
 
 // Matches Heroku's own `heroku ps:scale` target syntax: TYPE[=COUNT][:SIZE]. TYPE follows
 // Heroku's process-type pattern (salesforce-connect-compute.yaml's Formation.type: ^[-\w]{1,128}$).

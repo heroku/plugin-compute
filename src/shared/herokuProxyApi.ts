@@ -19,9 +19,10 @@ import {type Connection, Messages, type SfError} from '@salesforce/core';
 import type {components} from '../generated/heroku-platform-api.js';
 
 import {resolveComputeApiVersion} from './metadataApiVersion.js';
+import {PLUGIN_NAME} from './plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 
 const HEROKU_API_BASE_URL = 'https://api.heroku.com';
 const HEROKU_ACCEPT_HEADER = 'application/vnd.heroku+json; version=3';

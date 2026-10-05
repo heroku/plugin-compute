@@ -20,8 +20,10 @@ import {createHash} from 'node:crypto';
 import {gunzipSync} from 'node:zlib';
 import tarStream from 'tar-stream';
 
+import {PLUGIN_NAME} from './plugin-name.js';
+
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 
 // Gated by DEBUG=sf:compute:generateSource (or DEBUG=*).
 const {debug} = getLogger('sf:compute:generateSource');

@@ -1,0 +1,36 @@
+name: Release
+
+# Calls the reusable release workflow from npm-release-workflows
+# Uses GitHub App (vars.DEV_TOOLS_RELEASE_WORKFLOW_APP_ID, secrets.DEV_TOOLS_RELEASE_WORKFLOW_APP_PRIVATE_KEY)
+
+on:
+  # Manual gate (deliberate, pre-GA): the release-please PR is created/refreshed
+  # only on manual dispatch, not on every push to main. Do not convert this to an
+  # automatic push trigger without a team decision.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Test release without publishing (creates PR but skips npm publish)"
+        type: boolean
+        default: false
+        required: false
+
+jobs:
+  release:
+    uses: heroku/npm-release-workflows/.github/workflows/release.yml@main
+    with:
+      dry_run: ${{ inputs.dry_run }}
+      runs_on: sfdc-hk-ubuntu-latest # Options: ubuntu-latest | sfdc-hk-ubuntu-latest | pub-hk-ubuntu-24.04-ip
+      package-manager: npm # Options: npm | yarn | pnpm
+      app_id: ${{ vars.DEV_TOOLS_RELEASE_WORKFLOW_APP_ID }}
+      # owner scopes the token to the org installation so it can access all repos in the installation
+      owner: ${{ github.repository_owner }}
+      test_command: run test
+      lint_command: run lint
+      build_command: ''
+    secrets:
+      private_key: ${{ secrets.DEV_TOOLS_RELEASE_WORKFLOW_APP_PRIVATE_KEY }}
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write

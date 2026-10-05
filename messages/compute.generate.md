@@ -59,7 +59,7 @@ The %s starter source is missing an expected file: %s.
 
 # error.templateSourceMissingFile.actions
 
-- This plugin's pinned reference commit may be out of date with the upstream repo's layout; file an issue against @salesforce/plugin-compute.
+- This plugin's pinned reference commit may be out of date with the upstream repo's layout; file an issue against @heroku/plugin-compute.
 
 # info.generating
 

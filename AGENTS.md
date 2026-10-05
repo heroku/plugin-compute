@@ -1,11 +1,29 @@
 # AGENTS.md — plugin-compute
 
-`@salesforce/plugin-compute` is a Salesforce CLI (`sf`) plugin, built on the
+`@heroku/plugin-compute` is a Salesforce CLI (`sf`) plugin, built on the
 oclif plugin framework and `@salesforce/sf-plugins-core`, that adds
 `sf compute deploy|display|generate|list|logs|build output|scale|config|config
 get|config set|config unset` — commands for managing "compute apps"
 (Heroku-backed `PlatformComputeApp` metadata invocable from Apex/Flow via
 AppLink External Services).
+
+## Package name: `@heroku/plugin-compute` (temporary — will become `@salesforce/`)
+
+The npm package name is **`@heroku/plugin-compute`**. This is deliberate and
+temporary: while the plugin is private/pre-GA it publishes under the `@heroku`
+scope. **Once it goes public, the name switches to `@salesforce/plugin-compute`.**
+The CLI binary (`sf`) and the `sf compute …` command surface are unaffected —
+only the npm identifier changes. The package name is load-bearing beyond
+`package.json`: every `Messages.loadMessages(PLUGIN_NAME, …)` call in `src/`
+must match it (or message loading throws at runtime), and
+`command-snapshot.json`'s `plugin` field must match it (or `snapshot:compare`
+fails). The `loadMessages` first arg is centralized in one place — the
+`PLUGIN_NAME` const in `src/shared/plugin-name.ts` — so the message-bundle key
+is a single edit, not a `src/`-wide sweep. When the eventual `@salesforce/`
+rename happens, update all three in lockstep (`package.json` +
+`package-lock.json` name, the `PLUGIN_NAME` const in
+`src/shared/plugin-name.ts`, and the snapshot `plugin` field) plus the
+README/CHANGELOG/CONTRIBUTING references.
 
 Standard oclif/sf-plugins-core layout: commands in `src/commands/compute/`,
 shared logic in `src/shared/`, user-facing strings in `messages/*.md`
@@ -147,13 +165,37 @@ type-only consumption — the version skew is harmless, not a hazard. The vitest
 `vi.fn()` mocks — never on these framework sinon stubs; wrap sinon-stub property
 reads in `expect(...)` instead (e.g. `expect(stub.firstCall.args[0]).to…`).
 
+## Temporarily removed: `@salesforce/plugin-command-reference` (re-enable when upstream is clean)
+
+The `test:command-reference` gate (`sf commandreference generate
+--error-on-warnings`, which lint-checks every command's flags/args/examples
+docs) and its backing devDependency `@salesforce/plugin-command-reference`
+were **removed** — dropped from `devDependencies`, from `oclif.devPlugins`, from
+the `test` `&&` chain, and the `test:command-reference` script deleted. It was a
+dev-only doc-correctness check; it never shipped (`files[]` excludes
+`node_modules`) and does not affect runtime.
+
+**Why:** that single devDep owned ~47 of ~53 lockfile vulnerability alerts — its
+nested tree bundles stale `nyc`/`istanbul-lib-processinfo`/`uuid`/`gaxios`/`yaml`.
+It was already pinned at the latest published version, whose tree still carried
+those advisories, so there was no bump that cleared them.
+
+**Re-enable when** a `@salesforce/plugin-command-reference` release ships without
+those transitive advisories (check `npm audit` after adding it back). To restore:
+re-add the devDep, add `@salesforce/plugin-command-reference` back to
+`oclif.devPlugins`, restore the `test:command-reference` script
+(`node --loader ts-node/esm --no-warnings=ExperimentalWarning ./bin/dev.js
+commandreference:generate --error-on-warnings`), splice it back into the `test`
+chain between `test:only` and `test:deprecation-policy`, re-add it to the CI
+comment in `.github/workflows/ci.yml`, and regenerate the lockfile.
+
 ## Verification workflow after changing any command's flags or output shape
 
 1. `npx tsc -p .` and `npx tsc -p ./test`
 2. `npm run lint`
 3. `npx vitest run` (unit tests; add `--coverage` to mirror CI)
 4. `env -u NODE_ENV npm run build && env -u NODE_ENV npm test` — `npm test` is a
-   flat `&&` chain of `test:compile`, `test:only`, `test:command-reference`,
+   flat `&&` chain of `test:compile`, `test:only`,
    `test:deprecation-policy`, `test:json-schema`, `link-check`. Lint is NOT in
    this chain — it runs as its own `npm run lint` (step 2 above) and as a
    dedicated `lint` job in CI. `test:deprecation-policy` validates

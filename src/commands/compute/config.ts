@@ -21,9 +21,10 @@ import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../
 import {formatConfigVarLines} from '../../shared/computeConfig.js';
 import {resolveHerokuAppId} from '../../shared/computeQuery.js';
 import {fetchComputeConfigVarsViaProxy} from '../../shared/herokuProxyApi.js';
+import {PLUGIN_NAME} from '../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.config');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.config');
 
 export type ComputeConfigResult = {
   configVars: Record<string, string>;

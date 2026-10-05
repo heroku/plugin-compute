@@ -22,9 +22,10 @@ import {pathExists, resolveComputeAppNameFromDir, validateName} from '../../shar
 import {packageComputeBundle} from '../../shared/computeBundle.js';
 import {uploadComputeSource} from '../../shared/computeConnectApi.js';
 import {deployComputeMetadata} from '../../shared/metadataDeploy.js';
+import {PLUGIN_NAME} from '../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.deploy');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.deploy');
 
 export type ComputeDeployResult = {
   buildId: string;

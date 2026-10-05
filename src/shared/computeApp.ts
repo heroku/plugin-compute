@@ -18,8 +18,10 @@ import {Messages} from '@salesforce/core';
 import {access} from 'node:fs/promises';
 import {basename, join} from 'node:path';
 
+import {PLUGIN_NAME} from './plugin-name.js';
+
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 
 // Mirrors Salesforce's DeveloperName grammar (starts with a letter, alphanumeric/underscore only,
 // no trailing or double underscore) -- every --name is now resolved as a DeveloperName via SOQL,

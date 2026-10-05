@@ -16,8 +16,10 @@
 
 import {Messages} from '@salesforce/core';
 
+import {PLUGIN_NAME} from './plugin-name.js';
+
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.errors');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 
 // Shared by `config get` and `config unset` -- both validate requested keys against the same
 // fetched map and must raise byte-identical text for a missing key, so this is the one source of

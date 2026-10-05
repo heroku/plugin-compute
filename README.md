@@ -1,6 +1,6 @@
 # plugin-compute
 
-[![NPM](https://img.shields.io/npm/v/@salesforce/plugin-compute.svg?label=@salesforce/plugin-compute)](https://www.npmjs.com/package/@salesforce/plugin-compute) [![Downloads/week](https://img.shields.io/npm/dw/@salesforce/plugin-compute.svg)](https://npmjs.org/package/@salesforce/plugin-compute) [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://opensource.org/license/apache-2-0)
+[![NPM](https://img.shields.io/npm/v/@heroku/plugin-compute.svg?label=@heroku/plugin-compute)](https://www.npmjs.com/package/@heroku/plugin-compute) [![Downloads/week](https://img.shields.io/npm/dw/@heroku/plugin-compute.svg)](https://npmjs.org/package/@heroku/plugin-compute) [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://opensource.org/license/apache-2-0)
 
 `sf compute` -- the CLI for Salesforce Compute: generate, deploy, and operate
 org-resident custom app logic (built on Heroku) invocable from Apex/Flow via
@@ -29,7 +29,7 @@ We always recommend using the latest version of these commands bundled with the 
 ## Install
 
 ```bash
-sf plugins install @salesforce/plugin-compute@x.y.z
+sf plugins install @heroku/plugin-compute@x.y.z
 ```
 
 ## Issues
@@ -138,7 +138,7 @@ EXAMPLES
     $ sf compute build output --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/build/output.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/build/output.ts)_
+_See code: [src/commands/compute/build/output.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/build/output.ts)_
 
 ## `sf compute config`
 
@@ -175,7 +175,7 @@ EXAMPLES
     $ sf compute config --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/config.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/config.ts)_
+_See code: [src/commands/compute/config.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/config.ts)_
 
 ## `sf compute config get [KEY]`
 
@@ -214,7 +214,7 @@ EXAMPLES
     $ sf compute config get STRIPE_KEY LOG_LEVEL --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/config/get.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/config/get.ts)_
+_See code: [src/commands/compute/config/get.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/config/get.ts)_
 
 ## `sf compute config set [PAIR]`
 
@@ -254,7 +254,7 @@ EXAMPLES
     $ sf compute config set STRIPE_KEY=sk_live_xyz789 LOG_LEVEL=debug --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/config/set.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/config/set.ts)_
+_See code: [src/commands/compute/config/set.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/config/set.ts)_
 
 ## `sf compute config unset [KEY]`
 
@@ -293,7 +293,7 @@ EXAMPLES
     $ sf compute config unset LOG_LEVEL DEBUG_MODE --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/config/unset.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/config/unset.ts)_
+_See code: [src/commands/compute/config/unset.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/config/unset.ts)_
 
 ## `sf compute deploy`
 
@@ -340,7 +340,7 @@ EXAMPLES
       my-org
 ```
 
-_See code: [src/commands/compute/deploy.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/deploy.ts)_
+_See code: [src/commands/compute/deploy.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/deploy.ts)_
 
 ## `sf compute display`
 
@@ -384,7 +384,7 @@ EXAMPLES
     $ sf compute display --name CreditRatingScorer --target-org my-org --verbose
 ```
 
-_See code: [src/commands/compute/display.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/display.ts)_
+_See code: [src/commands/compute/display.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/display.ts)_
 
 ## `sf compute generate`
 
@@ -437,7 +437,7 @@ FLAG DESCRIPTIONS
     scaffolds starters for node and python only.
 ```
 
-_See code: [src/commands/compute/generate.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/generate.ts)_
+_See code: [src/commands/compute/generate.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/generate.ts)_
 
 ## `sf compute list`
 
@@ -472,7 +472,7 @@ EXAMPLES
     $ sf compute list --target-org my-org
 ```
 
-_See code: [src/commands/compute/list.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/list.ts)_
+_See code: [src/commands/compute/list.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/list.ts)_
 
 ## `sf compute logs`
 
@@ -529,7 +529,7 @@ EXAMPLES
     $ sf compute logs --name CreditRatingScorer --tail --target-org my-org
 ```
 
-_See code: [src/commands/compute/logs.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/logs.ts)_
+_See code: [src/commands/compute/logs.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/logs.ts)_
 
 ## `sf compute scale [TARGET]`
 
@@ -583,7 +583,7 @@ EXAMPLES
     $ sf compute scale worker=0 --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/scale.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/scale.ts)_
+_See code: [src/commands/compute/scale.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/scale.ts)_
 
 ## `sf compute source retrieve`
 
@@ -624,5 +624,5 @@ FLAG DESCRIPTIONS
     subdirectory named after --name.
 ```
 
-_See code: [src/commands/compute/source/retrieve.ts](https://github.com/heroku/plugin-compute/blob/v1.0.0/src/commands/compute/source/retrieve.ts)_
+_See code: [src/commands/compute/source/retrieve.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/source/retrieve.ts)_
 <!-- commandsstop -->

@@ -29,9 +29,10 @@ import {
   fetchLatestReleaseVersionViaProxy,
   type HerokuFormationSummary,
 } from '../../shared/herokuProxyApi.js';
+import {PLUGIN_NAME} from '../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages('@salesforce/plugin-compute', 'compute.display');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.display');
 
 // formation/release are best-effort supplements to the org-side ComputeAppSummary fields, fetched
 // from Heroku via the Salesforce proxy -- never a replacement for the org-side fields, and never

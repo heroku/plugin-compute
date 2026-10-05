@@ -329,7 +329,8 @@ DESCRIPTION
 
   Files matching patterns in a .forceignore are excluded from the source
   bundle. Both the compute app's own .forceignore and the one at the project
-  root (next to sfdx-project.json) are applied, if present.
+  root (next to sfdx-project.json) are applied, if present. api-spec.yaml and
+  project.toml are always included, since the build can't succeed without them.
 
 EXAMPLES
   Deploy a compute app to an org, from inside the app's own directory:

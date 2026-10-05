@@ -1,6 +1,4 @@
-import type sinon from 'sinon';
-
-import {Org} from '@salesforce/core';
+import {type Connection, Org} from '@salesforce/core';
 import {MockTestOrgData, TestContext} from '@salesforce/core/testSetup';
 import {stubSfCommandUx} from '@salesforce/sf-plugins-core';
 /*
@@ -18,15 +16,15 @@ import {stubSfCommandUx} from '@salesforce/sf-plugins-core';
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {expect} from 'chai';
 
 import List from '../../../src/commands/compute/list.js';
 
 describe('compute list', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
+  const stubToolingQuery = (connection: Connection) => $$.SANDBOX.stub(connection.tooling, 'query');
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
-  let toolingQueryStub: sinon.SinonStub;
+  let toolingQueryStub: ReturnType<typeof stubToolingQuery>;
 
   const activeRecord = {
     CurrentBuild: {
@@ -64,7 +62,7 @@ describe('compute list', () => {
 
     const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
-    toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
+    toolingQueryStub = stubToolingQuery(connection);
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
   });
 
@@ -73,7 +71,7 @@ describe('compute list', () => {
   });
 
   function resolveWith(records: unknown[]): void {
-    toolingQueryStub.resolves({done: true, records, totalSize: records.length});
+    toolingQueryStub.resolves({done: true, records, totalSize: records.length} as never);
   }
 
   it('returns the flattened list of every compute app in the org', async () => {
@@ -81,7 +79,7 @@ describe('compute list', () => {
 
     const result = await List.run(['--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal([
+    expect(result).toEqual([
       {
         currentBuild: {
           buildCompletedAt: '2026-08-04T14:25:32.000Z',
@@ -122,10 +120,10 @@ describe('compute list', () => {
 
     await List.run(['--target-org', testOrg.username]);
 
-    const soql = toolingQueryStub.firstCall.args[0] as string;
-    expect(soql).to.include('FROM PlatformComputeApp');
-    expect(soql).to.include('ORDER BY DeveloperName ASC');
-    expect(soql).to.not.include('WHERE');
+    const soql = toolingQueryStub.firstCall.args[0];
+    expect(soql).toContain('FROM PlatformComputeApp');
+    expect(soql).toContain('ORDER BY DeveloperName ASC');
+    expect(soql).not.toContain('WHERE');
   });
 
   it('renders a table with the default columns', async () => {
@@ -133,10 +131,10 @@ describe('compute list', () => {
 
     await List.run(['--target-org', testOrg.username]);
 
-    expect(sfCommandStubs.styledHeader.calledWith('Compute Apps')).to.be.true;
+    expect(sfCommandStubs.styledHeader.calledWith('Compute Apps')).toBe(true);
     const [{columns, data}] = sfCommandStubs.table.firstCall.args as [{columns: string[]; data: unknown[]}];
-    expect(columns).to.deep.equal(['name', 'masterLabel', 'status', 'statusReason']);
-    expect(data).to.have.lengthOf(1);
+    expect(columns).toEqual(['name', 'masterLabel', 'status', 'statusReason']);
+    expect(data).toHaveLength(1);
   });
 
   it('prints a no-apps-found message and returns an empty array without rendering a table', async () => {
@@ -144,20 +142,15 @@ describe('compute list', () => {
 
     const result = await List.run(['--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal([]);
-    expect(sfCommandStubs.styledHeader.called).to.be.false;
-    expect(sfCommandStubs.table.called).to.be.false;
-    expect(sfCommandStubs.info.firstCall.args[0]).to.include('No compute apps were found in the org');
+    expect(result).toEqual([]);
+    expect(sfCommandStubs.styledHeader.called).toBe(false);
+    expect(sfCommandStubs.table.called).toBe(false);
+    expect(sfCommandStubs.info.firstCall.args[0]).toContain('No compute apps were found in the org');
   });
 
   it('wraps an unexpected query failure', async () => {
     toolingQueryStub.rejects(new Error('INVALID_SESSION_ID'));
 
-    try {
-      await List.run(['--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
-    }
+    await expect(List.run(['--target-org', testOrg.username])).rejects.toThrow("Couldn't query compute app details: INVALID_SESSION_ID");
   });
 });

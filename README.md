@@ -21,8 +21,6 @@ Additionally, there are some additional tests that the Salesforce CLI will enfor
 - [@salesforce/sf-plugins-core](https://github.com/salesforcecli/sf-plugins-core)
 - [@salesforce/ts-types](https://github.com/forcedotcom/ts-types)
 - [@salesforce/ts-sinon](https://github.com/forcedotcom/ts-sinon)
-- [@salesforce/dev-config](https://github.com/forcedotcom/dev-config)
-- [@salesforce/dev-scripts](https://github.com/forcedotcom/dev-scripts)
 
 This plugin is bundled with the [Salesforce CLI](https://developer.salesforce.com/tools/sfdxcli). For more information on the CLI, read the [getting started guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_intro.htm).
 
@@ -59,14 +57,14 @@ Agreement. You can do so by going to https://cla.salesforce.com/sign-cla.
 
 ### Build
 
-To build the plugin locally, make sure to have yarn installed and run the following commands:
+To build the plugin locally, run the following commands:
 
 ```bash
 # Clone the repository
 git clone git@github.com:salesforcecli/plugin-compute
 
 # Install the dependencies and compile
-yarn && yarn build
+npm ci && npm run build
 ```
 
 To use your plugin, run using the local `./bin/dev` or `./bin/dev.cmd` file.

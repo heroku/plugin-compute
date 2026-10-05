@@ -1,7 +1,8 @@
+import type {Mock, MockInstance} from 'vitest';
+
 import {Org} from '@salesforce/core';
 import {MockTestOrgData, TestContext} from '@salesforce/core/testSetup';
 import {stubSfCommandUx} from '@salesforce/sf-plugins-core';
-import {expect} from 'chai';
 /*
  * Copyright 2026, Salesforce, Inc.
  *
@@ -25,7 +26,6 @@ import {
 } from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import sinon from 'sinon';
 
 import Logs from '../../../src/commands/compute/logs.js';
 
@@ -40,9 +40,9 @@ function proxyTarget(url: string): string {
 // Org.create()/getConnection() issues its own Organization-lookup request through the same
 // shared requestStub while resolving --target-org, so callCount/called on the stub itself is
 // unreliable -- filter for the specific log-sessions call instead (mirrors build/output.test.ts).
-function findLogSessionCall(stub: sinon.SinonStub): sinon.SinonSpyCall | undefined {
-  return stub.getCalls().find(call => {
-    const req = call.args[0] as undefined | {url?: string};
+function findLogSessionCall(stub: Mock): undefined | unknown[] {
+  return stub.mock.calls.find(call => {
+    const req = call[0] as undefined | {url?: string};
     return req?.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions');
   });
 }
@@ -64,9 +64,9 @@ describe('compute logs', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
-  let toolingQueryStub: sinon.SinonStub;
-  let requestStub: sinon.SinonStub;
-  let fetchStub: sinon.SinonStub;
+  let toolingQueryStub: MockInstance;
+  let requestStub: Mock;
+  let fetchStub: MockInstance;
 
   const deployedRecord = {
     CurrentBuild: {
@@ -94,22 +94,23 @@ describe('compute logs', () => {
 
     const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
-    toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
+    toolingQueryStub = vi.spyOn(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
-    requestStub = sinon.stub().resolves({logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'});
+    requestStub = vi.fn().mockResolvedValue({logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'});
 
     $$.fakeConnectionRequest = requestStub;
 
-    fetchStub = $$.SANDBOX.stub(globalThis, 'fetch').resolves(new Response('line one\nline two\n', {status: 200}));
+    fetchStub = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('line one\nline two\n', {status: 200}));
   });
 
   afterEach(() => {
     $$.restore();
+    vi.restoreAllMocks();
   });
 
   function resolveWith(records: unknown[]): void {
-    toolingQueryStub.resolves({done: true, records, totalSize: records.length});
+    toolingQueryStub.mockResolvedValue({done: true, records, totalSize: records.length});
   }
 
   it('prints backfilled lines and returns them on the non-tail happy path', async () => {
@@ -117,22 +118,22 @@ describe('compute logs', () => {
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({lines: ['line one', 'line two'], name: 'CreditRatingScorer'});
+    expect(result).toStrictEqual({lines: ['line one', 'line two'], name: 'CreditRatingScorer'});
     const output = sfCommandStubs.log
       .getCalls()
       .flatMap(c => c.args)
       .join('\n');
-    expect(output).to.include('line one');
-    expect(output).to.include('line two');
+    expect(output).toContain('line one');
+    expect(output).toContain('line two');
 
     const call = findLogSessionCall(requestStub);
-    expect(call, 'expected a POST to the Heroku proxy log-sessions path').to.not.be.undefined;
-    expect(proxyTarget((call!.args[0] as {url: string}).url)).to.equal(
+    expect(call, 'expected a POST to the Heroku proxy log-sessions path').toBeDefined();
+    expect(proxyTarget((call![0] as {url: string}).url)).toBe(
       'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/log-sessions',
     );
-    const body = JSON.parse((call!.args[0] as {body: string}).body) as {lines: number; tail: boolean};
-    expect(body).to.deep.equal({lines: 100, tail: false});
-    expect(fetchStub.calledWith('https://logplex.heroku.com/sessions/abc?srv=1')).to.be.true;
+    const body = JSON.parse((call![0] as {body: string}).body) as {lines: number; tail: boolean};
+    expect(body).toEqual({lines: 100, tail: false});
+    expect(fetchStub).toHaveBeenCalledWith('https://logplex.heroku.com/sessions/abc?srv=1');
   });
 
   it('reports no builds yet and returns just the name when CurrentBuild is null, without calling the proxy or fetch', async () => {
@@ -140,20 +141,20 @@ describe('compute logs', () => {
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({name: 'CreditRatingScorer'});
-    expect(sfCommandStubs.info.firstCall.args[0]).to.include('has no builds yet');
-    expect(findLogSessionCall(requestStub)).to.be.undefined;
-    expect(fetchStub.called).to.be.false;
+    expect(result).toStrictEqual({name: 'CreditRatingScorer'});
+    expect(sfCommandStubs.info.firstCall.args[0]).toContain('has no builds yet');
+    expect(findLogSessionCall(requestStub)).toBeUndefined();
+    expect(fetchStub).not.toHaveBeenCalled();
   });
 
   it('reports no log lines yet when the logplex fetch returns empty output', async () => {
     resolveWith([deployedRecord]);
-    fetchStub.resolves(new Response('', {status: 200}));
+    fetchStub.mockResolvedValue(new Response('', {status: 200}));
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({name: 'CreditRatingScorer'});
-    expect(sfCommandStubs.info.lastCall.args[0]).to.include('no log output yet');
+    expect(result).toStrictEqual({name: 'CreditRatingScorer'});
+    expect(sfCommandStubs.info.lastCall.args[0]).toContain('no log output yet');
   });
 
   it('passes --num through as the backfill line count', async () => {
@@ -162,95 +163,70 @@ describe('compute logs', () => {
     await Logs.run(['--name', 'CreditRatingScorer', '--num', '500', '--target-org', testOrg.username]);
 
     const call = findLogSessionCall(requestStub);
-    const body = JSON.parse((call!.args[0] as {body: string}).body) as {lines: number; tail: boolean};
-    expect(body).to.deep.equal({lines: 500, tail: false});
+    const body = JSON.parse((call![0] as {body: string}).body) as {lines: number; tail: boolean};
+    expect(body).toEqual({lines: 500, tail: false});
   });
 
   it('streams lines and reports the session ending naturally under --tail', async () => {
     resolveWith([deployedRecord]);
-    fetchStub.resolves(new Response(streamOf(['line one\n', 'line two\n']), {status: 200}));
+    fetchStub.mockResolvedValue(new Response(streamOf(['line one\n', 'line two\n']), {status: 200}));
 
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--tail', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({name: 'CreditRatingScorer'});
+    expect(result).toStrictEqual({name: 'CreditRatingScorer'});
     const output = sfCommandStubs.log
       .getCalls()
       .flatMap(c => c.args)
       .join('\n');
-    expect(output).to.include('line one');
-    expect(output).to.include('line two');
-    expect(sfCommandStubs.info.lastCall.args[0]).to.include('ended');
+    expect(output).toContain('line one');
+    expect(output).toContain('line two');
+    expect(sfCommandStubs.info.lastCall.args[0]).toContain('ended');
 
     const call = findLogSessionCall(requestStub);
-    const body = JSON.parse((call!.args[0] as {body: string}).body) as {lines: number; tail: boolean};
-    expect(body).to.deep.equal({lines: 100, tail: true});
+    const body = JSON.parse((call![0] as {body: string}).body) as {lines: number; tail: boolean};
+    expect(body).toEqual({lines: 100, tail: true});
   });
 
   it('rejects combining --tail with --json before any org call is made', async () => {
     resolveWith([deployedRecord]);
 
-    try {
-      await Logs.run(['--name', 'CreditRatingScorer', '--tail', '--json', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('cannot also be provided when using --tail');
-    }
+    await expect(Logs.run(['--name', 'CreditRatingScorer', '--tail', '--json', '--target-org', testOrg.username])).rejects.toThrow('cannot also be provided when using --tail');
 
-    expect(toolingQueryStub.called).to.be.false;
+    expect(toolingQueryStub).not.toHaveBeenCalled();
   });
 
   it('propagates the not-found error from the SOQL pre-check without calling the proxy or fetch', async () => {
     resolveWith([]);
 
-    try {
-      await Logs.run(['--name', 'NeverDeployed', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('No compute app named NeverDeployed was found in the org');
-    }
+    await expect(Logs.run(['--name', 'NeverDeployed', '--target-org', testOrg.username])).rejects.toThrow('No compute app named NeverDeployed was found in the org');
 
-    expect(findLogSessionCall(requestStub)).to.be.undefined;
-    expect(fetchStub.called).to.be.false;
+    expect(findLogSessionCall(requestStub)).toBeUndefined();
+    expect(fetchStub).not.toHaveBeenCalled();
   });
 
   it('throws error.herokuAppIdentifierUnavailable when the app has a build but no ExternalAppIdentifier yet, without calling the proxy or fetch', async () => {
     resolveWith([{...deployedRecord, ExternalAppIdentifier: undefined}]);
 
-    try {
-      await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("doesn't have a Heroku app identifier yet");
-    }
+    await expect(Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("doesn't have a Heroku app identifier yet");
 
-    expect(findLogSessionCall(requestStub)).to.be.undefined;
-    expect(fetchStub.called).to.be.false;
+    expect(findLogSessionCall(requestStub)).toBeUndefined();
+    expect(fetchStub).not.toHaveBeenCalled();
   });
 
   it('surfaces error.herokuAppNotFound when Heroku 404s the log-session creation', async () => {
     resolveWith([deployedRecord]);
-    requestStub.rejects(Object.assign(new Error("Couldn't find that app."), {data: {id: 'not_found'}}));
+    requestStub.mockRejectedValue(Object.assign(new Error("Couldn't find that app."), {data: {id: 'not_found'}}));
 
-    try {
-      await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("Heroku didn't find an app named CreditRatingScorer");
-    }
+    await expect(Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("Heroku didn't find an app named CreditRatingScorer");
   });
 
   it('wraps a genuine session-creation transport failure as error.herokuApiRequestFailed', async () => {
     resolveWith([deployedRecord]);
-    requestStub.rejects(new Error('socket hang up'));
+    requestStub.mockRejectedValue(new Error('socket hang up'));
 
-    try {
-      await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include(
-        "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
-      );
-    }
+    await expect(Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
+      "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
+    );
   });
 
   it('preserves the exact case of --name in the SOQL filter and targets the resolved Heroku app id', async () => {
@@ -258,24 +234,19 @@ describe('compute logs', () => {
 
     await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    const soql = toolingQueryStub.firstCall.args[0] as string;
-    expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
+    const soql = toolingQueryStub.mock.calls[0][0] as string;
+    expect(soql).toContain("DeveloperName = 'CreditRatingScorer'");
     const call = findLogSessionCall(requestStub);
-    expect(proxyTarget((call!.args[0] as {url: string}).url)).to.equal(
+    expect(proxyTarget((call![0] as {url: string}).url)).toBe(
       'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/log-sessions',
     );
   });
 
   it('rejects an invalid --name before querying or calling the proxy', async () => {
-    try {
-      await Logs.run(['--name', '../evil', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("isn't valid");
-    }
+    await expect(Logs.run(['--name', '../evil', '--target-org', testOrg.username])).rejects.toThrow("isn't valid");
 
-    expect(toolingQueryStub.called).to.be.false;
-    expect(findLogSessionCall(requestStub)).to.be.undefined;
+    expect(toolingQueryStub).not.toHaveBeenCalled();
+    expect(findLogSessionCall(requestStub)).toBeUndefined();
   });
 
   it('resolves --name from COMPUTE_APP_NAME when --name is not passed', async () => {
@@ -283,9 +254,9 @@ describe('compute logs', () => {
     process.env.COMPUTE_APP_NAME = 'CreditRatingScorer';
     try {
       const result = await Logs.run(['--target-org', testOrg.username]);
-      expect(result.name).to.equal('CreditRatingScorer');
-      const soql = toolingQueryStub.firstCall.args[0] as string;
-      expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
+      expect(result.name).toBe('CreditRatingScorer');
+      const soql = toolingQueryStub.mock.calls[0][0] as string;
+      expect(soql).toContain("DeveloperName = 'CreditRatingScorer'");
     } finally {
       delete process.env.COMPUTE_APP_NAME;
     }
@@ -301,7 +272,7 @@ describe('compute logs', () => {
     process.chdir(appDir);
     try {
       const result = await Logs.run(['--target-org', testOrg.username]);
-      expect(result.name).to.equal('CreditRatingScorer');
+      expect(result.name).toBe('CreditRatingScorer');
     } finally {
       process.chdir(originalCwd);
       await rm(tmp, {force: true, recursive: true});
@@ -312,17 +283,20 @@ describe('compute logs', () => {
     const originalCwd = process.cwd();
     const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-logs-empty-'));
     process.chdir(tmp);
+    let error: Error | undefined;
     try {
       await Logs.run(['--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("Couldn't determine which compute app to use");
+    } catch (error_) {
+      error = error_ as Error;
     } finally {
       process.chdir(originalCwd);
       await rm(tmp, {force: true, recursive: true});
     }
 
-    expect(toolingQueryStub.called).to.be.false;
+    expect(error).toBeDefined();
+    expect(error?.message).toContain("Couldn't determine which compute app to use");
+
+    expect(toolingQueryStub).not.toHaveBeenCalled();
   });
 
   it('drops the lines key under --json for the no-builds-yet case', async () => {
@@ -331,7 +305,7 @@ describe('compute logs', () => {
     const result = await Logs.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
     const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as Record<string, unknown>;
 
-    expect(JSON.stringify(jsonOutput)).to.not.include('"lines"');
-    expect(result).to.deep.equal({name: 'CreditRatingScorer'});
+    expect(JSON.stringify(jsonOutput)).not.toContain('"lines"');
+    expect(result).toStrictEqual({name: 'CreditRatingScorer'});
   });
 });

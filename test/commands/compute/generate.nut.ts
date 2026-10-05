@@ -15,7 +15,6 @@
  */
 
 import {execCmd, TestSession} from '@salesforce/cli-plugins-testkit';
-import {expect} from 'chai';
 
 import {type ComputeGenerateResult} from '../../../src/commands/compute/generate.js';
 
@@ -34,20 +33,20 @@ describe('compute generate NUTs', () => {
     const result = execCmd<ComputeGenerateResult>('compute generate --name CreditRatingScorer --json', {
       ensureExitCode: 0,
     }).jsonOutput?.result;
-    expect(result?.name).to.equal('CreditRatingScorer');
-    expect(result?.language).to.equal('node');
+    expect(result?.name).toBe('CreditRatingScorer');
+    expect(result?.language).toBe('node');
   });
 
   it('fails when the app already exists', () => {
     const output = execCmd('compute generate --name CreditRatingScorer --json', {ensureExitCode: 1}).jsonOutput;
-    expect(output?.message).to.include('already exists');
+    expect(output?.message).toContain('already exists');
   });
 
   it('scaffolds a python compute app', () => {
     const result = execCmd<ComputeGenerateResult>('compute generate --name ReceiptOcr --language python --json', {
       ensureExitCode: 0,
     }).jsonOutput?.result;
-    expect(result?.name).to.equal('ReceiptOcr');
-    expect(result?.language).to.equal('python');
+    expect(result?.name).toBe('ReceiptOcr');
+    expect(result?.language).toBe('python');
   });
 });

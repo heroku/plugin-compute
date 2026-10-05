@@ -1,7 +1,8 @@
+import type {Mock, MockInstance} from 'vitest';
+
 import {Org, type SfError} from '@salesforce/core';
 import {MockTestOrgData, TestContext} from '@salesforce/core/testSetup';
 import {stubSfCommandUx} from '@salesforce/sf-plugins-core';
-import {expect} from 'chai';
 /*
  * Copyright 2026, Salesforce, Inc.
  *
@@ -25,7 +26,6 @@ import {
 } from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import sinon from 'sinon';
 
 import Display from '../../../src/commands/compute/display.js';
 
@@ -33,7 +33,7 @@ describe('compute display', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
-  let toolingQueryStub: sinon.SinonStub;
+  let toolingQueryStub: MockInstance;
 
   const activeRecord = {
     CurrentBuild: {
@@ -60,16 +60,17 @@ describe('compute display', () => {
 
     const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
-    toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
+    toolingQueryStub = vi.spyOn(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
   });
 
   afterEach(() => {
     $$.restore();
+    vi.restoreAllMocks();
   });
 
   function resolveWith(records: unknown[]): void {
-    toolingQueryStub.resolves({done: true, records, totalSize: records.length});
+    toolingQueryStub.mockResolvedValue({done: true, records, totalSize: records.length});
   }
 
   it('returns the flattened result for an active app with a current build', async () => {
@@ -77,7 +78,7 @@ describe('compute display', () => {
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({
+    expect(result).toEqual({
       currentBuild: {
         buildCompletedAt: '2026-08-04T14:25:32.000Z',
         buildStartedAt: '2026-08-04T14:23:50.000Z',
@@ -101,8 +102,8 @@ describe('compute display', () => {
       statusReason: undefined,
     });
 
-    const soql = toolingQueryStub.firstCall.args[0] as string;
-    expect(soql).to.include("WHERE DeveloperName = 'CreditRatingScorer'");
+    const soql = toolingQueryStub.mock.calls[0][0] as string;
+    expect(soql).toContain("WHERE DeveloperName = 'CreditRatingScorer'");
   });
 
   it('includes currentBuild in the JSON result even without --verbose', async () => {
@@ -110,15 +111,15 @@ describe('compute display', () => {
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.currentBuild).to.not.be.undefined;
+    expect(result.currentBuild).toBeDefined();
     const output =
       sfCommandStubs.styledHeader
         ?.getCalls()
         .flatMap(c => c.args)
         .join('\n') ?? '';
-    expect(output).to.not.include('Current Build');
-    expect(output).to.not.include('Latest Deployment');
-    expect(output).to.not.include('External Service');
+    expect(output).not.toContain('Current Build');
+    expect(output).not.toContain('Latest Deployment');
+    expect(output).not.toContain('External Service');
   });
 
   it('always renders the Heroku App section, verbose or not', async () => {
@@ -127,7 +128,7 @@ describe('compute display', () => {
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     const headers = sfCommandStubs.styledHeader.getCalls().flatMap(c => c.args);
-    expect(headers).to.include('Heroku App');
+    expect(headers).toContain('Heroku App');
   });
 
   it('renders External Service, Current Build, and Latest Deployment sections under --verbose', async () => {
@@ -136,9 +137,9 @@ describe('compute display', () => {
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--verbose']);
 
     const headers = sfCommandStubs.styledHeader.getCalls().flatMap(c => c.args);
-    expect(headers).to.include('External Service');
-    expect(headers).to.include('Current Build');
-    expect(headers).to.include('Latest Deployment');
+    expect(headers).toContain('External Service');
+    expect(headers).toContain('Current Build');
+    expect(headers).toContain('Latest Deployment');
   });
 
   // Header presence alone doesn't confirm the row *contents* -- Build ID and Build Duration are
@@ -154,11 +155,11 @@ describe('compute display', () => {
     }>;
     const allRows = tableCalls.flatMap(c => c.args[0].data);
 
-    expect(allRows).to.deep.include({key: 'Compute App ID', value: '0abEE0000004CqYYAU'});
-    expect(allRows).to.deep.include({key: 'Org ID', value: testOrg.orgId});
-    expect(allRows).to.deep.include({key: 'Build ID', value: '0acEE0000004D1ZYAU'});
+    expect(allRows).toContainEqual({key: 'Compute App ID', value: '0abEE0000004CqYYAU'});
+    expect(allRows).toContainEqual({key: 'Org ID', value: testOrg.orgId});
+    expect(allRows).toContainEqual({key: 'Build ID', value: '0acEE0000004D1ZYAU'});
     // BuildStartedAt 14:23:50 -> BuildCompletedAt 14:25:32 is 1m 42s.
-    expect(allRows).to.deep.include({key: 'Build Duration', value: '1m 42s'});
+    expect(allRows).toContainEqual({key: 'Build Duration', value: '1m 42s'});
   });
 
   // Slug and Deploy ID had no wired-up source (Salesforce or Heroku) and no GA scope to justify
@@ -177,9 +178,9 @@ describe('compute display', () => {
     }>;
     const allKeys = tableCalls.flatMap(c => c.args[0].data.map(row => row.key));
 
-    expect(allKeys).to.not.include('AppLink Add-on');
-    expect(allKeys).to.not.include('Slug');
-    expect(allKeys).to.not.include('Deploy ID');
+    expect(allKeys).not.toContain('AppLink Add-on');
+    expect(allKeys).not.toContain('Slug');
+    expect(allKeys).not.toContain('Deploy ID');
   });
 
   it('handles an app that has never had a successful build or external service registration', async () => {
@@ -194,10 +195,10 @@ describe('compute display', () => {
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.currentBuild).to.be.undefined;
-    expect(result.externalServiceId).to.be.undefined;
-    expect(result.externalServiceRegistered).to.be.false;
-    expect(result.externalServiceActive).to.be.undefined;
+    expect(result.currentBuild).toBeUndefined();
+    expect(result.externalServiceId).toBeUndefined();
+    expect(result.externalServiceRegistered).toBe(false);
+    expect(result.externalServiceActive).toBeUndefined();
   });
 
   it('skips both Heroku proxy calls and leaves formation/release undefined when ExternalAppIdentifier is missing, without warning', async () => {
@@ -205,9 +206,9 @@ describe('compute display', () => {
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.formation).to.be.undefined;
-    expect(result.release).to.be.undefined;
-    expect(sfCommandStubs.warn.called).to.be.false;
+    expect(result.formation).toBeUndefined();
+    expect(result.release).toBeUndefined();
+    expect(sfCommandStubs.warn.called).toBe(false);
   });
 
   it('omits description and reports a status reason when the app has neither a description nor a build', async () => {
@@ -223,8 +224,8 @@ describe('compute display', () => {
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.description).to.be.undefined;
-    expect(result.statusReason).to.equal('Buildpack detection failed.');
+    expect(result.description).toBeUndefined();
+    expect(result.statusReason).toBe('Buildpack detection failed.');
   });
 
   it('preserves the exact case of --name in the SOQL filter', async () => {
@@ -232,56 +233,44 @@ describe('compute display', () => {
 
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    const soql = toolingQueryStub.firstCall.args[0] as string;
-    expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
-    expect(soql).to.not.include("DeveloperName = 'creditratingscorer'");
+    const soql = toolingQueryStub.mock.calls[0][0] as string;
+    expect(soql).toContain("DeveloperName = 'CreditRatingScorer'");
+    expect(soql).not.toContain("DeveloperName = 'creditratingscorer'");
   });
 
   it('fails with a deploy hint when the app is not found in the org', async () => {
     resolveWith([]);
 
+    let error: Error | undefined;
     try {
       await Display.run(['--name', 'NeverDeployed', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('No compute app named NeverDeployed was found in the org');
-      const actions = (error as SfError).actions ?? [];
-      expect(actions.join('\n')).to.include('compute deploy');
-      expect(actions.join('\n')).to.not.include('%s');
+    } catch (error_) {
+      error = error_ as Error;
     }
+
+    expect(error).toBeDefined();
+    expect(error?.message).toContain('No compute app named NeverDeployed was found in the org');
+    const actions = (error as SfError).actions ?? [];
+    expect(actions.join('\n')).toContain('compute deploy');
+    expect(actions.join('\n')).not.toContain('%s');
   });
 
   it('fails when more than one matching app is found', async () => {
     resolveWith([activeRecord, activeRecord]);
 
-    try {
-      await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('Found more than one compute app named CreditRatingScorer');
-    }
+    await expect(Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('Found more than one compute app named CreditRatingScorer');
   });
 
   it('wraps an unexpected query failure', async () => {
-    toolingQueryStub.rejects(new Error('INVALID_SESSION_ID'));
+    toolingQueryStub.mockRejectedValue(new Error('INVALID_SESSION_ID'));
 
-    try {
-      await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("Couldn't query compute app details: INVALID_SESSION_ID");
-    }
+    await expect(Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("Couldn't query compute app details: INVALID_SESSION_ID");
   });
 
   it('rejects an invalid name before querying', async () => {
-    try {
-      await Display.run(['--name', '../evil', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("isn't valid");
-    }
+    await expect(Display.run(['--name', '../evil', '--target-org', testOrg.username])).rejects.toThrow("isn't valid");
 
-    expect(toolingQueryStub.called).to.be.false;
+    expect(toolingQueryStub).not.toHaveBeenCalled();
   });
 
   it('echoes the namespace-qualified --name value verbatim, not the namespace-stripped DeveloperName', async () => {
@@ -289,10 +278,10 @@ describe('compute display', () => {
 
     const result = await Display.run(['--name', 'myns__CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.name).to.equal('myns__CreditRatingScorer');
-    const soql = toolingQueryStub.firstCall.args[0] as string;
-    expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
-    expect(soql).to.include("Namespace = 'myns'");
+    expect(result.name).toBe('myns__CreditRatingScorer');
+    const soql = toolingQueryStub.mock.calls[0][0] as string;
+    expect(soql).toContain("DeveloperName = 'CreditRatingScorer'");
+    expect(soql).toContain("Namespace = 'myns'");
   });
 
   it('resolves --name from COMPUTE_APP_NAME when --name is not passed', async () => {
@@ -300,9 +289,9 @@ describe('compute display', () => {
     process.env.COMPUTE_APP_NAME = 'CreditRatingScorer';
     try {
       const result = await Display.run(['--target-org', testOrg.username]);
-      expect(result.name).to.equal('CreditRatingScorer');
-      const soql = toolingQueryStub.firstCall.args[0] as string;
-      expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
+      expect(result.name).toBe('CreditRatingScorer');
+      const soql = toolingQueryStub.mock.calls[0][0] as string;
+      expect(soql).toContain("DeveloperName = 'CreditRatingScorer'");
     } finally {
       delete process.env.COMPUTE_APP_NAME;
     }
@@ -313,9 +302,9 @@ describe('compute display', () => {
     process.env.COMPUTE_APP_NAME = 'SomeOtherApp';
     try {
       const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect(result.name).to.equal('CreditRatingScorer');
-      const soql = toolingQueryStub.firstCall.args[0] as string;
-      expect(soql).to.include("DeveloperName = 'CreditRatingScorer'");
+      expect(result.name).toBe('CreditRatingScorer');
+      const soql = toolingQueryStub.mock.calls[0][0] as string;
+      expect(soql).toContain("DeveloperName = 'CreditRatingScorer'");
     } finally {
       delete process.env.COMPUTE_APP_NAME;
     }
@@ -331,7 +320,7 @@ describe('compute display', () => {
     process.chdir(appDir);
     try {
       const result = await Display.run(['--target-org', testOrg.username]);
-      expect(result.name).to.equal('CreditRatingScorer');
+      expect(result.name).toBe('CreditRatingScorer');
     } finally {
       process.chdir(originalCwd);
       await rm(tmp, {force: true, recursive: true});
@@ -342,17 +331,20 @@ describe('compute display', () => {
     const originalCwd = process.cwd();
     const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-display-empty-'));
     process.chdir(tmp);
+    let error: Error | undefined;
     try {
       await Display.run(['--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("Couldn't determine which compute app to use");
+    } catch (error_) {
+      error = error_ as Error;
     } finally {
       process.chdir(originalCwd);
       await rm(tmp, {force: true, recursive: true});
     }
 
-    expect(toolingQueryStub.called).to.be.false;
+    expect(error).toBeDefined();
+    expect(error?.message).toContain("Couldn't determine which compute app to use");
+
+    expect(toolingQueryStub).not.toHaveBeenCalled();
   });
 });
 
@@ -360,8 +352,8 @@ describe('compute display via the Heroku proxy', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
-  let toolingQueryStub: sinon.SinonStub;
-  let requestStub: sinon.SinonStub;
+  let toolingQueryStub: MockInstance;
+  let requestStub: Mock;
 
   const activeRecord = {
     CurrentBuild: {
@@ -389,26 +381,27 @@ describe('compute display via the Heroku proxy', () => {
 
     const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
-    toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
+    toolingQueryStub = vi.spyOn(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
-    toolingQueryStub.resolves({done: true, records: [activeRecord], totalSize: 1});
+    toolingQueryStub.mockResolvedValue({done: true, records: [activeRecord], totalSize: 1});
 
     // connection.request is already wrapped by TestContext's own beforeEach (see stubContext in
     // @salesforce/core/testSetup) and dispatches through $$.fakeConnectionRequest -- stubbing it
     // again here would throw "Attempted to wrap request which is already wrapped".
-    requestStub = sinon.stub();
+    requestStub = vi.fn();
     $$.fakeConnectionRequest = requestStub;
   });
 
   afterEach(() => {
     $$.restore();
+    vi.restoreAllMocks();
   });
 
   // Both formation and release are fetched via the same connection.request stub -- distinguish
   // calls by their proxy_url target path rather than call order, since the two fetches in
   // display.ts run in an order that's an implementation detail, not a contract.
   function stubProxyResponses(formation: unknown, release: unknown): void {
-    requestStub.callsFake(async (req: {url: string}) => {
+    requestStub.mockImplementation(async (req: {url: string}) => {
       if (req.url.includes(encodeURIComponent('/formation'))) {
         return formation;
       }
@@ -429,17 +422,17 @@ describe('compute display via the Heroku proxy', () => {
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.formation).to.deep.equal([{dynoSize: 'Standard-1X', quantity: 2, type: 'web'}]);
-    expect(result.release).to.equal(11);
+    expect(result.formation).toEqual([{dynoSize: 'Standard-1X', quantity: 2, type: 'web'}]);
+    expect(result.release).toBe(11);
     const headers = sfCommandStubs.styledHeader.getCalls().flatMap(c => c.args);
-    expect(headers).to.include('Heroku App');
+    expect(headers).toContain('Heroku App');
 
     const tableCalls = sfCommandStubs.table.getCalls() as unknown as Array<{
       args: [{data: Array<{key: string; value: string}>}];
     }>;
     const allRows = tableCalls.flatMap(c => c.args[0].data);
-    expect(allRows).to.deep.include({key: 'Formation', value: 'web=2:Standard-1X'});
-    expect(allRows).to.deep.include({key: 'Release', value: '11'});
+    expect(allRows).toContainEqual({key: 'Formation', value: 'web=2:Standard-1X'});
+    expect(allRows).toContainEqual({key: 'Release', value: '11'});
   });
 
   it('still renders the Heroku App table (with a placeholder Formation row) when the formation is empty', async () => {
@@ -447,14 +440,14 @@ describe('compute display via the Heroku proxy', () => {
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.formation).to.deep.equal([]);
-    expect(result.release).to.be.undefined;
+    expect(result.formation).toEqual([]);
+    expect(result.release).toBeUndefined();
     const headers = sfCommandStubs.styledHeader.getCalls().flatMap(c => c.args);
-    expect(headers).to.include('Heroku App');
+    expect(headers).toContain('Heroku App');
   });
 
   it('warns and still returns the org-side result when the formation proxy call fails, without formation in the result', async () => {
-    requestStub.callsFake(async (req: {url: string}) => {
+    requestStub.mockImplementation(async (req: {url: string}) => {
       if (req.url.includes(encodeURIComponent('/formation'))) {
         throw new Error('socket hang up');
       }
@@ -464,19 +457,19 @@ describe('compute display via the Heroku proxy', () => {
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.formation).to.be.undefined;
-    expect(result.release).to.be.undefined;
-    expect(result.status).to.equal('ACTIVE');
+    expect(result.formation).toBeUndefined();
+    expect(result.release).toBeUndefined();
+    expect(result.status).toBe('ACTIVE');
     expect(
       sfCommandStubs.warn
         .getCalls()
         .map(c => c.args[0] as string)
         .join('\n'),
-    ).to.include("Couldn't fetch dyno formation from Heroku");
+    ).toContain("Couldn't fetch dyno formation from Heroku");
   });
 
   it('warns and still returns the org-side result when the release proxy call fails, without release in the result', async () => {
-    requestStub.callsFake(async (req: {url: string}) => {
+    requestStub.mockImplementation(async (req: {url: string}) => {
       if (req.url.includes(encodeURIComponent('/releases'))) {
         throw new Error('socket hang up');
       }
@@ -486,24 +479,24 @@ describe('compute display via the Heroku proxy', () => {
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.formation).to.deep.equal([]);
-    expect(result.release).to.be.undefined;
-    expect(result.status).to.equal('ACTIVE');
+    expect(result.formation).toEqual([]);
+    expect(result.release).toBeUndefined();
+    expect(result.status).toBe('ACTIVE');
     expect(
       sfCommandStubs.warn
         .getCalls()
         .map(c => c.args[0] as string)
         .join('\n'),
-    ).to.include("Couldn't fetch the latest release from Heroku");
+    ).toContain("Couldn't fetch the latest release from Heroku");
   });
 
   it('drops the formation and release keys from --json output when both proxy calls fail', async () => {
-    requestStub.rejects(new Error('socket hang up'));
+    requestStub.mockRejectedValue(new Error('socket hang up'));
 
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
     const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as Record<string, unknown>;
 
-    expect(JSON.stringify(jsonOutput)).to.not.include('formation');
-    expect(JSON.stringify(jsonOutput)).to.not.include('"release"');
+    expect(JSON.stringify(jsonOutput)).not.toContain('formation');
+    expect(JSON.stringify(jsonOutput)).not.toContain('"release"');
   });
 });

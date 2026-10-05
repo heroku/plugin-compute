@@ -1,4 +1,3 @@
-import {expect} from 'chai';
 /*
  * Copyright 2026, Salesforce, Inc.
  *
@@ -111,8 +110,8 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const outer = await extractTarGz(buffer);
-    expect(Object.keys(outer).toSorted()).to.deep.equal(['api-spec.yaml', 'source.tar.gz']);
-    expect(outer['api-spec.yaml'].toString('utf8')).to.equal('openapi: 3.0.0\n');
+    expect(Object.keys(outer).toSorted()).toEqual(['api-spec.yaml', 'source.tar.gz']);
+    expect(outer['api-spec.yaml'].toString('utf8')).toBe('openapi: 3.0.0\n');
   });
 
   it('excludes api-spec.yaml, the compute-meta.xml, and project.toml from source.tar.gz', async () => {
@@ -121,14 +120,14 @@ describe('computeBundle.packageComputeBundle', () => {
     const outer = await extractTarGz(buffer);
     const source = await extractTarGz(outer['source.tar.gz']);
 
-    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js']);
-    expect(source['src/app.js'].toString('utf8')).to.equal('console.log("hi");\n');
+    expect(Object.keys(source).toSorted()).toEqual(['Procfile', 'src/app.js']);
+    expect(source['src/app.js'].toString('utf8')).toBe('console.log("hi");\n');
   });
 
   it('reports the source file count excluding api-spec.yaml, meta xml, and project.toml', async () => {
     const {fileCount} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
-    expect(fileCount).to.equal(3); // Procfile, src/app.js, plus the api-spec.yaml entry in the outer bundle
+    expect(fileCount).toBe(3); // Procfile, src/app.js, plus the api-spec.yaml entry in the outer bundle
   });
 
   it('excludes files matching the app-level .forceignore', async () => {
@@ -138,7 +137,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
-    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js']);
+    expect(Object.keys(source).toSorted()).toEqual(['Procfile', 'src/app.js']);
   });
 
   it('excludes files matching the project-root .forceignore', async () => {
@@ -148,7 +147,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
-    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js']);
+    expect(Object.keys(source).toSorted()).toEqual(['Procfile', 'src/app.js']);
   });
 
   it('does not let a project-root-anchored pattern match an unrelated app-relative path of the same name', async () => {
@@ -162,7 +161,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
-    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js']);
+    expect(Object.keys(source).toSorted()).toEqual(['Procfile', 'src/app.js']);
   });
 
   it('honors negation patterns within a single .forceignore', async () => {
@@ -173,7 +172,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
-    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js', 'src/keep.log']);
+    expect(Object.keys(source).toSorted()).toEqual(['Procfile', 'src/app.js', 'src/keep.log']);
   });
 
   it('excludes a path ignored by either file, even if the other file does not mention it', async () => {
@@ -184,7 +183,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
-    expect(Object.keys(source).toSorted()).to.deep.equal(['Procfile', 'src/app.js']);
+    expect(Object.keys(source).toSorted()).toEqual(['Procfile', 'src/app.js']);
   });
 
   it('excludes Procfile if a .forceignore pattern happens to match it', async () => {
@@ -197,7 +196,7 @@ describe('computeBundle.packageComputeBundle', () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const source = await extractTarGz((await extractTarGz(buffer))['source.tar.gz']);
-    expect(Object.keys(source).toSorted()).to.deep.equal(['src/app.js']);
+    expect(Object.keys(source).toSorted()).toEqual(['src/app.js']);
   });
 });
 
@@ -226,10 +225,10 @@ describe('computeBundle.unpackComputeBundle', () => {
 
       const {fileCount} = await unpackComputeBundle(buffer, outputDir);
 
-      expect(fileCount).to.equal(3); // Procfile, src/app.js, plus api-spec.yaml
-      expect(await readFile(join(outputDir, 'api-spec.yaml'), 'utf8')).to.equal('openapi: 3.0.0\n');
-      expect(await readFile(join(outputDir, 'Procfile'), 'utf8')).to.equal('web: node src/app.js\n');
-      expect(await readFile(join(outputDir, 'src', 'app.js'), 'utf8')).to.equal('console.log("hi");\n');
+      expect(fileCount).toBe(3); // Procfile, src/app.js, plus api-spec.yaml
+      expect(await readFile(join(outputDir, 'api-spec.yaml'), 'utf8')).toBe('openapi: 3.0.0\n');
+      expect(await readFile(join(outputDir, 'Procfile'), 'utf8')).toBe('web: node src/app.js\n');
+      expect(await readFile(join(outputDir, 'src', 'app.js'), 'utf8')).toBe('console.log("hi");\n');
     } finally {
       await rm(projectRoot, {force: true, recursive: true});
     }
@@ -244,31 +243,21 @@ describe('computeBundle.unpackComputeBundle', () => {
 
     const {fileCount} = await unpackComputeBundle(outer, outputDir);
 
-    expect(fileCount).to.equal(2); // lib/nested/util.js, plus api-spec.yaml
-    expect(await readFile(join(outputDir, 'lib', 'nested', 'util.js'), 'utf8')).to.equal('module.exports = {};\n');
+    expect(fileCount).toBe(2); // lib/nested/util.js, plus api-spec.yaml
+    expect(await readFile(join(outputDir, 'lib', 'nested', 'util.js'), 'utf8')).toBe('module.exports = {};\n');
   });
 
   it('throws error.sourceBundleMalformed when the outer bundle is missing api-spec.yaml', async () => {
     const sourceTarGz = await buildTarGz([{data: Buffer.from('web: node src/app.js\n'), name: 'Procfile'}]);
     const outer = await buildTarGz([{data: sourceTarGz, name: 'source.tar.gz'}]);
 
-    try {
-      await unpackComputeBundle(outer, outputDir);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('api-spec.yaml');
-    }
+    await expect(unpackComputeBundle(outer, outputDir)).rejects.toThrow('api-spec.yaml');
   });
 
   it('throws error.sourceBundleMalformed when the outer bundle is missing source.tar.gz', async () => {
     const outer = await buildTarGz([{data: Buffer.from('openapi: 3.0.0\n'), name: 'api-spec.yaml'}]);
 
-    try {
-      await unpackComputeBundle(outer, outputDir);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('source.tar.gz');
-    }
+    await expect(unpackComputeBundle(outer, outputDir)).rejects.toThrow('source.tar.gz');
   });
 
   it('rejects a source entry whose name would tar-slip outside appDir, without writing it', async () => {
@@ -278,12 +267,7 @@ describe('computeBundle.unpackComputeBundle', () => {
       {data: sourceTarGz, name: 'source.tar.gz'},
     ]);
 
-    try {
-      await unpackComputeBundle(outer, outputDir);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('unsafe entry path');
-    }
+    await expect(unpackComputeBundle(outer, outputDir)).rejects.toThrow('unsafe entry path');
 
     let isEscaped = true;
     try {
@@ -292,26 +276,18 @@ describe('computeBundle.unpackComputeBundle', () => {
       isEscaped = false;
     }
 
-    expect(isEscaped, 'evil.txt must not have been written outside outputDir').to.be.false;
+    expect(isEscaped, 'evil.txt must not have been written outside outputDir').toBe(false);
   });
 
   it('throws error.sourceBundleMalformed instead of a raw zlib error when the download is not a valid gzip stream', async () => {
-    try {
-      await unpackComputeBundle(Buffer.from('not a gzip archive'), outputDir);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('not a valid gzip archive');
-    }
+    await expect(unpackComputeBundle(Buffer.from('not a gzip archive'), outputDir)).rejects.toThrow(
+      'not a valid gzip archive',
+    );
   });
 
   it('throws error.sourceBundleMalformed instead of a raw tar-stream error when the outer archive is gzip but not a valid tar', async () => {
     const notATar = gzipSync(Buffer.from('just some gzipped bytes, not a tar archive'));
 
-    try {
-      await unpackComputeBundle(notATar, outputDir);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('not a valid tar archive');
-    }
+    await expect(unpackComputeBundle(notATar, outputDir)).rejects.toThrow('not a valid tar archive');
   });
 });

@@ -6,14 +6,14 @@ on:
 
 jobs:
   check-drift:
-    runs-on: ubuntu-latest
+    runs-on: sfdc-hk-ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: yarn install --frozen-lockfile
-      - run: yarn compile
+      - run: npm ci
+      - run: npm run compile
       - run: node scripts/check-reference-app-drift.mjs
       - name: Announce drift
         if: failure()

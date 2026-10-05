@@ -1,7 +1,8 @@
+import type {Mock, MockInstance} from 'vitest';
+
 import {Org} from '@salesforce/core';
 import {MockTestOrgData, TestContext} from '@salesforce/core/testSetup';
 import {stubSfCommandUx} from '@salesforce/sf-plugins-core';
-import {expect} from 'chai';
 /*
  * Copyright 2026, Salesforce, Inc.
  *
@@ -25,7 +26,6 @@ import {
 } from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import sinon from 'sinon';
 
 import ConfigGet from '../../../../src/commands/compute/config/get.js';
 
@@ -37,9 +37,9 @@ function proxyTarget(url: string): string {
 
 // Mirrors config.test.ts's findConfigVarsCall -- Org.create()/getConnection() issues its own
 // request through the same shared requestStub while resolving --target-org.
-function findConfigVarsCall(stub: sinon.SinonStub, method?: string): sinon.SinonSpyCall | undefined {
-  return stub.getCalls().find(call => {
-    const req = call.args[0] as undefined | {method?: string; url?: string};
+function findConfigVarsCall(stub: Mock, method?: string): undefined | unknown[] {
+  return stub.mock.calls.find(call => {
+    const req = call[0] as undefined | {method?: string; url?: string};
     if (!req?.url) {
       return false;
     }
@@ -64,8 +64,8 @@ describe('compute config get', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
-  let toolingQueryStub: sinon.SinonStub;
-  let requestStub: sinon.SinonStub;
+  let toolingQueryStub: MockInstance;
+  let requestStub: Mock;
 
   beforeEach(async () => {
     sfCommandStubs = stubSfCommandUx($$.SANDBOX);
@@ -73,17 +73,18 @@ describe('compute config get', () => {
 
     const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
-    toolingQueryStub = $$.SANDBOX.stub(connection.tooling, 'query');
-    toolingQueryStub.resolves({done: true, records: [computeAppRecord], totalSize: 1});
+    toolingQueryStub = vi.spyOn(connection.tooling, 'query');
+    toolingQueryStub.mockResolvedValue({done: true, records: [computeAppRecord], totalSize: 1});
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
-    requestStub = sinon.stub().resolves({LOG_LEVEL: 'info', STRIPE_KEY: 'sk_live_abc123'});
+    requestStub = vi.fn().mockResolvedValue({LOG_LEVEL: 'info', STRIPE_KEY: 'sk_live_abc123'});
     $$.fakeConnectionRequest = requestStub;
   });
 
   afterEach(() => {
     process.exitCode = 0;
     $$.restore();
+    vi.restoreAllMocks();
   });
 
   it('prints the bare value for a single key, with no KEY: prefix', async () => {
@@ -95,8 +96,8 @@ describe('compute config get', () => {
       testOrg.username,
     ]);
 
-    expect(result).to.deep.equal({name: 'CreditRatingScorer', values: {STRIPE_KEY: 'sk_live_abc123'}});
-    expect(sfCommandStubs.log.args.flat()).to.deep.equal(['sk_live_abc123']);
+    expect(result).toEqual({name: 'CreditRatingScorer', values: {STRIPE_KEY: 'sk_live_abc123'}});
+    expect(sfCommandStubs.log.args.flat()).toEqual(['sk_live_abc123']);
   });
 
   it('prints KEY: value pairs, aligned, for more than one key', async () => {
@@ -109,11 +110,11 @@ describe('compute config get', () => {
       testOrg.username,
     ]);
 
-    expect(result).to.deep.equal({
+    expect(result).toEqual({
       name: 'CreditRatingScorer',
       values: {LOG_LEVEL: 'info', STRIPE_KEY: 'sk_live_abc123'},
     });
-    expect(sfCommandStubs.log.args.flat()).to.deep.equal(['STRIPE_KEY:  sk_live_abc123', 'LOG_LEVEL:   info']);
+    expect(sfCommandStubs.log.args.flat()).toEqual(['STRIPE_KEY:  sk_live_abc123', 'LOG_LEVEL:   info']);
   });
 
   it('prints one line for a key requested twice, deduping the JSON values too', async () => {
@@ -126,102 +127,77 @@ describe('compute config get', () => {
       testOrg.username,
     ]);
 
-    expect(result).to.deep.equal({name: 'CreditRatingScorer', values: {STRIPE_KEY: 'sk_live_abc123'}});
-    expect(sfCommandStubs.log.args.flat()).to.deep.equal(['sk_live_abc123']);
+    expect(result).toEqual({name: 'CreditRatingScorer', values: {STRIPE_KEY: 'sk_live_abc123'}});
+    expect(sfCommandStubs.log.args.flat()).toEqual(['sk_live_abc123']);
   });
 
   it('errors on the first missing key, in the order the keys were requested', async () => {
+    let error: Error | undefined;
     try {
       await ConfigGet.run(['ZEBRA', 'ALPHA', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.equal('CreditRatingScorer has no config var named "ZEBRA".');
+    } catch (error_) {
+      error = error_ as Error;
     }
+
+    expect(error).toBeDefined();
+    expect(error?.message).toBe('CreditRatingScorer has no config var named "ZEBRA".');
   });
 
   it('surfaces error.herokuAppNotFound when Heroku 404s the app', async () => {
-    requestStub.rejects(Object.assign(new Error("Couldn't find that app."), {data: {id: 'not_found'}}));
+    requestStub.mockRejectedValue(Object.assign(new Error("Couldn't find that app."), {data: {id: 'not_found'}}));
 
-    try {
-      await ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('CreditRatingScorer');
-    }
+    await expect(ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('CreditRatingScorer');
   });
 
   it('wraps a proxy-rejection failure as error.herokuProxyRequestFailed', async () => {
-    requestStub.rejects(Object.assign(new Error('bad proxy_url'), {errorCode: 'HEROKU_PROXY_ERROR'}));
+    requestStub.mockRejectedValue(Object.assign(new Error('bad proxy_url'), {errorCode: 'HEROKU_PROXY_ERROR'}));
 
-    try {
-      await ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('The Salesforce Heroku API proxy rejected the request: bad proxy_url');
-    }
+    await expect(ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
+      'The Salesforce Heroku API proxy rejected the request: bad proxy_url',
+    );
   });
 
   it('wraps an unrecognized proxy failure as error.herokuApiRequestFailed', async () => {
-    requestStub.rejects(new Error('socket hang up'));
+    requestStub.mockRejectedValue(new Error('socket hang up'));
 
-    try {
-      await ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include(
-        "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
-      );
-    }
+    await expect(ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
+      "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
+    );
   });
 
   it('rejects when no keys are given, without calling the Heroku proxy', async () => {
-    try {
-      await ConfigGet.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('Specify at least one config var to get');
-    }
+    await expect(ConfigGet.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('Specify at least one config var to get');
 
-    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+    expect(findConfigVarsCall(requestStub)).toBeUndefined();
   });
 
   // Now that get.ts always pre-flights a SOQL lookup by DeveloperName before proxying to Heroku,
   // --name must be a valid DeveloperName -- a hyphenated Heroku-style value is rejected by
   // validateName rather than passed through, unlike before resolveHerokuAppId existed.
   it('rejects a hyphenated --name before querying or calling the Heroku proxy', async () => {
-    try {
-      await ConfigGet.run(['STRIPE_KEY', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("isn't valid");
-    }
+    await expect(ConfigGet.run(['STRIPE_KEY', '--name', 'my-heroku-style-app', '--target-org', testOrg.username])).rejects.toThrow("isn't valid");
 
-    expect(toolingQueryStub.called).to.be.false;
-    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+    expect(toolingQueryStub).not.toHaveBeenCalled();
+    expect(findConfigVarsCall(requestStub)).toBeUndefined();
   });
 
   it('throws error.herokuAppIdentifierUnavailable when the app resolves but has no ExternalAppIdentifier yet, without calling the proxy', async () => {
-    toolingQueryStub.resolves({
+    toolingQueryStub.mockResolvedValue({
       done: true,
       records: [{...computeAppRecord, ExternalAppIdentifier: undefined}],
       totalSize: 1,
     });
 
-    try {
-      await ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("doesn't have a Heroku app identifier yet");
-    }
+    await expect(ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("doesn't have a Heroku app identifier yet");
 
-    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+    expect(findConfigVarsCall(requestStub)).toBeUndefined();
   });
 
   it('returns the flattened result under --json, not the full status envelope', async () => {
     await ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
 
     const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as {result: unknown};
-    expect(jsonOutput.result).to.deep.equal({
+    expect(jsonOutput.result).toEqual({
       name: 'CreditRatingScorer',
       values: {STRIPE_KEY: 'sk_live_abc123'},
     });
@@ -231,9 +207,9 @@ describe('compute config get', () => {
     process.env.COMPUTE_APP_NAME = 'CreditRatingScorer';
     try {
       const result = await ConfigGet.run(['STRIPE_KEY', '--target-org', testOrg.username]);
-      expect(result.name).to.equal('CreditRatingScorer');
+      expect(result.name).toBe('CreditRatingScorer');
       const call = findConfigVarsCall(requestStub, 'GET');
-      expect(proxyTarget((call!.args[0] as {url: string}).url)).to.equal(
+      expect(proxyTarget((call![0] as {url: string}).url)).toBe(
         'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/config-vars',
       );
     } finally {
@@ -250,7 +226,7 @@ describe('compute config get', () => {
     process.chdir(appDir);
     try {
       const result = await ConfigGet.run(['STRIPE_KEY', '--target-org', testOrg.username]);
-      expect(result.name).to.equal('CreditRatingScorer');
+      expect(result.name).toBe('CreditRatingScorer');
     } finally {
       process.chdir(originalCwd);
       await rm(tmp, {force: true, recursive: true});
@@ -261,16 +237,19 @@ describe('compute config get', () => {
     const originalCwd = process.cwd();
     const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-config-get-empty-'));
     process.chdir(tmp);
+    let error: Error | undefined;
     try {
       await ConfigGet.run(['STRIPE_KEY', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("Couldn't determine which compute app to use");
+    } catch (error_) {
+      error = error_ as Error;
     } finally {
       process.chdir(originalCwd);
       await rm(tmp, {force: true, recursive: true});
     }
 
-    expect(findConfigVarsCall(requestStub)).to.be.undefined;
+    expect(error).toBeDefined();
+    expect(error?.message).toContain("Couldn't determine which compute app to use");
+
+    expect(findConfigVarsCall(requestStub)).toBeUndefined();
   });
 });

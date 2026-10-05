@@ -13,16 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {expect} from 'chai';
-import sinon from 'sinon';
+
+import type {MockInstance} from 'vitest';
 
 import {fetchLogplexOutput, streamLogplexOutput} from '../../src/shared/computeLogStream.js';
 
 // No existing precedent in this repo for stubbing globalThis.fetch -- this small helper resolves
 // a real Response/ReadableStream so fetchLogplexOutput/streamLogplexOutput exercise their actual
 // body-reading code, not a hand-rolled mock of it.
-function stubFetchResponse(response: Response): sinon.SinonStub {
-  return sinon.stub(globalThis, 'fetch').resolves(response);
+function stubFetchResponse(response: Response): MockInstance {
+  return vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
 }
 
 function streamOf(chunks: string[]): ReadableStream<Uint8Array> {
@@ -40,7 +40,7 @@ function streamOf(chunks: string[]): ReadableStream<Uint8Array> {
 
 describe('computeLogStream.fetchLogplexOutput', () => {
   afterEach(() => {
-    sinon.restore();
+    vi.restoreAllMocks();
   });
 
   it('returns the response body text on a 2xx response', async () => {
@@ -48,24 +48,27 @@ describe('computeLogStream.fetchLogplexOutput', () => {
 
     const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc');
 
-    expect(result).to.equal('line one\nline two\n');
+    expect(result).toBe('line one\nline two\n');
   });
 
   it('wraps a non-2xx response as a hard error', async () => {
     stubFetchResponse(new Response('gone', {status: 410}));
 
+    let error: Error | undefined;
     try {
       await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc');
-      expect.fail('expected fetchLogplexOutput to throw');
-    } catch (error) {
-      expect((error as Error).message).to.include('HTTP 410');
+    } catch (error_) {
+      error = error_ as Error;
     }
+
+    expect(error).toBeDefined();
+    expect(error?.message).toContain('HTTP 410');
   });
 });
 
 describe('computeLogStream.streamLogplexOutput', () => {
   afterEach(() => {
-    sinon.restore();
+    vi.restoreAllMocks();
   });
 
   it('splits multi-chunk output into lines, flushing a trailing partial line on EOF', async () => {
@@ -78,14 +81,14 @@ describe('computeLogStream.streamLogplexOutput', () => {
       lines.push(line);
     });
 
-    expect(reason).to.equal('eof');
-    expect(lines).to.deep.equal(['line one', 'line two', 'line three (no trailing newline)']);
+    expect(reason).toBe('eof');
+    expect(lines).toEqual(['line one', 'line two', 'line three (no trailing newline)']);
   });
 
   it('resolves cleanly with "aborted" when the signal is already aborted, without throwing', async () => {
     const controller = new AbortController();
     controller.abort();
-    sinon.stub(globalThis, 'fetch').callsFake(async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       // A real aborted fetch rejects with a DOMException named 'AbortError' -- construct that
       // directly rather than mutating a plain Error's .name. (streamLogplexOutput keys off
       // signal.aborted, not the error name, so this just keeps the simulated reject faithful.)
@@ -101,21 +104,24 @@ describe('computeLogStream.streamLogplexOutput', () => {
       controller.signal,
     );
 
-    expect(reason).to.equal('aborted');
-    expect(lines).to.deep.equal([]);
+    expect(reason).toBe('aborted');
+    expect(lines).toEqual([]);
   });
 
   it('wraps a non-2xx response as a hard error', async () => {
     stubFetchResponse(new Response('gone', {status: 410}));
 
+    let error: Error | undefined;
     try {
       await streamLogplexOutput('https://logplex.heroku.com/sessions/abc', () => {
         /* no lines are expected before the error */
       });
-      expect.fail('expected streamLogplexOutput to throw');
-    } catch (error) {
-      expect((error as Error).message).to.include('HTTP 410');
+    } catch (error_) {
+      error = error_ as Error;
     }
+
+    expect(error).toBeDefined();
+    expect(error?.message).toContain('HTTP 410');
   });
 
   it('rethrows a genuine mid-stream read failure that is not an abort', async () => {
@@ -126,13 +132,16 @@ describe('computeLogStream.streamLogplexOutput', () => {
     });
     stubFetchResponse(new Response(body, {status: 200}));
 
+    let error: Error | undefined;
     try {
       await streamLogplexOutput('https://logplex.heroku.com/sessions/abc', () => {
         /* no lines are expected before the error */
       });
-      expect.fail('expected streamLogplexOutput to throw');
-    } catch (error) {
-      expect((error as Error).message).to.include('connection reset');
+    } catch (error_) {
+      error = error_ as Error;
     }
+
+    expect(error).toBeDefined();
+    expect(error?.message).toContain('connection reset');
   });
 });

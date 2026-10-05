@@ -31,9 +31,19 @@ import Generate from '../../../src/commands/compute/generate.js';
 
 // Keeps this suite offline: production Generate.fetchTemplateSource does a live HTTPS fetch of
 // the pinned reference-app commit, so tests swap in an in-memory fixture standing in for the
-// whole fetched tarball. buildStarterFiles writes every one of these paths out verbatim (no
-// curation/trimming), so the fixture includes files like package-lock.json and devDependencies
-// that a real fetch would also carry straight through.
+// whole fetched tarball. buildStarterFiles writes these paths out verbatim except for the
+// denylisted ones (governance files, example routers/tests), so the fixture includes both
+// kinds, plus files like package-lock.json and devDependencies that a real fetch carries through.
+// Mimics the reference apps' local-invoke scripts: defaults/examples name the example endpoints.
+/* eslint-disable no-template-curly-in-string -- literal shell parameter expansion from the upstream script */
+const INVOKE_FIXTURE = [
+  'API_PATH="${6:-/accounts}"  # python: /api/accounts/',
+  '# POST /unitofwork',
+  '',
+].join('\n');
+
+/* eslint-enable no-template-curly-in-string */
+
 const FIXTURE_SOURCE: Record<Language, Record<string, string>> = {
   node: {
     Procfile: 'web: APP_PORT=3000 heroku-applink-service-mesh npm start\n',
@@ -50,10 +60,20 @@ const FIXTURE_SOURCE: Record<Language, Record<string, string>> = {
       devDependencies: {eslint: '^9.14.0'},
     }),
     'package-lock.json': JSON.stringify({name: 'applink-getting-started-nodejs', lockfileVersion: 3}),
+    'bin/invoke.sh': INVOKE_FIXTURE,
+    CODEOWNERS: '* @heroku-reference-apps/maintainers\n',
+    'LICENSE.txt': 'Apache License\n',
+    'app.json': '{"name":"applink-getting-started-nodejs"}\n',
+    'test/routes/accounts.test.js': "import { test } from 'tap';\n",
   },
   python: {
     Procfile: 'web: APP_PORT=3000 heroku-applink-service-mesh uvicorn app.main:app\n',
     'requirements.txt': 'fastapi>=0.109.2\nuvicorn>=0.27.1\nheroku-applink>=1.0.0\nPyYAML>=6.0.1\npytest>=8.2.0\n',
+    'bin/invoke.py': INVOKE_FIXTURE,
+    'tests/test_main.py': 'def test_get_health(client):\n    pass\n',
+    'tests/routers/test_accounts.py': 'def test_accounts(client):\n    pass\n',
+    'app/routers/accounts.py': 'router = None\n',
+    'SECURITY.md': 'security\n',
   },
 };
 
@@ -98,10 +118,11 @@ describe('compute generate', () => {
 
     expect(result.name).to.equal('CreditRatingScorer');
     expect(result.language).to.equal('node');
-    expect(result.files).to.have.length(10);
+    expect(result.files).to.have.length(12);
     expect(result.files.some(f => f.endsWith('src/app.js'))).to.be.true;
     expect(result.files.some(f => f.endsWith('src/plugins/heroku-applink.js'))).to.be.true;
     expect(result.files.some(f => f.endsWith('package-lock.json'))).to.be.true;
+    expect(result.files.some(f => f.endsWith(join('test', 'routes', 'healthcheck.test.js')))).to.be.true;
 
     const metaXml = await readFile(
       join(
@@ -217,6 +238,59 @@ describe('compute generate', () => {
       expect.fail('expected an error');
     } catch (error) {
       expect((error as Error).message).to.include('Procfile');
+    }
+  });
+
+  it('omits upstream governance files and example tests from the node app', async () => {
+    const result = await Generate.run(['--name', 'CleanNode']);
+    const relative = result.files.map(f => f.split('CleanNode/', 2)[1]);
+
+    for (const denied of ['CODEOWNERS', 'LICENSE.txt', 'app.json', 'test/routes/accounts.test.js']) {
+      expect(relative, denied).to.not.include(denied);
+    }
+  });
+
+  it('omits upstream governance files, example routers, and example router tests from the python app', async () => {
+    const result = await Generate.run(['--name', 'CleanPython', '--language', 'python']);
+    const relative = result.files.map(f => f.split('CleanPython/', 2)[1]);
+
+    for (const denied of ['SECURITY.md', 'app/routers/accounts.py', 'tests/routers/test_accounts.py']) {
+      expect(relative, denied).to.not.include(denied);
+    }
+
+    // The upstream tests that still pass against the skeleton are kept.
+    expect(relative).to.include('tests/test_main.py');
+  });
+
+  it('retargets the invoke scripts away from endpoints the generated app does not have', async () => {
+    await Generate.run(['--name', 'InvokeNode']);
+    await Generate.run(['--name', 'InvokePython', '--language', 'python']);
+    const base = join(projectDir, 'force-app/main/default/platformComputeApps');
+
+    const nodeScript = await readFile(join(base, 'InvokeNode/bin/invoke.sh'), 'utf8');
+    // eslint-disable-next-line no-template-curly-in-string
+    expect(nodeScript).to.include('${6:-/healthcheck}');
+    expect(nodeScript).to.include('POST /hello');
+    expect(nodeScript).to.not.include('/accounts');
+    expect(nodeScript).to.not.include('/unitofwork');
+
+    const pythonScript = await readFile(join(base, 'InvokePython/bin/invoke.py'), 'utf8');
+    expect(pythonScript).to.not.include('accounts');
+    expect(pythonScript).to.include('/health');
+  });
+
+  it('fails at generate time when the fetched source lacks a file the app needs to run', async () => {
+    Generate.fetchTemplateSource = async language => {
+      const entries = await stubFetchTemplateSource(language);
+      delete entries['package-lock.json'];
+      return entries;
+    };
+
+    try {
+      await Generate.run(['--name', 'NoLockfile']);
+      expect.fail('expected an error');
+    } catch (error) {
+      expect((error as Error).message).to.include('package-lock.json');
     }
   });
 });

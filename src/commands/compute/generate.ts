@@ -100,13 +100,58 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
   }
 }
 
+// Files that belong to the reference-app repo itself rather than to a customer's app. Governance
+// files (CODEOWNERS names teams that don't exist in the customer's org; the license/security/
+// conduct/contributing docs describe Heroku's repo), the Heroku deploy-button manifest
+// (meaningless for a PlatformComputeApp), and the example routers/tests for the endpoints the
+// skeletons replace (left in, they're dead code and their tests fail against the skeleton).
+// Entries ending in "/" match a whole directory. Lint/format config stays: package.json's lint
+// and format scripts still reference it.
+const DENIED_COMMON = ['CODEOWNERS', 'LICENSE.txt', 'SECURITY.md', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md'];
+const DENIED_PATHS: Record<Language, string[]> = {
+  node: [...DENIED_COMMON, 'app.json', 'test/routes/'],
+  python: [...DENIED_COMMON, 'app/routers/', 'tests/routers/'],
+};
+
+function isDeniedPath(language: Language, relativePath: string): boolean {
+  return DENIED_PATHS[language].some(entry =>
+    entry.endsWith('/') ? relativePath.startsWith(entry) : relativePath === entry);
+}
+
+// Fetch-only files the generated app can't run without (nothing in GENERATED_SKELETONS covers them).
+const REQUIRED_FETCHED_FILES: Record<Language, string[]> = {
+  node: ['Procfile', 'package.json', 'package-lock.json', 'src/app.js', 'src/plugins/heroku-applink.js'],
+  python: ['Procfile', 'requirements.txt'],
+};
+
+// bin/invoke.* is kept for local testing, but upstream defaults and examples point at the
+// reference apps' example endpoints (/accounts, /unitofwork, ...) which don't exist in a
+// generated app. Repoint them at routes that do: the built-in health route by default, and the
+// skeleton's commented /hello example elsewhere.
+const INVOKE_SCRIPTS = new Set(['bin/invoke.py', 'bin/invoke.sh']);
+const INVOKE_PATH_REPLACEMENTS: Array<[string, string]> = [
+  ['/api/accounts/', '/health'],
+  ['/accounts', '/healthcheck'],
+  ['/unitofwork', '/hello'],
+];
+
+function retargetInvokeScript(text: string): string {
+  let retargeted = text;
+  for (const [from, to] of INVOKE_PATH_REPLACEMENTS) {
+    retargeted = retargeted.replaceAll(from, () => to);
+  }
+
+  return retargeted;
+}
+
 // Starter source is fetched live from the Heroku AppLink getting-started reference apps
 // (applink-getting-started-nodejs / applink-getting-started-python) at generate time -- see
 // computeGenerateSource.ts for the pinned commit/checksum and the fetch-and-extract mechanics.
-// Every file the fetch returns (Procfile, lockfile, package.json/requirements.txt, tests, lint
-// config, CI/license/contributing files, etc.) is written out verbatim -- this repo carries zero
-// vendored copies of upstream's code, and generated apps get the exact same lockfile-backed
-// dependency set as the reference app, not a hand-trimmed subset of it.
+// Everything the fetch returns is written out verbatim (lockfile, package.json/requirements.txt,
+// lint config, local invoke scripts, etc.) except the DENIED_* paths below -- this repo carries
+// zero vendored copies of upstream's code, and generated apps get the exact same lockfile-backed
+// dependency set as the reference app, not a hand-trimmed subset of it. A denylist (rather than
+// an allowlist) means new upstream runtime files flow through without a code change here.
 //
 // Files carrying the reference apps' example business-logic endpoints (Accounts query,
 // UnitOfWork, Data Cloud webhook) aren't separable from that logic by trimming -- it's woven
@@ -134,12 +179,20 @@ async function buildStarterFiles(
   };
 
   const fetched = await fetchSource(language);
-  if (!fetched.Procfile) {
-    throw messages.createError('error.templateSourceMissingFile', [language, 'Procfile']);
+  // Fails at generate time (rather than later at `npm ci` / deploy) if a pin bump moved or removed
+  // a file the app can't run without; the tarball checksum only proves the bytes are the ones
+  // pinned, not that the file set still has what we expect.
+  for (const requiredPath of REQUIRED_FETCHED_FILES[language]) {
+    const present = fetched[requiredPath];
+    if (!present) {
+      throw messages.createError('error.templateSourceMissingFile', [language, requiredPath]);
+    }
   }
 
   for (const [relativePath, raw] of Object.entries(fetched)) {
-    files[relativePath] = raw.toString('utf8');
+    if (isDeniedPath(language, relativePath)) continue;
+    const text = raw.toString('utf8');
+    files[relativePath] = INVOKE_SCRIPTS.has(relativePath) ? retargetInvokeScript(text) : text;
   }
 
   for (const [relativePath, contents] of Object.entries(GENERATED_SKELETONS[language])) {

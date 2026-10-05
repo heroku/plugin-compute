@@ -1,6 +1,5 @@
 import type {Connection} from '@salesforce/core';
 
-import {expect} from 'chai';
 import JSZip from 'jszip';
 /*
  * Copyright 2026, Salesforce, Inc.
@@ -20,7 +19,6 @@ import JSZip from 'jszip';
 import {mkdtemp, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import sinon from 'sinon';
 
 import {deployComputeMetadata} from '../../src/shared/metadataDeploy.js';
 
@@ -34,19 +32,19 @@ describe('metadataDeploy.deployComputeMetadata', () => {
 
   afterEach(async () => {
     await rm(appDir, {force: true, recursive: true});
-    sinon.restore();
+    vi.restoreAllMocks();
   });
 
   function stubConnection(deployStatus: {
     details: {componentFailures: Array<{problem?: string}>};
     success: boolean;
   }) {
-    const deploy = sinon.stub().resolves({id: 'deploy-job-id'});
-    const checkDeployStatus = sinon.stub().resolves({done: true, id: 'deploy-job-id', ...deployStatus});
+    const deploy = vi.fn().mockResolvedValue({id: 'deploy-job-id'});
+    const checkDeployStatus = vi.fn().mockResolvedValue({done: true, id: 'deploy-job-id', ...deployStatus});
     // SDR's MetadataTransfer.getConnection() unconditionally calls retrieveMaxApiVersion() before
     // every deploy, even though we never pass an `apiVersion` option -- so the "requested higher
     // than org allows" branch it feeds into never actually fires, but the call itself must resolve.
-    const retrieveMaxApiVersion = sinon.stub().resolves('70.0');
+    const retrieveMaxApiVersion = vi.fn().mockResolvedValue('70.0');
     const connection = {
       getApiVersion: () => '62.0',
       getAuthInfoFields: () => ({orgId: '00DEE0000000000EAA'}),
@@ -66,14 +64,14 @@ describe('metadataDeploy.deployComputeMetadata', () => {
 
     const result = await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
 
-    expect(result).to.deep.equal({id: 'deploy-job-id'});
+    expect(result).toEqual({id: 'deploy-job-id'});
     // isRestDeploy is false since we never set apiOptions.rest -- SDR polls via the SOAP checkDeployStatus signature.
-    expect(checkDeployStatus.calledOnceWith('deploy-job-id', true, false)).to.be.true;
+    expect(checkDeployStatus).toHaveBeenCalledExactlyOnceWith('deploy-job-id', true, false);
 
-    expect(deploy.calledOnce).to.be.true;
-    const [zipBuffer, options] = deploy.firstCall.args as [Buffer, Record<string, unknown>];
+    expect(deploy).toHaveBeenCalledOnce();
+    const [zipBuffer, options] = deploy.mock.calls[0] as [Buffer, Record<string, unknown>];
     // SDR merges our apiOptions with its own defaults and strips `rest` before calling connection.metadata.deploy.
-    expect(options).to.deep.equal({
+    expect(options).toEqual({
       checkOnly: false,
       ignoreWarnings: false,
       rollbackOnError: true,
@@ -82,11 +80,11 @@ describe('metadataDeploy.deployComputeMetadata', () => {
 
     const zip = await JSZip.loadAsync(zipBuffer);
     const packageXml = await zip.file('package.xml')?.async('string');
-    expect(packageXml).to.include('<members>CreditRatingScorer</members>');
-    expect(packageXml).to.include('<name>PlatformComputeApp</name>');
+    expect(packageXml).toContain('<members>CreditRatingScorer</members>');
+    expect(packageXml).toContain('<name>PlatformComputeApp</name>');
 
     const metaXml = await zip.file('platformComputeApps/CreditRatingScorer.compute')?.async('string');
-    expect(metaXml).to.equal('<PlatformComputeApp/>\n');
+    expect(metaXml).toBe('<PlatformComputeApp/>\n');
   });
 
   // Regression guard: PlatformComputeApp was only registered as a metadata type in API 68.0.
@@ -100,10 +98,10 @@ describe('metadataDeploy.deployComputeMetadata', () => {
 
     await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
 
-    const [zipBuffer] = deploy.firstCall.args as [Buffer];
+    const [zipBuffer] = deploy.mock.calls[0] as [Buffer];
     const zip = await JSZip.loadAsync(zipBuffer);
     const packageXml = await zip.file('package.xml')?.async('string');
-    expect(packageXml).to.include('<version>68.0</version>');
+    expect(packageXml).toContain('<version>68.0</version>');
   });
 
   it('uses the connection API version as-is when it is already at or above 68.0', async () => {
@@ -112,10 +110,10 @@ describe('metadataDeploy.deployComputeMetadata', () => {
 
     await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
 
-    const [zipBuffer] = deploy.firstCall.args as [Buffer];
+    const [zipBuffer] = deploy.mock.calls[0] as [Buffer];
     const zip = await JSZip.loadAsync(zipBuffer);
     const packageXml = await zip.file('package.xml')?.async('string');
-    expect(packageXml).to.include('<version>70.0</version>');
+    expect(packageXml).toContain('<version>70.0</version>');
   });
 
   it('throws with the component failure detail when the deploy fails', async () => {
@@ -124,12 +122,15 @@ describe('metadataDeploy.deployComputeMetadata', () => {
       success: false,
     });
 
+    let error: Error | undefined;
     try {
       await deployComputeMetadata(connection, appDir, 'CreditRatingScorer');
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('CreditRatingScorer');
-      expect((error as Error).message).to.include('Invalid metadata type PlatformComputeApp');
+    } catch (error_) {
+      error = error_ as Error;
     }
+
+    expect(error).toBeDefined();
+    expect(error?.message).toContain('CreditRatingScorer');
+    expect(error?.message).toContain('Invalid metadata type PlatformComputeApp');
   });
 });

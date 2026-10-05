@@ -1,9 +1,9 @@
 import type FormData from 'form-data';
+import type {Mock, MockInstance} from 'vitest';
 
 import {Org} from '@salesforce/core';
 import {MockTestOrgData, TestContext} from '@salesforce/core/testSetup';
 import {stubSfCommandUx} from '@salesforce/sf-plugins-core';
-import {expect} from 'chai';
 /*
  * Copyright 2026, Salesforce, Inc.
  *
@@ -29,7 +29,6 @@ import {
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {gunzipSync} from 'node:zlib';
-import sinon from 'sinon';
 import tarStream from 'tar-stream';
 
 import Deploy from '../../../src/commands/compute/deploy.js';
@@ -37,10 +36,8 @@ import Deploy from '../../../src/commands/compute/deploy.js';
 // Every Deploy.run() call resolves --target-org via Org.create(), which issues its own
 // Organization-lookup request through the same shared requestStub -- so callCount/called
 // assertions on requestStub itself are unreliable. Filter for the specific upload call instead.
-function findUploadCall(stub: sinon.SinonStub): sinon.SinonSpyCall | undefined {
-  return stub
-    .getCalls()
-    .find(call => (call.args[0] as undefined | {url?: string})?.url === '/connect/compute/source');
+function findUploadCall(stub: Mock): undefined | unknown[] {
+  return stub.mock.calls.find(call => (call[0] as undefined | {url?: string})?.url === '/connect/compute/source');
 }
 
 // The upload call's body is the FormData instance itself (request stubbed before serialization),
@@ -91,9 +88,9 @@ describe('compute deploy', () => {
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
   let projectDir: string;
   let originalCwd: string;
-  let requestStub: sinon.SinonStub;
-  let metadataDeployStub: sinon.SinonStub;
-  let checkDeployStatusStub: sinon.SinonStub;
+  let requestStub: Mock;
+  let metadataDeployStub: MockInstance;
+  let checkDeployStatusStub: MockInstance;
 
   const deployId = '0Af9E00000123ABCAA';
 
@@ -103,7 +100,7 @@ describe('compute deploy', () => {
 
     // TestContext already wraps Connection.prototype.request and routes it through
     // $$.fakeConnectionRequest -- stubbing connection.request ourselves would double-wrap it.
-    requestStub = sinon.stub().resolves({
+    requestStub = vi.fn().mockResolvedValue({
       buildId: '0acEE0000004D1ZYAU',
       platformComputeId: '0abEE0000004CqYYAU',
       sourceBlobSize: 12,
@@ -116,8 +113,8 @@ describe('compute deploy', () => {
     // (rather than a bare fake) across every getConnection() call in this test.
     const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
-    metadataDeployStub = $$.SANDBOX.stub(connection.metadata, 'deploy').resolves({id: deployId} as never);
-    checkDeployStatusStub = $$.SANDBOX.stub(connection.metadata, 'checkDeployStatus').resolves({
+    metadataDeployStub = vi.spyOn(connection.metadata, 'deploy').mockResolvedValue({id: deployId} as never);
+    checkDeployStatusStub = vi.spyOn(connection.metadata, 'checkDeployStatus').mockResolvedValue({
       details: {componentFailures: []},
       done: true,
       id: deployId,
@@ -160,29 +157,31 @@ describe('compute deploy', () => {
     process.chdir(originalCwd);
     await rm(projectDir, {force: true, recursive: true});
     $$.restore();
+    vi.restoreAllMocks();
   });
 
   it('uploads source before deploying metadata, and returns the build ids', async () => {
     const result = await Deploy.run(['--target-org', testOrg.username]);
 
-    expect(result).to.deep.equal({
+    expect(result).toEqual({
       buildId: '0acEE0000004D1ZYAU',
       deployId,
       name: 'CreditRatingScorer',
       platformComputeId: '0abEE0000004CqYYAU',
     });
     const uploadCall = findUploadCall(requestStub);
-    expect(uploadCall, 'expected a POST to /connect/compute/source').to.not.be.undefined;
-    expect(metadataDeployStub.calledOnce).to.be.true;
+    expect(uploadCall, 'expected a POST to /connect/compute/source').toBeDefined();
+    expect(metadataDeployStub).toHaveBeenCalledOnce();
     // Upload (Connect API) must complete before the metadata deploy (the actual build trigger) starts.
-    expect(uploadCall!.calledBefore(metadataDeployStub.firstCall)).to.be.true;
-    expect(checkDeployStatusStub.calledOnceWith(deployId, true, false)).to.be.true;
+    const uploadIndex = requestStub.mock.calls.indexOf(uploadCall!);
+    expect(requestStub.mock.invocationCallOrder[uploadIndex]).toBeLessThan(metadataDeployStub.mock.invocationCallOrder[0]);
+    expect(checkDeployStatusStub).toHaveBeenCalledExactlyOnceWith(deployId, true, false);
 
     const output = sfCommandStubs.log
       .getCalls()
       .flatMap(c => c.args)
       .join('\n');
-    expect(output).to.include('packaging source');
+    expect(output).toContain('packaging source');
   });
 
   it('excludes files matching the project-root .forceignore from the uploaded bundle', async () => {
@@ -193,45 +192,35 @@ describe('compute deploy', () => {
     await Deploy.run(['--target-org', testOrg.username]);
 
     const uploadCall = findUploadCall(requestStub);
-    const form = uploadCall!.args[0] as {body: FormData};
+    const form = uploadCall![0] as {body: FormData};
     const bundleBuffer = extractMultipartField(form.body, 'bundle');
     const outer = await extractTarGz(bundleBuffer);
     const source = await extractTarGz(outer['source.tar.gz']);
 
-    expect(Object.keys(source).toSorted()).to.deep.equal(
+    expect(Object.keys(source).toSorted()).toEqual(
       ['Procfile', 'api-spec.yaml', 'project.toml', 'src/app.js'].toSorted(),
     );
   });
 
   it('does not attempt the metadata deploy when the source upload fails', async () => {
-    requestStub.rejects(new Error('socket hang up'));
+    requestStub.mockRejectedValue(new Error('socket hang up'));
 
-    try {
-      await Deploy.run(['--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('socket hang up');
-    }
+    await expect(Deploy.run(['--target-org', testOrg.username])).rejects.toThrow('socket hang up');
 
-    expect(metadataDeployStub.called).to.be.false;
+    expect(metadataDeployStub).not.toHaveBeenCalled();
   });
 
   it('propagates the metadata deploy failure after a successful upload', async () => {
-    checkDeployStatusStub.resolves({
+    checkDeployStatusStub.mockResolvedValue({
       details: {componentFailures: [{problem: 'Invalid metadata type PlatformComputeApp'}]},
       done: true,
       id: deployId,
       success: false,
     });
 
-    try {
-      await Deploy.run(['--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('Invalid metadata type PlatformComputeApp');
-    }
+    await expect(Deploy.run(['--target-org', testOrg.username])).rejects.toThrow('Invalid metadata type PlatformComputeApp');
 
-    expect(findUploadCall(requestStub)).to.not.be.undefined;
+    expect(findUploadCall(requestStub)).toBeDefined();
   });
 
   it('fails fast when the current directory has no <name>.compute-meta.xml', async () => {
@@ -241,14 +230,9 @@ describe('compute deploy', () => {
     await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');
     process.chdir(appDir);
 
-    try {
-      await Deploy.run(['--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('NotScaffolded.compute-meta.xml');
-    }
+    await expect(Deploy.run(['--target-org', testOrg.username])).rejects.toThrow('NotScaffolded.compute-meta.xml');
 
-    expect(findUploadCall(requestStub)).to.be.undefined;
+    expect(findUploadCall(requestStub)).toBeUndefined();
   });
 
   it('reports the missing compute-meta.xml before checking whether the directory name is valid', async () => {
@@ -256,15 +240,18 @@ describe('compute deploy', () => {
     await mkdir(appDir, {recursive: true});
     process.chdir(appDir);
 
+    let error: Error | undefined;
     try {
       await Deploy.run(['--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('Not-Valid.compute-meta.xml');
-      expect((error as Error).message).to.not.include("isn't valid");
+    } catch (error_) {
+      error = error_ as Error;
     }
 
-    expect(findUploadCall(requestStub)).to.be.undefined;
+    expect(error).toBeDefined();
+    expect(error?.message).toContain('Not-Valid.compute-meta.xml');
+    expect(error?.message).not.toContain("isn't valid");
+
+    expect(findUploadCall(requestStub)).toBeUndefined();
   });
 
   it('fails fast when the app has no Procfile', async () => {
@@ -274,14 +261,9 @@ describe('compute deploy', () => {
     await writeFile(join(appDir, 'NoProcfile.compute-meta.xml'), '<PlatformComputeApp/>\n');
     process.chdir(appDir);
 
-    try {
-      await Deploy.run(['--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('no Procfile');
-    }
+    await expect(Deploy.run(['--target-org', testOrg.username])).rejects.toThrow('no Procfile');
 
-    expect(findUploadCall(requestStub)).to.be.undefined;
+    expect(findUploadCall(requestStub)).toBeUndefined();
   });
 
   it('fails fast when the app has no api-spec.yaml', async () => {
@@ -291,14 +273,9 @@ describe('compute deploy', () => {
     await writeFile(join(appDir, 'NoApiSpec.compute-meta.xml'), '<PlatformComputeApp/>\n');
     process.chdir(appDir);
 
-    try {
-      await Deploy.run(['--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('no api-spec.yaml');
-    }
+    await expect(Deploy.run(['--target-org', testOrg.username])).rejects.toThrow('no api-spec.yaml');
 
-    expect(findUploadCall(requestStub)).to.be.undefined;
+    expect(findUploadCall(requestStub)).toBeUndefined();
   });
 
   it("rejects a directory name that isn't a valid compute app name", async () => {
@@ -307,14 +284,9 @@ describe('compute deploy', () => {
     await writeFile(join(appDir, 'Not-Valid.compute-meta.xml'), '<PlatformComputeApp/>\n');
     process.chdir(appDir);
 
-    try {
-      await Deploy.run(['--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("isn't valid");
-    }
+    await expect(Deploy.run(['--target-org', testOrg.username])).rejects.toThrow("isn't valid");
 
-    expect(findUploadCall(requestStub)).to.be.undefined;
+    expect(findUploadCall(requestStub)).toBeUndefined();
   });
 
   it('deploys from --source-dir without needing to chdir into the app directory', async () => {
@@ -327,13 +299,13 @@ describe('compute deploy', () => {
       testOrg.username,
     ]);
 
-    expect(result).to.deep.equal({
+    expect(result).toEqual({
       buildId: '0acEE0000004D1ZYAU',
       deployId,
       name: 'CreditRatingScorer',
       platformComputeId: '0abEE0000004CqYYAU',
     });
-    expect(findUploadCall(requestStub)).to.not.be.undefined;
+    expect(findUploadCall(requestStub)).toBeDefined();
   });
 
   it('resolves a relative --source-dir to an absolute path before deriving the app name', async () => {
@@ -341,7 +313,7 @@ describe('compute deploy', () => {
 
     const result = await Deploy.run(['--source-dir', './CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.name).to.equal('CreditRatingScorer');
+    expect(result.name).toBe('CreditRatingScorer');
   });
 
   it('rejects --source-dir when it has no <name>.compute-meta.xml, without falling back to cwd', async () => {
@@ -349,37 +321,27 @@ describe('compute deploy', () => {
     await mkdir(notScaffolded, {recursive: true});
     process.chdir(projectDir);
 
-    try {
-      await Deploy.run([
-        '--source-dir',
-        'force-app/main/default/platformComputeApps/NotScaffolded',
-        '--target-org',
-        testOrg.username,
-      ]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('NotScaffolded.compute-meta.xml');
-    }
+    await expect(Deploy.run([
+      '--source-dir',
+      'force-app/main/default/platformComputeApps/NotScaffolded',
+      '--target-org',
+      testOrg.username,
+    ])).rejects.toThrow('NotScaffolded.compute-meta.xml');
 
-    expect(findUploadCall(requestStub)).to.be.undefined;
+    expect(findUploadCall(requestStub)).toBeUndefined();
   });
 
   it('rejects a --source-dir that does not exist', async () => {
     process.chdir(projectDir);
 
-    try {
-      await Deploy.run([
-        '--source-dir',
-        'force-app/main/default/platformComputeApps/DoesNotExist',
-        '--target-org',
-        testOrg.username,
-      ]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('No directory found');
-    }
+    await expect(Deploy.run([
+      '--source-dir',
+      'force-app/main/default/platformComputeApps/DoesNotExist',
+      '--target-org',
+      testOrg.username,
+    ])).rejects.toThrow('No directory found');
 
-    expect(findUploadCall(requestStub)).to.be.undefined;
+    expect(findUploadCall(requestStub)).toBeUndefined();
   });
 
   // Guards against the exact regression a plain `default: process.cwd()` would reintroduce --
@@ -396,10 +358,10 @@ describe('compute deploy', () => {
     await writeFile(join(otherAppDir, 'src', 'app.js'), 'console.log("hi");\n');
 
     const first = await Deploy.run(['--target-org', testOrg.username]);
-    expect(first.name).to.equal('CreditRatingScorer');
+    expect(first.name).toBe('CreditRatingScorer');
 
     process.chdir(otherAppDir);
     const second = await Deploy.run(['--target-org', testOrg.username]);
-    expect(second.name).to.equal('OtherApp');
+    expect(second.name).toBe('OtherApp');
   });
 });

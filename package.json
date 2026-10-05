@@ -20,21 +20,20 @@
     "@heroku-cli/test-utils": "2.0.0-beta.0",
     "@oclif/plugin-command-snapshot": "^5.3.35",
     "@salesforce/cli-plugins-testkit": "^5.3.66",
-    "@salesforce/dev-scripts": "^13.0.2",
     "@salesforce/plugin-command-reference": "^3.1.132",
-    "@types/chai": "^4.3.17",
+    "@typescript-eslint/parser": "^8.71.0",
     "@types/node": "^22",
     "@types/sinon": "^10.0.20",
     "@vitest/coverage-v8": "^5",
     "@vitest/eslint-plugin": "^1.6.27",
-    "chai": "^4.5",
     "eslint": "^10.4.0",
     "eslint-config-oclif": "^7",
-    "oclif": "^4.23.30",
+    "linkinator": "^6.1.2",
+    "oclif": "^6",
     "openapi-typescript": "^7.13.0",
-    "sinon": "^10",
+    "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.4",
+    "typescript": "^6.0.3",
     "vite": "^7",
     "vitest": "^5"
   },
@@ -45,7 +44,6 @@
     "/lib",
     "/messages",
     "/npm-shrinkwrap.json",
-    "/oclif.lock",
     "/oclif.manifest.json",
     "/schemas"
   ],
@@ -81,130 +79,34 @@
     "url": "https://github.com/heroku/plugin-compute"
   },
   "scripts": {
-    "build": "wireit",
-    "clean": "sf-clean",
-    "clean-all": "sf-clean all",
-    "compile": "wireit",
-    "docs": "sf-docs",
+    "clean": "rimraf lib tmp oclif.manifest.json *.tsbuildinfo .eslintcache",
+    "clean-all": "rimraf lib tmp oclif.manifest.json *.tsbuildinfo .eslintcache node_modules",
+    "compile": "tsc -p . --pretty --incremental",
+    "build": "tsc -p . --pretty --incremental",
+    "manifest": "oclif manifest",
+    "readme": "oclif readme",
+    "docs:generate": "npm run build && npm run manifest && oclif readme --output-dir docs --multi",
     "generate:types": "openapi-typescript api-specs/salesforce-connect-compute.yaml -o src/generated/salesforce-connect-compute.d.ts && openapi-typescript api-specs/heroku-platform-api.yaml -o src/generated/heroku-platform-api.d.ts",
-    "link-check": "wireit",
-    "lint": "wireit",
-    "postpack": "sf-clean --ignore-signing-artifacts",
-    "prepack": "sf-prepack",
-    "test": "wireit",
+    "lint": "eslint src test --color --cache --cache-location .eslintcache",
+    "link-check": "node -e \"process.exit(process.env.CI ? 0 : 1)\" || linkinator \"**/*.md\" --skip \"CHANGELOG.md|node_modules|test/|confluence.internal.salesforce.com|my.salesforce.com|localhost|%s\" --markdown --retry --directory-listing --verbosity error",
+    "test:compile": "tsc -p ./test --pretty",
+    "test:only": "vitest run --coverage",
+    "test:command-reference": "node --loader ts-node/esm --no-warnings=ExperimentalWarning ./bin/dev.js commandreference:generate --error-on-warnings",
+    "test:deprecation-policy": "npm run compile && node --loader ts-node/esm --no-warnings=ExperimentalWarning ./bin/dev.js snapshot:compare",
+    "test:json-schema": "node --loader ts-node/esm --no-warnings=ExperimentalWarning ./bin/dev.js schema:compare",
+    "test": "npm run test:compile && npm run test:only && npm run test:command-reference && npm run test:deprecation-policy && npm run test:json-schema && npm run link-check",
     "test:nuts": "vitest run --config vitest.nut.config.ts",
-    "test:only": "wireit",
+    "prepack": "npm run build && oclif manifest && npm shrinkwrap",
+    "postpack": "rimraf oclif.manifest.json npm-shrinkwrap.json",
     "version": "oclif readme"
   },
   "publishConfig": {
     "access": "restricted"
   },
-  "resolutions": {
+  "overrides": {
     "fast-uri": "^3.1.8",
-    "@jsforce/jsforce-node": "^3.10.27"
-  },
-  "wireit": {
-    "build": {
-      "dependencies": [
-        "compile",
-        "lint"
-      ]
-    },
-    "compile": {
-      "command": "tsc -p . --pretty --incremental",
-      "files": [
-        "src/**/*.ts",
-        "**/tsconfig.json",
-        "messages/**"
-      ],
-      "output": [
-        "lib/**",
-        "*.tsbuildinfo"
-      ],
-      "clean": "if-file-deleted"
-    },
-    "lint": {
-      "command": "eslint src test --color --cache --cache-location .eslintcache",
-      "files": [
-        "src/**/*.ts",
-        "test/**/*.ts",
-        "messages/**",
-        "**/eslint.config.*",
-        "**/tsconfig.json"
-      ],
-      "output": []
-    },
-    "test:compile": {
-      "command": "tsc -p \"./test\" --pretty",
-      "files": [
-        "test/**/*.ts",
-        "**/tsconfig.json"
-      ],
-      "output": []
-    },
-    "test": {
-      "dependencies": [
-        "test:compile",
-        "test:only",
-        "test:command-reference",
-        "test:deprecation-policy",
-        "lint",
-        "test:json-schema",
-        "link-check"
-      ]
-    },
-    "test:only": {
-      "command": "vitest run --coverage",
-      "env": {
-        "FORCE_COLOR": "2"
-      },
-      "files": [
-        "test/**/*.ts",
-        "src/**/*.ts",
-        "**/tsconfig.json",
-        "vitest.config.ts",
-        "!**/*.nut.ts"
-      ],
-      "output": []
-    },
-    "test:command-reference": {
-      "command": "node --loader ts-node/esm --no-warnings=ExperimentalWarning \"./bin/dev.js\" commandreference:generate --erroronwarnings",
-      "files": [
-        "src/**/*.ts",
-        "messages/**",
-        "package.json"
-      ],
-      "output": [
-        "tmp/root"
-      ]
-    },
-    "test:deprecation-policy": {
-      "command": "node --loader ts-node/esm --no-warnings=ExperimentalWarning \"./bin/dev.js\" snapshot:compare",
-      "files": [
-        "src/**/*.ts"
-      ],
-      "output": [],
-      "dependencies": [
-        "compile"
-      ]
-    },
-    "test:json-schema": {
-      "command": "node --loader ts-node/esm --no-warnings=ExperimentalWarning \"./bin/dev.js\" schema:compare",
-      "files": [
-        "src/**/*.ts",
-        "schemas"
-      ],
-      "output": []
-    },
-    "link-check": {
-      "command": "node -e \"process.exit(process.env.CI ? 0 : 1)\" || linkinator \"**/*.md\" --skip \"CHANGELOG.md|node_modules|test/|confluence.internal.salesforce.com|my.salesforce.com|localhost|%s\" --markdown --retry --directory-listing --verbosity error",
-      "files": [
-        "./*.md",
-        "./!(CHANGELOG).md",
-        "messages/**/*.md"
-      ],
-      "output": []
-    }
+    "@jsforce/jsforce-node": "^3.10.27",
+    "typescript": "$typescript"
   },
   "exports": "./lib/index.js",
   "type": "module"

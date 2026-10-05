@@ -1,7 +1,8 @@
+import type {Mock, MockInstance} from 'vitest';
+
 import {Org} from '@salesforce/core';
 import {MockTestOrgData, TestContext} from '@salesforce/core/testSetup';
 import {stubSfCommandUx} from '@salesforce/sf-plugins-core';
-import {expect} from 'chai';
 import JSZip from 'jszip';
 /*
  * Copyright 2026, Salesforce, Inc.
@@ -28,7 +29,6 @@ import {
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {gzipSync} from 'node:zlib';
-import sinon from 'sinon';
 import tarStream from 'tar-stream';
 
 import Retrieve from '../../../../src/commands/compute/source/retrieve.js';
@@ -87,8 +87,12 @@ async function buildBundle(): Promise<Buffer> {
 // The download call is the only one that goes through fakeConnectionRequest with a URL ending
 // in /source -- Org.init()'s own Organization-lookup request rides the same stub, so filter
 // rather than asserting on requestStub directly (mirrors deploy.test.ts's findUploadCall).
-function findDownloadCall(stub: sinon.SinonStub): sinon.SinonSpyCall | undefined {
-  return stub.getCalls().find(call => (call.args[0] as undefined | {url?: string})?.url?.endsWith('/source'));
+function findDownloadCallIndex(stub: Mock): number {
+  return stub.mock.calls.findIndex(call => (call[0] as undefined | {url?: string})?.url?.endsWith('/source'));
+}
+
+function findDownloadCall(stub: Mock): undefined | unknown[] {
+  return stub.mock.calls[findDownloadCallIndex(stub)] as undefined | unknown[];
 }
 
 describe('compute source retrieve', () => {
@@ -97,9 +101,9 @@ describe('compute source retrieve', () => {
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
   let projectDir: string;
   let originalCwd: string;
-  let requestStub: sinon.SinonStub;
-  let metadataRetrieveStub: sinon.SinonStub;
-  let completeStub: sinon.SinonStub;
+  let requestStub: Mock;
+  let metadataRetrieveStub: MockInstance;
+  let completeStub: Mock;
 
   beforeEach(async () => {
     sfCommandStubs = stubSfCommandUx($$.SANDBOX);
@@ -110,15 +114,16 @@ describe('compute source retrieve', () => {
     });
     const bundle = await buildBundle();
 
-    requestStub = sinon.stub().resolves(bundle.toString('binary'));
+    requestStub = vi.fn().mockResolvedValue(bundle.toString('binary'));
     $$.fakeConnectionRequest = requestStub;
 
     const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
-    completeStub = sinon.stub().resolves({success: true, zipFile});
-    metadataRetrieveStub = $$.SANDBOX.stub(connection.metadata, 'retrieve').returns({
+    completeStub = vi.fn().mockResolvedValue({success: true, zipFile});
+    metadataRetrieveStub = vi.spyOn(connection.metadata, 'retrieve');
+    metadataRetrieveStub.mockReturnValue({
       complete: completeStub,
-    } as never);
+    });
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
     originalCwd = process.cwd();
@@ -136,6 +141,7 @@ describe('compute source retrieve', () => {
     process.chdir(originalCwd);
     await rm(projectDir, {force: true, recursive: true});
     $$.restore();
+    vi.restoreAllMocks();
   });
 
   it('creates the app directory, retrieves metadata, then downloads and extracts source', async () => {
@@ -143,24 +149,26 @@ describe('compute source retrieve', () => {
 
     const relativeAppDir = join('force-app/main/default/platformComputeApps', 'CreditRatingScorer');
     const appDir = join(projectDir, relativeAppDir);
-    expect(result).to.deep.equal({files: 2, name: 'CreditRatingScorer', path: relativeAppDir});
+    expect(result).toEqual({files: 2, name: 'CreditRatingScorer', path: relativeAppDir});
 
-    expect(await readFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), 'utf8')).to.equal(
+    expect(await readFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), 'utf8')).toBe(
       '<PlatformComputeApp/>\n',
     );
-    expect(await readFile(join(appDir, 'api-spec.yaml'), 'utf8')).to.equal('openapi: 3.0.0\n');
-    expect(await readFile(join(appDir, 'src', 'app.js'), 'utf8')).to.equal('console.log("hi");\n');
+    expect(await readFile(join(appDir, 'api-spec.yaml'), 'utf8')).toBe('openapi: 3.0.0\n');
+    expect(await readFile(join(appDir, 'src', 'app.js'), 'utf8')).toBe('console.log("hi");\n');
 
-    expect(metadataRetrieveStub.calledOnce).to.be.true;
+    expect(metadataRetrieveStub).toHaveBeenCalledOnce();
     const downloadCall = findDownloadCall(requestStub);
-    expect(downloadCall, 'expected a GET to /connect/compute/source').to.not.be.undefined;
-    expect(metadataRetrieveStub.firstCall.calledBefore(downloadCall!)).to.be.true;
+    expect(downloadCall, 'expected a GET to /connect/compute/source').toBeDefined();
+    expect(metadataRetrieveStub.mock.invocationCallOrder[0]).toBeLessThan(
+      requestStub.mock.invocationCallOrder[findDownloadCallIndex(requestStub)],
+    );
 
     const output = sfCommandStubs.log
       .getCalls()
       .flatMap(c => c.args)
       .join('\n');
-    expect(output).to.include('Retrieving compute app CreditRatingScorer');
+    expect(output).toContain('Retrieving compute app CreditRatingScorer');
   });
 
   it('supports a custom --output-dir', async () => {
@@ -173,67 +181,47 @@ describe('compute source retrieve', () => {
       'custom/compute',
     ]);
 
-    expect(result.path).to.equal(join('custom/compute', 'CreditRatingScorer'));
-    expect(await readFile(join(projectDir, 'custom/compute/CreditRatingScorer/api-spec.yaml'), 'utf8')).to.equal(
+    expect(result.path).toBe(join('custom/compute', 'CreditRatingScorer'));
+    expect(await readFile(join(projectDir, 'custom/compute/CreditRatingScorer/api-spec.yaml'), 'utf8')).toBe(
       'openapi: 3.0.0\n',
     );
   });
 
   it('rejects a name that would traverse outside the output directory, without calling any API', async () => {
-    try {
-      await Retrieve.run(['--name', '../evil', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include("isn't valid");
-    }
+    await expect(Retrieve.run(['--name', '../evil', '--target-org', testOrg.username])).rejects.toThrow("isn't valid");
 
-    expect(metadataRetrieveStub.called).to.be.false;
-    expect(findDownloadCall(requestStub)).to.be.undefined;
+    expect(metadataRetrieveStub).not.toHaveBeenCalled();
+    expect(findDownloadCall(requestStub)).toBeUndefined();
   });
 
   it('fails fast when the app directory already exists, without calling any API', async () => {
     const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer');
     await mkdir(appDir, {recursive: true});
 
-    try {
-      await Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('already exists');
-    }
+    await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('already exists');
 
-    expect(metadataRetrieveStub.called).to.be.false;
-    expect(findDownloadCall(requestStub)).to.be.undefined;
+    expect(metadataRetrieveStub).not.toHaveBeenCalled();
+    expect(findDownloadCall(requestStub)).toBeUndefined();
   });
 
   it('does not attempt the source download when the metadata retrieve fails', async () => {
-    completeStub.resolves({errorMessage: 'No such app', success: false});
+    completeStub.mockResolvedValue({errorMessage: 'No such app', success: false});
 
-    try {
-      await Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('No such app');
-    }
+    await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('No such app');
 
-    expect(findDownloadCall(requestStub)).to.be.undefined;
+    expect(findDownloadCall(requestStub)).toBeUndefined();
   });
 
   // No automatic rollback on failure -- the directory (and whatever was already written into
   // it) is left in place, same as generate.ts/deploy.ts's own style elsewhere in this plugin.
   it('propagates a source download failure after a successful metadata retrieve, leaving the metadata file in place', async () => {
-    requestStub.rejects(new Error('socket hang up'));
+    requestStub.mockRejectedValue(new Error('socket hang up'));
 
-    try {
-      await Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('socket hang up');
-    }
+    await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('socket hang up');
 
-    expect(metadataRetrieveStub.calledOnce).to.be.true;
+    expect(metadataRetrieveStub).toHaveBeenCalledOnce();
     const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer');
-    expect(await readFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), 'utf8')).to.equal(
+    expect(await readFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), 'utf8')).toBe(
       '<PlatformComputeApp/>\n',
     );
   });

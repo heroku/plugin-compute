@@ -92,22 +92,78 @@ Both generators emit their own formatted JSON, so no post-formatting step is
 needed (this repo has no prettier — the test runner is vitest and lint is the
 `@heroku-cli/test-utils` eslint-config).
 
+## Environment quirk: `min-release-age` blocks lockfile regeneration
+
+This repo is npm-based (not yarn): `package-lock.json` is committed and CI runs
+`npm ci`. There is **no `.npmrc`** — the earlier yarn→npm peer-dep skew only
+needed `legacy-peer-deps` because of a hard `@typescript-eslint/parser` conflict,
+which is now fixed by pinning that parser as a direct devDep. The only remaining
+skew is a harmless `peerOptional typescript@>=6` from `eslint-config-xo`, which
+npm resolves with a warning.
+
+If an `npm config` `min-release-age` guard is active (npm 11's supply-chain
+feature, hiding versions published in the last N days), a **cold** `npm install`
+(empty `node_modules` + no lockfile) can fail `ETARGET` on pinned pre-releases
+like `@heroku-cli/test-utils@2.0.0-beta.0`. `npm ci` from a complete committed
+lockfile is unaffected (it uses pinned tarball URLs). To regenerate the lockfile
+from scratch when the guard is in effect, override it for that one command:
+
+```bash
+rm -rf node_modules package-lock.json
+env -u NODE_ENV npm_config_min_release_age=0 npm install
+```
+
+A cold regen also re-resolves `^` ranges and can float third-party `@types` out
+of step with the packages they describe (currently `@salesforce/core`'s `.d.ts`
+references `pino.TransportSingleOptions`, which the resolved `pino` types no
+longer export); both `tsconfig.json` and `test/tsconfig.json` set
+`skipLibCheck: true` so upstream `.d.ts` drift we don't own can't break `tsc`.
+
+## Test stack: vitest only — but `@types/sinon` stays (don't remove it)
+
+Tests use vitest's built-in `vi` + global `expect`. The `sinon` and `chai`
+**libraries** (and `@types/chai`) are intentionally NOT direct deps — no test
+file imports them. Our own test doubles are `vi.fn()` / `vi.spyOn()`, and
+assertions use the global vitest `expect`.
+
+**But `@types/sinon` is a required devDep even though nothing imports `sinon`.**
+`@salesforce/core`'s `TestContext` (`$$.SANDBOX.stub(...).returns(...)`,
+`$$.fakeConnectionRequest`) and `@salesforce/sf-plugins-core`'s
+`stubSfCommandUx` / `stubSpinner` return sinon-typed stubs, and the tests read
+`.getCalls()` / `.firstCall` / `.lastCall` / `.returns` / `.stub` on them. Those
+framework packages carry `@types/sinon` only as a *devDep*, so it isn't resolved
+transitively for consumers — without our own direct `@types/sinon` the stub
+types collapse to `any`. Plain `any` reads don't error under `tsc` on their own
+(this is just how an unresolved type degrades — not something `skipLibCheck`
+buys us; `noImplicitAny` only fires on un-annotated *declaration* positions,
+which these stub property reads aren't), but the type-aware
+`@typescript-eslint/no-unsafe-*` rules reject them across the whole suite
+(70+ errors on every `.getCalls`/`.firstCall`/`.returns`/`.stub` access). It is
+type-only (no runtime, no supply-chain surface), so keeping it is the correct
+posture. We pin `^10` even though the transitively-present `sinon` runtime is
+v17: `@salesforce/core` itself builds against `@types/sinon@^10`, so v10 matches
+the stub shapes the framework exposes, and the runtime major is irrelevant to
+type-only consumption — the version skew is harmless, not a hazard. The vitest `expect` matchers (`toHaveBeenCalledWith`, …) only work on
+`vi.fn()` mocks — never on these framework sinon stubs; wrap sinon-stub property
+reads in `expect(...)` instead (e.g. `expect(stub.firstCall.args[0]).to…`).
+
 ## Verification workflow after changing any command's flags or output shape
 
 1. `npx tsc -p .` and `npx tsc -p ./test`
-2. `npx eslint src test --ext .ts`
+2. `npm run lint`
 3. `npx vitest run` (unit tests; add `--coverage` to mirror CI)
-4. `env -u NODE_ENV yarn build && env -u NODE_ENV yarn test` — the `test`
-   wireit target chains `test:compile`, `test:only`, `test:command-reference`,
-   `test:deprecation-policy`, `lint`, `test:json-schema`, `link-check`.
-   `test:deprecation-policy` validates `command-snapshot.json` against actual
-   flags; `test:json-schema` validates `schemas/*.json` against actual
-   output shapes — both fail on stale artifacts.
+4. `env -u NODE_ENV npm run build && env -u NODE_ENV npm test` — `npm test` is a
+   flat `&&` chain of `test:compile`, `test:only`, `test:command-reference`,
+   `test:deprecation-policy`, `test:json-schema`, `link-check`. Lint is NOT in
+   this chain — it runs as its own `npm run lint` (step 2 above) and as a
+   dedicated `lint` job in CI. `test:deprecation-policy` validates
+   `command-snapshot.json` against actual flags; `test:json-schema` validates
+   `schemas/*.json` against actual output shapes — both fail on stale artifacts.
 5. If step 4 flags drift, regenerate per the section above, then re-run step
    4 to confirm green.
 6. `env -u NODE_ENV npm run version` to regenerate README.md's
    `<!-- commands -->` section.
 
 `test:nuts` (`**/*.nut.ts`, e.g. `test/commands/compute/generate.nut.ts`) are
-integration tests run separately via `yarn test:nuts` — not part of the
-default `test` wireit chain.
+integration tests run separately via `npm run test:nuts` — not part of the
+default `npm test` chain.

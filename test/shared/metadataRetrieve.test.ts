@@ -1,6 +1,5 @@
 import type {Connection} from '@salesforce/core';
 
-import {expect} from 'chai';
 import JSZip from 'jszip';
 /*
  * Copyright 2026, Salesforce, Inc.
@@ -20,7 +19,6 @@ import JSZip from 'jszip';
 import {mkdtemp, readFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import sinon from 'sinon';
 
 import {retrieveComputeMetadata} from '../../src/shared/metadataRetrieve.js';
 
@@ -42,12 +40,12 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
 
   afterEach(async () => {
     await rm(appDir, {force: true, recursive: true});
-    sinon.restore();
+    vi.restoreAllMocks();
   });
 
   function stubConnection(retrieveResult: {errorMessage?: string; success: boolean; zipFile?: string}) {
-    const complete = sinon.stub().resolves(retrieveResult);
-    const retrieve = sinon.stub().returns({complete});
+    const complete = vi.fn().mockResolvedValue(retrieveResult);
+    const retrieve = vi.fn().mockReturnValue({complete});
     const connection = {
       getApiVersion: () => '62.0',
       getUsername: () => 'user@example.com',
@@ -64,12 +62,12 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
 
     await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
 
-    expect(retrieve.calledOnce).to.be.true;
-    const [request] = retrieve.firstCall.args as [
+    expect(retrieve).toHaveBeenCalledOnce();
+    const [request] = retrieve.mock.calls[0] as [
       {apiVersion: number; singlePackage: boolean; unpackaged: {types: Array<{members: string[]; name: string}>}},
     ];
-    expect(request.singlePackage).to.be.true;
-    expect(request.unpackaged.types).to.deep.equal([{members: ['CreditRatingScorer'], name: 'PlatformComputeApp'}]);
+    expect(request.singlePackage).toBe(true);
+    expect(request.unpackaged.types).toEqual([{members: ['CreditRatingScorer'], name: 'PlatformComputeApp'}]);
   });
 
   // Locks in the retrieve-vs-deploy asymmetry: RetrieveResultLocator#complete() takes no
@@ -82,7 +80,8 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
 
     await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
 
-    expect(complete.calledOnceWithExactly()).to.be.true;
+    expect(complete).toHaveBeenCalledOnce();
+    expect(complete.mock.calls[0]).toEqual([]);
   });
 
   it('writes the retrieved compute-meta.xml into appDir', async () => {
@@ -94,7 +93,7 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
     await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
 
     const written = await readFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), 'utf8');
-    expect(written).to.equal('<PlatformComputeApp><label>x</label></PlatformComputeApp>\n');
+    expect(written).toBe('<PlatformComputeApp><label>x</label></PlatformComputeApp>\n');
   });
 
   // Regression guard: mirrors the same floor in metadataDeploy.test.ts -- PlatformComputeApp
@@ -108,32 +107,38 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
 
     await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
 
-    const [request] = retrieve.firstCall.args as [{apiVersion: number; unpackaged: {version: string}}];
-    expect(request.apiVersion).to.equal(68);
-    expect(request.unpackaged.version).to.equal('68.0');
+    const [request] = retrieve.mock.calls[0] as [{apiVersion: number; unpackaged: {version: string}}];
+    expect(request.apiVersion).toBe(68);
+    expect(request.unpackaged.version).toBe('68.0');
   });
 
   it('throws with the errorMessage detail when the retrieve fails', async () => {
     const {connection} = stubConnection({errorMessage: 'No such app', success: false});
 
+    let error: Error | undefined;
     try {
       await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('CreditRatingScorer');
-      expect((error as Error).message).to.include('No such app');
+    } catch (error_) {
+      error = error_ as Error;
     }
+
+    expect(error).toBeDefined();
+    expect(error?.message).toContain('CreditRatingScorer');
+    expect(error?.message).toContain('No such app');
   });
 
   it('throws when the retrieved zip is missing the expected wire entry', async () => {
     const zipFile = await zipBase64({'platformComputeApps/unrelated.txt': 'oops'});
     const {connection} = stubConnection({success: true, zipFile});
 
+    let error: Error | undefined;
     try {
       await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
-      expect.fail('expected an error');
-    } catch (error) {
-      expect((error as Error).message).to.include('platformComputeApps/CreditRatingScorer.compute');
+    } catch (error_) {
+      error = error_ as Error;
     }
+
+    expect(error).toBeDefined();
+    expect(error?.message).toContain('platformComputeApps/CreditRatingScorer.compute');
   });
 });

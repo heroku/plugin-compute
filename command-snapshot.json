@@ -1,22 +1,6 @@
 [
     {
         "alias": [],
-        "command": "compute:build:output",
-        "flagAliases": [],
-        "flagChars": [
-            "n",
-            "o"
-        ],
-        "flags": [
-            "flags-dir",
-            "json",
-            "name",
-            "target-org"
-        ],
-        "plugin": "@heroku/plugin-compute"
-    },
-    {
-        "alias": [],
         "command": "compute:config:get",
         "flagAliases": [],
         "flagChars": [
@@ -128,6 +112,22 @@
             "language",
             "name",
             "output-dir"
+        ],
+        "plugin": "@heroku/plugin-compute"
+    },
+    {
+        "alias": [],
+        "command": "compute:get:build-log",
+        "flagAliases": [],
+        "flagChars": [
+            "n",
+            "o"
+        ],
+        "flags": [
+            "flags-dir",
+            "json",
+            "name",
+            "target-org"
         ],
         "plugin": "@heroku/plugin-compute"
     },

@@ -27,7 +27,7 @@ import {
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-import Output from '../../../../src/commands/compute/build/output.js';
+import BuildLog from '../../../../src/commands/compute/get/build-log.js';
 
 // jsforce's HttpApi.getError() sets both .name and .errorCode to the parsed error body's
 // errorCode, falling back to `ERROR_HTTP_${status}` when the body isn't a recognizable
@@ -65,7 +65,7 @@ function findListBuildsCall(stub: Mock): undefined | unknown[] {
   });
 }
 
-describe('compute build output', () => {
+describe('compute get build-log', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
@@ -135,7 +135,7 @@ describe('compute build output', () => {
   it('prints the log and returns name, buildStatus, and log on the happy path', async () => {
     resolveWith([succeededRecord]);
 
-    const result = await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    const result = await BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).toEqual({
       buildStatus: 'SUCCEEDED',
@@ -159,7 +159,7 @@ describe('compute build output', () => {
   it('throws error.herokuAppIdentifierUnavailable when the app has a build but no ExternalAppIdentifier yet, without calling the proxy or fetch', async () => {
     resolveWith([{...buildingRecord, ExternalAppIdentifier: undefined}]);
 
-    await expect(Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("doesn't have a Heroku app identifier yet");
+    await expect(BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("doesn't have a Heroku app identifier yet");
 
     expect(findListBuildsCall(requestStub)).toBeUndefined();
     expect(fetchStub).not.toHaveBeenCalled();
@@ -168,7 +168,7 @@ describe('compute build output', () => {
   it('reports no builds yet and returns just the name when CurrentBuild is null', async () => {
     resolveWith([{...buildingRecord, CurrentBuild: null}]);
 
-    const result = await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    const result = await BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).toEqual({name: 'CreditRatingScorer'});
     expect(sfCommandStubs.info.firstCall.args[0]).toContain('has no builds yet');
@@ -180,7 +180,7 @@ describe('compute build output', () => {
     resolveWith([buildingRecord]);
     requestStub.mockResolvedValue([{}]);
 
-    const result = await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    const result = await BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).toEqual({buildStatus: 'BUILDING', name: 'CreditRatingScorer'});
     expect(sfCommandStubs.info.firstCall.args[0]).toContain("hasn't produced output yet");
@@ -192,7 +192,7 @@ describe('compute build output', () => {
     resolveWith([buildingRecord]);
     requestStub.mockResolvedValue([]);
 
-    const result = await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    const result = await BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).toEqual({buildStatus: 'BUILDING', name: 'CreditRatingScorer'});
     expect(sfCommandStubs.info.firstCall.args[0]).toContain("hasn't produced output yet");
@@ -206,7 +206,7 @@ describe('compute build output', () => {
       {output_stream_url: 'https://build-output.heroku.com/streams/latest'},
     ]);
 
-    await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    await BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(fetchStub.mock.calls.map(c => c[0] as unknown)).toContain('https://build-output.heroku.com/streams/latest');
   });
@@ -215,13 +215,13 @@ describe('compute build output', () => {
     resolveWith([buildingRecord]);
     requestStub.mockRejectedValue(Object.assign(new Error("Couldn't find that app."), {data: {id: 'not_found'}}));
 
-    await expect(Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("Heroku didn't find an app named CreditRatingScorer");
+    await expect(BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("Heroku didn't find an app named CreditRatingScorer");
   });
 
   it('propagates the not-found error from the SOQL pre-check without calling the Heroku proxy', async () => {
     resolveWith([]);
 
-    await expect(Output.run(['--name', 'NeverDeployed', '--target-org', testOrg.username])).rejects.toThrow('No compute app named NeverDeployed was found in the org');
+    await expect(BuildLog.run(['--name', 'NeverDeployed', '--target-org', testOrg.username])).rejects.toThrow('No compute app named NeverDeployed was found in the org');
 
     expect(findListBuildsCall(requestStub)).toBeUndefined();
   });
@@ -229,7 +229,7 @@ describe('compute build output', () => {
   it('propagates the ambiguous-name error from the SOQL pre-check without calling the Heroku proxy', async () => {
     resolveWith([buildingRecord, buildingRecord]);
 
-    await expect(Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('Found more than one compute app named CreditRatingScorer');
+    await expect(BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('Found more than one compute app named CreditRatingScorer');
 
     expect(findListBuildsCall(requestStub)).toBeUndefined();
   });
@@ -238,7 +238,7 @@ describe('compute build output', () => {
     resolveWith([buildingRecord]);
     requestStub.mockRejectedValue(new Error('socket hang up'));
 
-    await expect(Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
+    await expect(BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
       "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
     );
   });
@@ -247,14 +247,14 @@ describe('compute build output', () => {
     resolveWith([succeededRecord]);
     fetchStub.mockRejectedValue(httpError(404));
 
-    await expect(Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("Couldn't fetch build output");
+    await expect(BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("Couldn't fetch build output");
   });
 
   it('still logs and returns an empty-string build log rather than treating it as not-yet-available', async () => {
     resolveWith([succeededRecord]);
     fetchStub.mockResolvedValue(new Response('', {status: 200}));
 
-    const result = await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    const result = await BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).toEqual({buildStatus: 'SUCCEEDED', log: '', name: 'CreditRatingScorer'});
   });
@@ -262,7 +262,7 @@ describe('compute build output', () => {
   it('drops undefined keys under --json for the no-builds-yet case', async () => {
     resolveWith([{...buildingRecord, CurrentBuild: null}]);
 
-    const result = await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
+    const result = await BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
     const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as Record<string, unknown>;
 
     expect(JSON.stringify(jsonOutput)).not.toContain('buildStatus');
@@ -273,7 +273,7 @@ describe('compute build output', () => {
   it('preserves the exact case of --name in the SOQL filter and targets the resolved Heroku app id', async () => {
     resolveWith([succeededRecord]);
 
-    await Output.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    await BuildLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     const soql = toolingQueryStub.mock.calls[0][0] as string;
     expect(soql).toContain("DeveloperName = 'CreditRatingScorer'");
@@ -284,7 +284,7 @@ describe('compute build output', () => {
   });
 
   it('rejects an invalid --name before querying or calling the Heroku proxy', async () => {
-    await expect(Output.run(['--name', '../evil', '--target-org', testOrg.username])).rejects.toThrow("isn't valid");
+    await expect(BuildLog.run(['--name', '../evil', '--target-org', testOrg.username])).rejects.toThrow("isn't valid");
 
     expect(toolingQueryStub).not.toHaveBeenCalled();
     expect(findListBuildsCall(requestStub)).toBeUndefined();
@@ -294,7 +294,7 @@ describe('compute build output', () => {
     resolveWith([succeededRecord]);
     process.env.COMPUTE_APP_NAME = 'CreditRatingScorer';
     try {
-      const result = await Output.run(['--target-org', testOrg.username]);
+      const result = await BuildLog.run(['--target-org', testOrg.username]);
       expect(result.name).toBe('CreditRatingScorer');
       const soql = toolingQueryStub.mock.calls[0][0] as string;
       expect(soql).toContain("DeveloperName = 'CreditRatingScorer'");
@@ -310,13 +310,13 @@ describe('compute build output', () => {
   it("resolves --name from the current directory's <name>.compute-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
     resolveWith([succeededRecord]);
     const originalCwd = process.cwd();
-    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-build-output-'));
+    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-build-log-'));
     const appDir = join(tmp, 'CreditRatingScorer');
     await mkdir(appDir);
     await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
     process.chdir(appDir);
     try {
-      const result = await Output.run(['--target-org', testOrg.username]);
+      const result = await BuildLog.run(['--target-org', testOrg.username]);
       expect(result.name).toBe('CreditRatingScorer');
     } finally {
       process.chdir(originalCwd);
@@ -326,11 +326,11 @@ describe('compute build output', () => {
 
   it('throws error.cannotResolveAppName when --name, COMPUTE_APP_NAME, and directory detection all fail', async () => {
     const originalCwd = process.cwd();
-    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-build-output-empty-'));
+    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-build-log-empty-'));
     process.chdir(tmp);
     let error: Error | undefined;
     try {
-      await Output.run(['--target-org', testOrg.username]);
+      await BuildLog.run(['--target-org', testOrg.username]);
     } catch (error_) {
       error = error_ as Error;
     } finally {

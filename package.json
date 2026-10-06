@@ -68,6 +68,9 @@
     "topics": {
       "compute": {
         "description": "Manage Salesforce Compute apps."
+      },
+      "compute:get": {
+        "description": "Retrieve read-only data about a compute app."
       }
     },
     "flexibleTaxonomy": true

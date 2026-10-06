@@ -3,7 +3,6 @@
 
 Manage Salesforce Compute apps.
 
-* [`sf compute build output`](#sf-compute-build-output)
 * [`sf compute config get [KEY]`](#sf-compute-config-get-key)
 * [`sf compute config list`](#sf-compute-config-list)
 * [`sf compute config set [PAIR]`](#sf-compute-config-set-pair)
@@ -11,51 +10,11 @@ Manage Salesforce Compute apps.
 * [`sf compute deploy`](#sf-compute-deploy)
 * [`sf compute display`](#sf-compute-display)
 * [`sf compute generate`](#sf-compute-generate)
+* [`sf compute get build-log`](#sf-compute-get-build-log)
 * [`sf compute list`](#sf-compute-list)
 * [`sf compute logs`](#sf-compute-logs)
 * [`sf compute scale [TARGET]`](#sf-compute-scale-target)
 * [`sf compute source retrieve`](#sf-compute-source-retrieve)
-
-## `sf compute build output`
-
-Print the build/compile log for a compute app's latest build.
-
-```
-USAGE
-  $ sf compute build output -o <value> [--json] [--flags-dir <value>] [-n <value>]
-
-FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to fetch build output for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-
-GLOBAL FLAGS
-  --flags-dir=<value>  Import flag values from a directory.
-  --json               Format output as json.
-
-DESCRIPTION
-  Print the build/compile log for a compute app's latest build.
-
-  Fetches the bounded build/compile log (dependency install, slug compile,
-  release) for the most recent build of a compute app -- useful right after
-  deploy to confirm the build compiled. This is a one-shot fetch of a
-  finished-or-in-progress log, not a live stream; use compute logs --tail for
-  the ongoing runtime log.
-
-  This is a read-only, org-mediated lookup by --name (the app's DeveloperName)
-  -- the org calls Heroku's Build Info API on your behalf. It doesn't read from
-  or require a local Salesforce DX project.
-
-EXAMPLES
-  Print the latest build's log:
-
-    $ sf compute build output --name CreditRatingScorer --target-org my-org
-```
-
-_See code: [src/commands/compute/build/output.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/build/output.ts)_
 
 ## `sf compute config get [KEY]`
 
@@ -357,6 +316,47 @@ FLAG DESCRIPTIONS
 
 _See code: [src/commands/compute/generate.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/generate.ts)_
 
+## `sf compute get build-log`
+
+Print the build/compile log for a compute app's latest build.
+
+```
+USAGE
+  $ sf compute get build-log -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to fetch build output for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Print the build/compile log for a compute app's latest build.
+
+  Fetches the bounded build/compile log (dependency install, slug compile,
+  release) for the most recent build of a compute app -- useful right after
+  deploy to confirm the build compiled. This is a one-shot fetch of a
+  finished-or-in-progress log, not a live stream; use compute logs --tail for
+  the ongoing runtime log.
+
+  This is a read-only, org-mediated lookup by --name (the app's DeveloperName)
+  -- the org calls Heroku's Build Info API on your behalf. It doesn't read from
+  or require a local Salesforce DX project.
+
+EXAMPLES
+  Print the latest build's log:
+
+    $ sf compute get build-log --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/get/build-log.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/get/build-log.ts)_
+
 ## `sf compute list`
 
 List the compute apps deployed in an org.
@@ -419,7 +419,7 @@ DESCRIPTION
 
   Fetches a compute app's runtime log -- this is the app's ongoing output
   (request handling, application logs), not the build/compile log; use
-  compute build output for that.
+  compute get build-log for that.
 
   This is an org-mediated operation by --name (the app's DeveloperName) -- the
   org creates a log session with Heroku on your behalf and hands back a

@@ -24,15 +24,15 @@ import {fetchLatestBuildOutputStreamUrlViaProxy} from '../../../shared/herokuPro
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.build.output');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.get.build-log');
 
-export type ComputeBuildOutputResult = {
+export type ComputeGetBuildLogResult = {
   buildStatus?: 'BUILDING' | 'FAILED' | 'PENDING' | 'SUCCEEDED';
   log?: string;
   name: string;
 };
 
-export default class Output extends SfCommand<ComputeBuildOutputResult> {
+export default class BuildLog extends SfCommand<ComputeGetBuildLogResult> {
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
@@ -49,8 +49,8 @@ export default class Output extends SfCommand<ComputeBuildOutputResult> {
 
   public static readonly summary = messages.getMessage('summary');
 
-  public async run(): Promise<ComputeBuildOutputResult> {
-    const {flags} = await this.parse(Output);
+  public async run(): Promise<ComputeGetBuildLogResult> {
+    const {flags} = await this.parse(BuildLog);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 

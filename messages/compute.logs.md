@@ -6,7 +6,7 @@ Print or stream the runtime log for a compute app.
 
 Fetches a compute app's runtime log -- this is the app's ongoing output
 (request handling, application logs), not the build/compile log; use
-compute build output for that.
+compute get build-log for that.
 
 This is an org-mediated operation by --name (the app's DeveloperName) -- the
 org creates a log session with Heroku on your behalf and hands back a

@@ -188,7 +188,7 @@ USAGE
   $ sf compute config list -o <value> [--json] [--flags-dir <value>] [-n <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to show config for (or
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to list config vars for (or
                             <namespace>\_\_<developerName> if it was deployed under a namespace).
                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
                             directory's app name if that isn't set either.
@@ -204,9 +204,9 @@ DESCRIPTION
 
   Shows every config var (environment variable) currently set for a deployed
   compute app, sorted alphabetically. Goes through the target org's Salesforce
-  Connect API, which calls Heroku on your behalf. Use config get to read a
-  single var's value, config set to add or change vars, or config unset to
-  remove them.
+  Connect API, which calls Heroku on your behalf. Use sf compute config get to
+  read a single var's value, sf compute config set to add or change vars, or
+  sf compute config unset to remove them.
 
 EXAMPLES
   List all config vars for a compute app:

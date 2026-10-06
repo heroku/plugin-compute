@@ -18,8 +18,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
 /*
- * Give every vitest worker its own home directory so the `@salesforce/core`
- * state dir (`~/.sf`, which holds `alias.json`) is isolated per worker.
+ * Give every vitest test file its own home directory so the `@salesforce/core`
+ * state dir (`~/.sf`, which holds `alias.json`) is isolated per test file.
  *
  * `@salesforce/core` resolves its state dir from `os.homedir()` with no env
  * override -- that's `HOME` on POSIX and `USERPROFILE` on Windows. vitest runs
@@ -29,10 +29,12 @@ import {join} from 'node:path';
  * and hit `JSON.parse('')` -> "Unexpected end of JSON input" (the raw parse in
  * aliasAccessor's `fileContentsRawToAliasStore` has no empty-contents guard).
  *
- * A unique home per worker removes the cross-worker contention entirely while
- * keeping files running in parallel. `mkdtempSync` guarantees uniqueness; the
- * worker id in the prefix is only for human-readable debugging. The dirs live
- * under the OS temp dir and are reclaimed by the OS -- no explicit teardown.
+ * This file runs via `setupFiles`, so it executes once per test file (not once
+ * per worker). `mkdtempSync` mints a fresh unique home each time, which removes
+ * the shared-`alias.json` contention entirely while keeping files running in
+ * parallel. The worker id in the prefix is only for human-readable debugging.
+ * The dirs live under the OS temp dir and are reclaimed by the OS -- no explicit
+ * teardown.
  */
 const workerId = process.env.VITEST_WORKER_ID ?? '0';
 const isolatedHome = mkdtempSync(join(tmpdir(), `plugin-compute-sfhome-${workerId}-`));

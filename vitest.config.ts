@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     include: ['test/**/*.test.ts'],
-    // Isolate the @salesforce/core state dir (~/.sf) per worker so parallel
+    // Isolate the @salesforce/core state dir (~/.sf) per test file so parallel
     // test files don't race on a shared alias.json (see the setup file).
     setupFiles: ['./test/setup/sf-home-isolation.ts'],
     testTimeout: 60_000,

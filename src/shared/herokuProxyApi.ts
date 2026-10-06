@@ -243,7 +243,8 @@ export async function fetchLatestReleaseVersionViaProxy(
 
 export type HerokuLogSession = {logplexUrl: string};
 
-// Used by logs.ts. `name` rides in the path (app_id_or_name), not the request body -- unlike the
+// Used by get/runtime-log.ts and tail/runtime-log.ts. `name` rides in the path (app_id_or_name),
+// not the request body -- unlike the
 // old /connect/compute/logs/session Connect resource, Heroku's own createLogSession takes the app
 // only as a path param.
 export async function createComputeLogSessionViaProxy(

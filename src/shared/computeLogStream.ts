@@ -39,8 +39,8 @@ export async function fetchLogplexOutput(logplexUrl: string): Promise<string> {
   }
 }
 
-// Bounded one-shot fetch, not a stream -- `build output` prints one finished-or-in-progress
-// build's log, unlike `logs --tail`'s ongoing runtime stream. Explicit Accept: output_stream_url
+// Bounded one-shot fetch, not a stream -- `get build-log` prints one finished-or-in-progress
+// build's log, unlike `tail runtime-log`'s ongoing runtime stream. Explicit Accept: output_stream_url
 // serves either text/plain or text/event-stream, and this call wants the plain-text snapshot.
 export async function fetchBuildOutputStream(outputStreamUrl: string): Promise<string> {
   try {

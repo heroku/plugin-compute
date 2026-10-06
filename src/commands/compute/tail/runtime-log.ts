@@ -17,33 +17,26 @@
 import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 
-import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../shared/computeApp.js';
-import {fetchLogplexOutput, streamLogplexOutput} from '../../shared/computeLogStream.js';
-import {queryComputeApp, requireHerokuAppId, toComputeAppSummary} from '../../shared/computeQuery.js';
-import {createComputeLogSessionViaProxy} from '../../shared/herokuProxyApi.js';
-import {PLUGIN_NAME} from '../../shared/plugin-name.js';
+import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
+import {streamLogplexOutput} from '../../../shared/computeLogStream.js';
+import {queryComputeApp, requireHerokuAppId, toComputeAppSummary} from '../../../shared/computeQuery.js';
+import {createComputeLogSessionViaProxy} from '../../../shared/herokuProxyApi.js';
+import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.logs');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.tail.runtime-log');
 
-export type ComputeLogsResult = {
-  lines?: string[];
+export type ComputeTailRuntimeLogResult = {
   name: string;
 };
 
-// Drops the single trailing empty element split('\n') produces when the text ends in a newline,
-// without dropping genuine blank lines in the middle of the output.
-function splitLines(text: string): string[] {
-  const lines = text.split('\n');
-  if (lines.length > 0 && lines.at(-1) === '') {
-    lines.pop();
-  }
-
-  return lines;
-}
-
-export default class Logs extends SfCommand<ComputeLogsResult> {
+export default class TailRuntimeLog extends SfCommand<ComputeTailRuntimeLogResult> {
   public static readonly description = messages.getMessage('description');
+
+  // A live stream has no single point at which to emit one JSON result, so this command has no
+  // --json output (replaces the old `logs --tail`/--json exclusivity with removing the flag).
+  public static readonly enableJsonFlag = false;
+
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
     name: Flags.string({
@@ -56,13 +49,6 @@ export default class Logs extends SfCommand<ComputeLogsResult> {
       default: 100,
       summary: messages.getMessage('flags.num.summary'),
     }),
-    // Unbounded/interactive, so there's no single point to emit one JSON result -- oclif
-    // validates this against the built-in --json flag for us.
-    tail: Flags.boolean({
-      default: false,
-      summary: messages.getMessage('flags.tail.summary'),
-      exclusive: ['json'],
-    }),
   };
 
   // Org-mediated lookup by --name -- no local project files are read.
@@ -70,9 +56,9 @@ export default class Logs extends SfCommand<ComputeLogsResult> {
 
   public static readonly summary = messages.getMessage('summary');
 
-  public async run(): Promise<ComputeLogsResult> {
-    const {flags} = await this.parse(Logs);
-    const {num, tail} = flags;
+  public async run(): Promise<ComputeTailRuntimeLogResult> {
+    const {flags} = await this.parse(TailRuntimeLog);
+    const {num} = flags;
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
@@ -87,20 +73,8 @@ export default class Logs extends SfCommand<ComputeLogsResult> {
 
     const appId = requireHerokuAppId(record, name);
     const session = await createComputeLogSessionViaProxy(connection, {
-      name, appId, lines: num, tail,
+      name, appId, lines: num, tail: true,
     });
-
-    if (!tail) {
-      const output = await fetchLogplexOutput(session.logplexUrl);
-      const lines = splitLines(output);
-      if (lines.length === 0) {
-        this.info(messages.getMessage('info.noLogLines', [name]));
-        return {name};
-      }
-
-      for (const line of lines) this.log(line);
-      return {name, lines};
-    }
 
     this.info(messages.getMessage('info.tailStarting', [name]));
     const controller = new AbortController();

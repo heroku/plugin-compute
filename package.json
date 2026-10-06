@@ -71,6 +71,9 @@
       },
       "compute:get": {
         "description": "Retrieve read-only data about a compute app."
+      },
+      "compute:tail": {
+        "description": "Stream a compute app's output as it is produced."
       }
     },
     "flexibleTaxonomy": true

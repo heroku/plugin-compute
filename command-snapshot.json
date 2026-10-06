@@ -133,21 +133,7 @@
     },
     {
         "alias": [],
-        "command": "compute:list",
-        "flagAliases": [],
-        "flagChars": [
-            "o"
-        ],
-        "flags": [
-            "flags-dir",
-            "json",
-            "target-org"
-        ],
-        "plugin": "@heroku/plugin-compute"
-    },
-    {
-        "alias": [],
-        "command": "compute:logs",
+        "command": "compute:get:runtime-log",
         "flagAliases": [],
         "flagChars": [
             "n",
@@ -158,7 +144,20 @@
             "json",
             "name",
             "num",
-            "tail",
+            "target-org"
+        ],
+        "plugin": "@heroku/plugin-compute"
+    },
+    {
+        "alias": [],
+        "command": "compute:list",
+        "flagAliases": [],
+        "flagChars": [
+            "o"
+        ],
+        "flags": [
+            "flags-dir",
+            "json",
             "target-org"
         ],
         "plugin": "@heroku/plugin-compute"
@@ -193,6 +192,22 @@
             "json",
             "name",
             "output-dir",
+            "target-org"
+        ],
+        "plugin": "@heroku/plugin-compute"
+    },
+    {
+        "alias": [],
+        "command": "compute:tail:runtime-log",
+        "flagAliases": [],
+        "flagChars": [
+            "n",
+            "o"
+        ],
+        "flags": [
+            "flags-dir",
+            "name",
+            "num",
             "target-org"
         ],
         "plugin": "@heroku/plugin-compute"

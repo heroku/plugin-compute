@@ -95,8 +95,7 @@
     "test": "npm run test:compile && npm run test:only && npm run test:deprecation-policy && npm run test:json-schema && npm run link-check",
     "test:nuts": "vitest run --config vitest.nut.config.ts",
     "prepack": "npm run build && oclif manifest && npm shrinkwrap",
-    "postpack": "rimraf oclif.manifest.json npm-shrinkwrap.json",
-    "version": "oclif readme"
+    "postpack": "rimraf oclif.manifest.json npm-shrinkwrap.json"
   },
   "publishConfig": {
     "access": "restricted"

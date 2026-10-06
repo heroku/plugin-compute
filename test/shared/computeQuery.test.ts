@@ -55,32 +55,16 @@ describe('computeQuery.queryComputeApp', () => {
     expect(soql).toContain('CurrentBuild.DeployedBy.Username');
     expect(soql).toContain('ExternalServiceRegistration.Id');
     // IsActive is deliberately not queried -- the Tooling API rejects that column at parse time
-    // even with the SfdcInternalQA client override applied (see ComputeAppRecord.
-    // ExternalServiceRegistration.IsActive's comment in computeQuery.ts).
+    // (see ComputeAppRecord.ExternalServiceRegistration.IsActive's comment in computeQuery.ts).
     expect(soql).not.toContain('ExternalServiceRegistration.IsActive');
     expect(options).toEqual({tooling: true});
   });
 
-  it('does not query ExternalAppIdentifier or CurrentBuild.ExternalBuildIdentifier by default', async () => {
+  it('queries ExternalAppIdentifier and CurrentBuild.ExternalBuildIdentifier', async () => {
     const singleRecordQuery = vi.fn().mockResolvedValue(activeRecord);
     const connection = {singleRecordQuery} as unknown as Connection;
 
     await queryComputeApp(connection, 'CreditRatingScorer');
-
-    const [soql] = singleRecordQuery.mock.calls[0] as [string];
-    expect(soql).not.toContain('ExternalAppIdentifier');
-    expect(soql).not.toContain('ExternalBuildIdentifier');
-  });
-
-  it('queries ExternalAppIdentifier and CurrentBuild.ExternalBuildIdentifier when SALESFORCE_INTERNAL_QA_CLIENT=true', async () => {
-    const singleRecordQuery = vi.fn().mockResolvedValue(activeRecord);
-    const connection = {singleRecordQuery} as unknown as Connection;
-    process.env.SALESFORCE_INTERNAL_QA_CLIENT = 'true';
-    try {
-      await queryComputeApp(connection, 'CreditRatingScorer');
-    } finally {
-      delete process.env.SALESFORCE_INTERNAL_QA_CLIENT;
-    }
 
     const [soql] = singleRecordQuery.mock.calls[0] as [string];
     expect(soql).toContain('ExternalAppIdentifier');

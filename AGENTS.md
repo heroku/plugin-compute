@@ -95,13 +95,13 @@ nothing to fix at this layer.
 ## Environment quirk: `NODE_ENV=development` breaks oclif tooling
 
 This environment has `NODE_ENV=development` set persistently in the shell.
-It breaks oclif's `Config` module resolution during `npm run version`
+It breaks oclif's `Config` module resolution during `npm run docs:generate`
 (`oclif readme`) and can silently wipe the README.md `<!-- commands -->`
 section, and can also affect `./bin/dev.js snapshot generate` /
 `./bin/dev.js schema generate`. Always prefix these:
 
 ```bash
-env -u NODE_ENV npm run version
+env -u NODE_ENV npm run docs:generate
 env -u NODE_ENV ./bin/dev.js snapshot generate
 env -u NODE_ENV ./bin/dev.js schema generate
 ```
@@ -203,8 +203,11 @@ comment in `.github/workflows/ci.yml`, and regenerate the lockfile.
    `schemas/*.json` against actual output shapes — both fail on stale artifacts.
 5. If step 4 flags drift, regenerate per the section above, then re-run step
    4 to confirm green.
-6. `env -u NODE_ENV npm run version` to regenerate README.md's
-   `<!-- commands -->` section.
+6. `env -u NODE_ENV npm run docs:generate` to regenerate README.md's
+   `<!-- commands -->` section and the per-command pages under `docs/`
+   (`oclif readme --multi` — both the README topic list and `docs/` are
+   committed and kept in sync; the release pipeline regenerates them the
+   same way).
 
 `test:nuts` (`**/*.nut.ts`, e.g. `test/commands/compute/generate.nut.ts`) are
 integration tests run separately via `npm run test:nuts` — not part of the

@@ -31,11 +31,16 @@ Learn more about [Conventional Commits](https://www.conventionalcommits.org/).
 - [ ] **deps**: Dependency upgrade
 - [ ] **revert**: Revert a previous commit
 - [ ] **refactor**: Refactoring existing code without changing behavior
+- [ ] **perf**: Performance improvement
 
 ### No Release (does not trigger a release)
 
 - [ ] **chore**: Change that does not affect production code
 - [ ] **test**: Add/update/remove tests
+- [ ] **docs**: Documentation-only change
+- [ ] **style**: Formatting/whitespace, no change to code behavior
+- [ ] **build**: Build system, packaging, or tooling change
+- [ ] **ci**: CI or release-workflow change
 
 ## Testing
 

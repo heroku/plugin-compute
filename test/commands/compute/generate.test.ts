@@ -22,35 +22,65 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {join, sep} from 'node:path';
 
 import type {FetchTemplateSource, Language} from '../../../src/shared/computeGenerateSource.js';
 
 import Generate from '../../../src/commands/compute/generate.js';
 
 // Keeps this suite offline: production Generate.fetchTemplateSource does a live HTTPS fetch of
-// the pinned reference-app commit, so tests swap in an in-memory fixture covering every path
-// generate.ts actually reads (see FETCHED_FILES in generate.ts) instead of hitting the network.
+// the pinned reference-app commit, so tests swap in an in-memory fixture standing in for the
+// whole fetched tarball. buildStarterFiles writes these paths out verbatim except for the
+// denylisted ones (governance files, example routers/tests), so the fixture includes both
+// kinds, plus files like package-lock.json and devDependencies that a real fetch carries through.
+// Mimics the reference apps' local-invoke scripts: defaults/examples name the example endpoints.
+/* eslint-disable no-template-curly-in-string -- literal shell parameter expansion from the upstream script */
+const INVOKE_FIXTURE = [
+  'API_PATH="${6:-/accounts}"  # python: /api/accounts/',
+  '# POST /unitofwork',
+  '',
+].join('\n');
+
+/* eslint-enable no-template-curly-in-string */
+
 const FIXTURE_SOURCE: Record<Language, Record<string, string>> = {
   node: {
-    'package.json': JSON.stringify({
-      dependencies: {fastify: '^5.4.0'},
-      devDependencies: {eslint: '^9.14.0'},
-      engines: {node: '>=20.0.0 <24.0.0'},
-      license: 'Apache-2.0',
-      main: 'src/app.js',
-      scripts: {dev: 'fastify start -w src/app.js', lint: 'eslint src', start: 'fastify start src/app.js'},
-      type: 'module',
-    }),
     Procfile: 'web: APP_PORT=3000 heroku-applink-service-mesh npm start\n',
     'src/app.js': 'export default async function (fastify, opts) {}\n',
     'src/plugins/heroku-applink.js': "import fp from 'fastify-plugin';\nexport default fp(async () => {});\n",
+    'package.json': JSON.stringify({
+      name: 'applink-getting-started-nodejs',
+      type: 'module',
+      main: 'src/app.js',
+      scripts: {start: 'fastify start src/app.js', dev: 'fastify start -w src/app.js', lint: 'eslint src'},
+      license: 'Apache-2.0',
+      engines: {node: '>=20.0.0 <24.0.0'},
+      dependencies: {fastify: '^5.4.0', 'fastify-cli': '^7.4.0'},
+      devDependencies: {eslint: '^9.14.0'},
+    }),
+    'package-lock.json': JSON.stringify({name: 'applink-getting-started-nodejs', lockfileVersion: 3}),
+    'bin/invoke.sh': INVOKE_FIXTURE,
+    CODEOWNERS: '* @heroku-reference-apps/maintainers\n',
+    'LICENSE.txt': 'Apache License\n',
+    'app.json': '{"name":"applink-getting-started-nodejs"}\n',
+    'test/routes/accounts.test.js': "import { test } from 'tap';\n",
   },
   python: {
     Procfile: 'web: APP_PORT=3000 heroku-applink-service-mesh uvicorn app.main:app\n',
     'requirements.txt': 'fastapi>=0.109.2\nuvicorn>=0.27.1\nheroku-applink>=1.0.0\nPyYAML>=6.0.1\npytest>=8.2.0\n',
+    'bin/invoke.py': INVOKE_FIXTURE,
+    'tests/test_main.py': 'def test_get_health(client):\n    pass\n',
+    'tests/routers/test_accounts.py': 'def test_accounts(client):\n    pass\n',
+    'app/routers/accounts.py': 'router = None\n',
+    'SECURITY.md': 'security\n',
   },
 };
+
+// Forward-slash path of a generated file relative to its app dir, so assertions hold on Windows.
+function appRelative(filePath: string, appName: string): string {
+  const appDir = join('platformComputeApps', appName) + sep;
+  return filePath.slice(filePath.indexOf(appDir) + appDir.length).split(sep).join('/');
+}
 
 const stubFetchTemplateSource: FetchTemplateSource = async language => {
   const entries: Record<string, Buffer> = {};
@@ -93,9 +123,11 @@ describe('compute generate', () => {
 
     expect(result.name).toBe('CreditRatingScorer');
     expect(result.language).toBe('node');
-    expect(result.files).toHaveLength(9);
+    expect(result.files).toHaveLength(12);
     expect(result.files.some(f => f.endsWith(join('src', 'app.js')))).toBe(true);
     expect(result.files.some(f => f.endsWith(join('src', 'plugins', 'heroku-applink.js')))).toBe(true);
+    expect(result.files.some(f => f.endsWith('package-lock.json'))).toBe(true);
+    expect(result.files.some(f => f.endsWith(join('test', 'routes', 'healthcheck.test.js')))).toBe(true);
 
     const metaXml = await readFile(
       join(
@@ -119,9 +151,14 @@ describe('compute generate', () => {
       join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer/package.json'),
       'utf8',
     );
-    expect(packageJson).toContain('"name": "creditratingscorer"');
-    expect(packageJson).not.toContain('devDependencies');
-    expect(packageJson).not.toContain('lint');
+    expect(packageJson).toContain('"fastify-cli"');
+    expect(packageJson).toContain('devDependencies');
+
+    const packageLockJson = await readFile(
+      join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer/package-lock.json'),
+      'utf8',
+    );
+    expect(packageLockJson).toContain('"lockfileVersion"');
 
     const output = sfCommandStubs.log
       .getCalls()
@@ -148,7 +185,7 @@ describe('compute generate', () => {
       'utf8',
     );
     expect(requirementsTxt).toContain('fastapi');
-    expect(requirementsTxt).not.toContain('pytest');
+    expect(requirementsTxt).toContain('pytest');
 
     const projectToml = await readFile(
       join(projectDir, 'force-app/main/default/platformComputeApps/ReceiptOcr/project.toml'),
@@ -187,5 +224,51 @@ describe('compute generate', () => {
     Generate.fetchTemplateSource = async () => ({});
 
     await expect(Generate.run(['--name', 'MissingFile'])).rejects.toThrow('Procfile');
+  });
+
+  it('omits upstream governance files and example tests from the node app', async () => {
+    const result = await Generate.run(['--name', 'CleanNode']);
+    const relative = result.files.map(f => appRelative(f, 'CleanNode'));
+
+    const denied = new Set(['app.json', 'CODEOWNERS', 'LICENSE.txt', 'test/routes/accounts.test.js']);
+    expect(relative.filter(f => denied.has(f))).toEqual([]);
+  });
+
+  it('omits upstream governance files, example routers, and example router tests from the python app', async () => {
+    const result = await Generate.run(['--name', 'CleanPython', '--language', 'python']);
+    const relative = result.files.map(f => appRelative(f, 'CleanPython'));
+
+    const denied = new Set(['app/routers/accounts.py', 'SECURITY.md', 'tests/routers/test_accounts.py']);
+    expect(relative.filter(f => denied.has(f))).toEqual([]);
+
+    // The upstream tests that still pass against the skeleton are kept.
+    expect(relative).toContain('tests/test_main.py');
+  });
+
+  it('retargets the invoke scripts away from endpoints the generated app does not have', async () => {
+    await Generate.run(['--name', 'InvokeNode']);
+    await Generate.run(['--name', 'InvokePython', '--language', 'python']);
+    const base = join(projectDir, 'force-app/main/default/platformComputeApps');
+
+    const nodeScript = await readFile(join(base, 'InvokeNode/bin/invoke.sh'), 'utf8');
+    // eslint-disable-next-line no-template-curly-in-string
+    expect(nodeScript).toContain('${6:-/healthcheck}');
+    expect(nodeScript).toContain('POST /hello');
+    expect(nodeScript).not.toContain('/accounts');
+    expect(nodeScript).not.toContain('/unitofwork');
+
+    const pythonScript = await readFile(join(base, 'InvokePython/bin/invoke.py'), 'utf8');
+    expect(pythonScript).not.toContain('accounts');
+    expect(pythonScript).toContain('/health');
+  });
+
+  it('fails at generate time when the fetched source lacks a file the app needs to run', async () => {
+    Generate.fetchTemplateSource = async language => {
+      const entries = await stubFetchTemplateSource(language);
+      delete entries['package-lock.json'];
+      return entries;
+    };
+
+    await expect(Generate.run(['--name', 'NoLockfile'])).rejects.toThrow('package-lock.json');
   });
 });

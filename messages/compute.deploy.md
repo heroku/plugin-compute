@@ -5,9 +5,9 @@ Deploy a compute app's source and metadata to an org.
 # description
 
 Packages the compute app's source (everything under its directory except the
-compute metadata file, project.toml, and .forceignore) together with its
-api-spec.yaml into a deployment bundle, uploads it to the org through the
-Connect API, then deploys the app's <name>.compute-meta.xml through the
+compute metadata file and .forceignore) together with its api-spec.yaml into
+a deployment bundle, uploads it to the org through the Connect API, then
+deploys the app's <name>.compute-meta.xml through the
 Metadata API to trigger the build. The metadata deploy itself returns a job
 ID that can be checked independently with "sf project deploy report
 --job-id <id>". Deploy is asynchronous: this command returns once the build
@@ -15,7 +15,8 @@ has been enqueued, it doesn't wait for the build to finish.
 
 Files matching patterns in a .forceignore are excluded from the source
 bundle. Both the compute app's own .forceignore and the one at the project
-root (next to sfdx-project.json) are applied, if present.
+root (next to sfdx-project.json) are applied, if present. api-spec.yaml and
+project.toml are always included, since the build can't succeed without them.
 
 # flags.source-dir.summary
 

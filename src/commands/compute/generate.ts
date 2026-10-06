@@ -101,34 +101,66 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
   }
 }
 
+// Files that belong to the reference-app repo itself rather than to a customer's app. Governance
+// files (CODEOWNERS names teams that don't exist in the customer's org; the license/security/
+// conduct/contributing docs describe Heroku's repo), the Heroku deploy-button manifest
+// (meaningless for a PlatformComputeApp), and the example routers/tests for the endpoints the
+// skeletons replace (left in, they're dead code and their tests fail against the skeleton).
+// Entries ending in "/" match a whole directory. Lint/format config stays: package.json's lint
+// and format scripts still reference it.
+const DENIED_COMMON = ['CODEOWNERS', 'LICENSE.txt', 'SECURITY.md', 'CODE_OF_CONDUCT.md', 'CONTRIBUTING.md'];
+const DENIED_PATHS: Record<Language, string[]> = {
+  node: [...DENIED_COMMON, 'app.json', 'test/routes/'],
+  python: [...DENIED_COMMON, 'app/routers/', 'tests/routers/'],
+};
+
+function isDeniedPath(language: Language, relativePath: string): boolean {
+  return DENIED_PATHS[language].some(entry =>
+    entry.endsWith('/') ? relativePath.startsWith(entry) : relativePath === entry);
+}
+
+// Fetch-only files the generated app can't run without (nothing in GENERATED_SKELETONS covers them).
+const REQUIRED_FETCHED_FILES: Record<Language, string[]> = {
+  node: ['Procfile', 'package.json', 'package-lock.json', 'src/app.js', 'src/plugins/heroku-applink.js'],
+  python: ['Procfile', 'requirements.txt'],
+};
+
+// bin/invoke.* is kept for local testing, but upstream defaults and examples point at the
+// reference apps' example endpoints (/accounts, /unitofwork, ...) which don't exist in a
+// generated app. Repoint them at routes that do: the built-in health route by default, and the
+// skeleton's commented /hello example elsewhere.
+const INVOKE_SCRIPTS = new Set(['bin/invoke.py', 'bin/invoke.sh']);
+const INVOKE_PATH_REPLACEMENTS: Array<[string, string]> = [
+  ['/api/accounts/', '/health'],
+  ['/accounts', '/healthcheck'],
+  ['/unitofwork', '/hello'],
+];
+
+function retargetInvokeScript(text: string): string {
+  let retargeted = text;
+  for (const [from, to] of INVOKE_PATH_REPLACEMENTS) {
+    retargeted = retargeted.replaceAll(from, () => to);
+  }
+
+  return retargeted;
+}
+
 // Starter source is fetched live from the Heroku AppLink getting-started reference apps
 // (applink-getting-started-nodejs / applink-getting-started-python) at generate time -- see
 // computeGenerateSource.ts for the pinned commit/checksum and the fetch-and-extract mechanics.
+// Everything the fetch returns is written out verbatim (lockfile, package.json/requirements.txt,
+// lint config, local invoke scripts, etc.) except the DENIED_* paths below -- this repo carries
+// zero vendored copies of upstream's code, and generated apps get the exact same lockfile-backed
+// dependency set as the reference app, not a hand-trimmed subset of it. A denylist (rather than
+// an allowlist) means new upstream runtime files flow through without a code change here.
 //
 // Files carrying the reference apps' example business-logic endpoints (Accounts query,
 // UnitOfWork, Data Cloud webhook) aren't separable from that logic by trimming -- it's woven
 // into route/router registration, OpenAPI paths, and README prose, not appended after some
-// boilerplate. Those paths are always replaced with a hand-authored skeleton (see
+// boilerplate. Those paths are always overwritten with a hand-authored skeleton (see
 // computeGenerateSkeletons.ts) that keeps the same bootstrap/routing/middleware pattern with a
 // commented worked example, so customers write their own routes/routers into it. project.toml
 // has no upstream equivalent at all (those repos don't ship one) and is generated the same way.
-//
-// Everything else -- Procfile, the Fastify bootstrap/plugin files, package.json/requirements.txt
-// (each lightly transformed to drop dev/test-only entries) -- is kept from the fetched source,
-// so this repo carries zero vendored copies of upstream's code.
-const FETCHED_FILES: Record<Language, Record<string, ((raw: Buffer) => string) | undefined>> = {
-  node: {
-    Procfile: undefined,
-    'src/app.js': undefined,
-    'src/plugins/heroku-applink.js': undefined,
-    'package.json': transformNodePackageJson,
-  },
-  python: {
-    Procfile: undefined,
-    'requirements.txt': transformPythonRequirements,
-  },
-};
-
 async function buildStarterFiles(
   name: string,
   language: Language,
@@ -148,13 +180,20 @@ async function buildStarterFiles(
   };
 
   const fetched = await fetchSource(language);
-  for (const [relativePath, transform] of Object.entries(FETCHED_FILES[language])) {
-    const raw = fetched[relativePath];
-    if (!raw) {
-      throw messages.createError('error.templateSourceMissingFile', [language, relativePath]);
+  // Fails at generate time (rather than later at `npm ci` / deploy) if a pin bump moved or removed
+  // a file the app can't run without; the tarball checksum only proves the bytes are the ones
+  // pinned, not that the file set still has what we expect.
+  for (const requiredPath of REQUIRED_FETCHED_FILES[language]) {
+    const present = fetched[requiredPath];
+    if (!present) {
+      throw messages.createError('error.templateSourceMissingFile', [language, requiredPath]);
     }
+  }
 
-    files[relativePath] = transform ? transform(raw) : raw.toString('utf8');
+  for (const [relativePath, raw] of Object.entries(fetched)) {
+    if (isDeniedPath(language, relativePath)) continue;
+    const text = raw.toString('utf8');
+    files[relativePath] = INVOKE_SCRIPTS.has(relativePath) ? retargetInvokeScript(text) : text;
   }
 
   for (const [relativePath, contents] of Object.entries(GENERATED_SKELETONS[language])) {
@@ -170,50 +209,4 @@ async function buildStarterFiles(
   }
 
   return files;
-}
-
-// Keeps package.json's runtime shape (module type, entry point, start/dev scripts, license,
-// engines, dependencies) while dropping devDependencies and the lint/format/test scripts that
-// only make sense inside the reference app's own repo, and renaming/redescribing the package for
-// the generated app.
-function transformNodePackageJson(raw: Buffer): string {
-  const upstream = JSON.parse(raw.toString('utf8')) as {
-    dependencies?: Record<string, string>;
-    engines?: Record<string, string>;
-    license?: string;
-    main?: string;
-    scripts?: Record<string, string>;
-    type?: string;
-  };
-  const pkg = {
-    name: '__APP_NAME_LOWER__',
-    version: '1.0.0',
-    description: 'Compute app generated by sf compute generate, built on the Heroku AppLink Node.js starter.',
-    type: upstream.type,
-    main: upstream.main,
-    scripts: {
-      start: upstream.scripts?.start,
-      dev: upstream.scripts?.dev,
-    },
-    license: upstream.license,
-    engines: upstream.engines,
-    dependencies: upstream.dependencies,
-  };
-  return JSON.stringify(pkg, null, 2) + '\n';
-}
-
-// requirements.txt lists runtime and test dependencies on separate lines with no section
-// markers, so the only reliable split is an explicit runtime-package allowlist rather than a
-// positional/comment-based cut.
-const PYTHON_RUNTIME_PACKAGES = new Set(['fastapi', 'heroku-applink', 'pyyaml', 'uvicorn']);
-
-function transformPythonRequirements(raw: Buffer): string {
-  const lines = raw
-    .toString('utf8')
-    .split('\n')
-    .filter(line => {
-      const packageName = /^[A-Za-z0-9_.\-]+/v.exec(line.trim())?.[0];
-      return packageName !== undefined && PYTHON_RUNTIME_PACKAGES.has(packageName.toLowerCase());
-    });
-  return lines.join('\n') + '\n';
 }

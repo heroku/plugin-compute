@@ -54,11 +54,20 @@ export type PackagedBundle = {
 // deployment/specs/PLATFORMCOMPUTEAPP_ENTITY_SCHEMA.md "Nested Tarball Structure".
 export async function packageComputeBundle(appDir: string, name: string, projectRoot: string): Promise<PackagedBundle> {
   const metaFileName = `${name}.compute-meta.xml`;
-  const excluded = new Set(['.forceignore', 'api-spec.yaml', metaFileName, 'project.toml']);
+  // api-spec.yaml and project.toml also go into the outer bundle/get read by the Fir builder
+  // respectively, but both are included here too: api-spec.yaml so the AppLink Service Mesh
+  // Proxy has it at runtime, project.toml so CNB picks up its declared buildpacks (notably
+  // heroku/heroku-applink-service-mesh, which nothing else installs).
+  const excluded = new Set(['.forceignore', metaFileName]);
+  // Build-critical, so a broad user .forceignore pattern (*.yaml, project.toml, ...) must not be
+  // able to silently strip them and recreate the failure described above.
+  const neverForceIgnored = new Set(['api-spec.yaml', 'project.toml']);
   const isForceIgnored = await loadForceIgnore(appDir, projectRoot);
 
   const allFiles = await listFilesRecursive(appDir);
-  const sourceRelativePaths = allFiles.filter(f => !excluded.has(f) && !isForceIgnored(f));
+  const sourceRelativePaths = allFiles.filter(
+    f => !excluded.has(f) && (neverForceIgnored.has(f) || !isForceIgnored(f)),
+  );
   debug(
     'packaging %s: %d of %d files after exclusions/.forceignore',
     appDir,
@@ -79,9 +88,11 @@ export async function packageComputeBundle(appDir: string, name: string, project
     {name: 'api-spec.yaml', data: apiSpec},
     {name: 'source.tar.gz', data: sourceTarGz},
   ]);
-  debug('packaged %s into %d bytes (%d files)', appDir, buffer.length, sourceEntries.length + 1);
+  // api-spec.yaml appears in both the outer bundle and source.tar.gz but is one file on disk, so
+  // the source entries (which always include it) are the distinct-file count.
+  debug('packaged %s into %d bytes (%d files)', appDir, buffer.length, sourceEntries.length);
 
-  return {buffer, fileCount: sourceEntries.length + 1};
+  return {buffer, fileCount: sourceEntries.length};
 }
 
 export type UnpackedBundle = {
@@ -120,9 +131,9 @@ export async function unpackComputeBundle(buffer: Buffer, appDir: string): Promi
     }),
   );
 
-  // Mirrors packageComputeBundle's own counting convention: source-entry count, plus 1 for
-  // api-spec.yaml.
-  return {fileCount: Object.keys(sourceEntries).length + 1};
+  // Mirrors packageComputeBundle's convention: distinct files written. Bundles produced by this
+  // plugin carry api-spec.yaml in source.tar.gz too; older ones only had the outer copy.
+  return {fileCount: new Set([...Object.keys(sourceEntries), 'api-spec.yaml']).size};
 }
 
 // Inverse of tarGzip below -- decompress and read every tar entry into memory, keyed by name.

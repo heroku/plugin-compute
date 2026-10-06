@@ -66,7 +66,7 @@ servers:
 #           description: Successful response
 paths: {}
 `,
-    'src/routes/index.js': `export default async function (fastify, _opts) {
+    'src/routes/index.js': `export default async function (_fastify, _opts) {
   // Add your routes here. Every route registered this way automatically gets
   // the Salesforce preHandler from ../plugins/heroku-applink.js, which
   // decodes the invoking org's context onto request.sdk. For example:
@@ -80,6 +80,19 @@ paths: {}
   //   return result.records.map((rec) => rec.fields);
   // });
 }
+`,
+    'test/routes/healthcheck.test.js': `import { test } from 'tap';
+import { build } from '../helper.js';
+
+// Smoke test so \`npm test\` has something to run; add tests for your own routes alongside it.
+test('GET /healthcheck responds OK', async t => {
+  const app = await build(t);
+
+  const response = await app.inject({ method: 'GET', url: '/healthcheck' });
+
+  t.equal(response.statusCode, 200);
+  t.equal(response.payload, 'OK');
+});
 `,
     'README.md': `# __APP_NAME__
 

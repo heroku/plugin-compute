@@ -197,7 +197,9 @@ describe('compute deploy', () => {
     const outer = await extractTarGz(bundleBuffer);
     const source = await extractTarGz(outer['source.tar.gz']);
 
-    expect(Object.keys(source).toSorted()).toEqual(['Procfile', 'src/app.js']);
+    expect(Object.keys(source).toSorted()).toEqual(
+      ['Procfile', 'api-spec.yaml', 'project.toml', 'src/app.js'].toSorted(),
+    );
   });
 
   it('does not attempt the metadata deploy when the source upload fails', async () => {

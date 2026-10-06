@@ -17,21 +17,21 @@
 import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 
-import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../shared/computeApp.js';
-import {formatConfigVarLines} from '../../shared/computeConfig.js';
-import {resolveHerokuAppId} from '../../shared/computeQuery.js';
-import {fetchComputeConfigVarsViaProxy} from '../../shared/herokuProxyApi.js';
-import {PLUGIN_NAME} from '../../shared/plugin-name.js';
+import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
+import {formatConfigVarLines} from '../../../shared/computeConfig.js';
+import {resolveHerokuAppId} from '../../../shared/computeQuery.js';
+import {fetchComputeConfigVarsViaProxy} from '../../../shared/herokuProxyApi.js';
+import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.config');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.config.list');
 
 export type ComputeConfigResult = {
   configVars: Record<string, string>;
   name: string;
 };
 
-export default class Config extends SfCommand<ComputeConfigResult> {
+export default class ConfigList extends SfCommand<ComputeConfigResult> {
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
@@ -49,7 +49,7 @@ export default class Config extends SfCommand<ComputeConfigResult> {
   public static readonly summary = messages.getMessage('summary');
 
   public async run(): Promise<ComputeConfigResult> {
-    const {flags} = await this.parse(Config);
+    const {flags} = await this.parse(ConfigList);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 

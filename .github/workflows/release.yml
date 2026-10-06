@@ -4,9 +4,10 @@ name: Release
 # Uses GitHub App (vars.DEV_TOOLS_RELEASE_WORKFLOW_APP_ID, secrets.DEV_TOOLS_RELEASE_WORKFLOW_APP_PRIVATE_KEY)
 
 on:
-  # Manual gate (deliberate, pre-GA): the release-please PR is created/refreshed
-  # only on manual dispatch, not on every push to main. Do not convert this to an
-  # automatic push trigger without a team decision.
+  # Manual gate (deliberate, pre-GA): npm publishing runs only on manual dispatch.
+  # The release-please PR itself is created/refreshed automatically on every push to
+  # main by release-on-push.yml; this workflow performs the actual npm publish and is
+  # kept manual. Do not convert this to an automatic trigger without a team decision.
   workflow_dispatch:
     inputs:
       dry_run:

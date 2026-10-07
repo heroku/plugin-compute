@@ -2,9 +2,9 @@
 
 `@heroku/plugin-compute` is a Salesforce CLI (`sf`) plugin, built on the
 oclif plugin framework and `@salesforce/sf-plugins-core`, that adds
-`sf compute deploy|display|generate|list|get runtime-log|tail runtime-log|get
-build-log|scale|config|config get|config set|config unset` — commands for
-managing "compute apps"
+`sf compute deploy|display|generate|list|get runtime-log|tail runtime-log|
+get build-log|scale|config|config get|config set|config unset` — commands
+for managing "compute apps"
 (Heroku-backed `PlatformComputeApp` metadata invocable from Apex/Flow via
 AppLink External Services).
 

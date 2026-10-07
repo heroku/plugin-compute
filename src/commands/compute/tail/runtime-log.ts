@@ -33,8 +33,8 @@ export type ComputeTailRuntimeLogResult = {
 export default class TailRuntimeLog extends SfCommand<ComputeTailRuntimeLogResult> {
   public static readonly description = messages.getMessage('description');
 
-  // A live stream has no single point at which to emit one JSON result, so this command has no
-  // --json output (replaces the old `logs --tail`/--json exclusivity with removing the flag).
+  // A live stream has no single point at which to emit one JSON result, so this command
+  // exposes no --json output. The verb-noun shape mirrors first-party `sf apex tail log`.
   public static readonly enableJsonFlag = false;
 
   public static readonly examples = messages.getMessages('examples');

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import {Args} from '@oclif/core';
 import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 
@@ -26,11 +25,8 @@ import {PLUGIN_NAME} from '../../shared/plugin-name.js';
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.scale');
 
-// Matches Heroku's own `heroku ps:scale` target syntax: TYPE[=COUNT][:SIZE]. TYPE follows
 // Heroku's process-type pattern (salesforce-connect-compute.yaml's Formation.type: ^[-\w]{1,128}$).
-// The SIZE group additionally allows `.` (unlike TYPE/COUNT) because Fir's Classic-family dyno
-// sizes use fractional GB, e.g. dyno-1c-0.5gb.
-const TARGET_PATTERN = /^([\-\w]+)(?:=(\d+))?(?::([\-\w.]+))?$/v;
+const PROCESS_TYPE_PATTERN = /^[\-\w]{1,128}$/v;
 
 // Fir dyno-size identifiers (dyno-<vCPUs>c-<RAM>gb). Full union of all 4 Fir dyno families --
 // product hasn't yet decided which families Compute apps may provision on for GA, so this is a
@@ -59,43 +55,12 @@ const VALID_SIZES = [
   'dyno-16c-128gb',
 ];
 
-type ScaleTarget = {dynoSize?: string; processType: string; quantity?: number};
-
-function parseScaleTarget(token: string): ScaleTarget {
-  const match = TARGET_PATTERN.exec(token);
-  if (!match) {
-    throw messages.createError('error.scaleInvalidTarget', [token]);
-  }
-
-  const [, processType, countStr, sizeStr] = match;
-  if (countStr === undefined && sizeStr === undefined) {
-    throw messages.createError('error.scaleNoChangeForTarget', [token]);
-  }
-
-  let dynoSize: string | undefined;
-  if (sizeStr !== undefined) {
-    dynoSize = sizeStr.toLowerCase();
-    if (!VALID_SIZES.includes(dynoSize)) {
-      throw messages.createError('error.scaleInvalidSize', [sizeStr, VALID_SIZES.join(', ')]);
-    }
-  }
-
-  return {processType, quantity: countStr === undefined ? undefined : Number(countStr), dynoSize};
-}
-
 export type ComputeScaleResult = {
   formation: Array<{dynoSize?: string; quantity: number; type: string}>;
   name: string;
 };
 
 export default class Scale extends SfCommand<ComputeScaleResult> {
-  public static readonly args = {
-    target: Args.string({
-      multiple: true,
-      summary: messages.getMessage('args.target.summary'),
-    }),
-  };
-
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
@@ -105,6 +70,17 @@ export default class Scale extends SfCommand<ComputeScaleResult> {
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'process-type': Flags.string({
+      required: true,
+      summary: messages.getMessage('flags.process-type.summary'),
+    }),
+    quantity: Flags.integer({
+      min: 0,
+      summary: messages.getMessage('flags.quantity.summary'),
+    }),
+    size: Flags.string({
+      summary: messages.getMessage('flags.size.summary'),
+    }),
   };
 
   // Org- or Heroku-mediated lookup by --name -- no local project files are read.
@@ -113,40 +89,41 @@ export default class Scale extends SfCommand<ComputeScaleResult> {
   public static readonly summary = messages.getMessage('summary');
 
   public async run(): Promise<ComputeScaleResult> {
-    const {args, flags} = await this.parse(Scale);
+    const {flags} = await this.parse(Scale);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
-    // A declarative `required: true`/minimum-count arg would enforce this earlier, during
-    // this.parse() -- deliberately not used so the error can carry
-    // error.scaleNoTargetsSpecified's exact wording instead of oclif's generic missing-arg text.
-    const tokens = args.target ?? [];
-    if (tokens.length === 0) {
-      throw messages.createError('error.scaleNoTargetsSpecified');
+    const processType = flags['process-type'];
+    if (!PROCESS_TYPE_PATTERN.test(processType)) {
+      throw messages.createError('error.scaleInvalidProcessType', [processType]);
     }
 
-    const targets = tokens.map(token => parseScaleTarget(token));
+    const {quantity} = flags;
+    if (quantity === undefined && flags.size === undefined) {
+      throw messages.createError('error.scaleNoChange', [processType]);
+    }
+
+    let dynoSize: string | undefined;
+    if (flags.size !== undefined) {
+      dynoSize = flags.size.toLowerCase();
+      if (!VALID_SIZES.includes(dynoSize)) {
+        throw messages.createError('error.scaleInvalidSize', [flags.size, VALID_SIZES.join(', ')]);
+      }
+    }
 
     const connection = flags['target-org'].getConnection();
     const appId = await resolveHerokuAppId(connection, name);
 
     this.spinner.start('Scaling dynos');
-    const formation: Array<{dynoSize?: string; quantity: number; type: string}> = [];
     try {
-      for (const target of targets) {
-        /* eslint-disable no-await-in-loop -- sequential PATCHes to the same app's formation; there's nothing to parallelize */
-        const updated = await scaleComputeFormationViaProxy(connection, {name, appId, ...target});
-        /* eslint-enable no-await-in-loop -- re-enable after the sequential formation loop body */
-        formation.push(updated);
-      }
+      const updated = await scaleComputeFormationViaProxy(connection, {
+        name, appId, processType, quantity, dynoSize,
+      });
+      this.spinner.stop(`done, now running ${updated.type} at ${updated.quantity}:${updated.dynoSize ?? '-'}.`);
+      return {name, formation: [updated]};
     } catch (error) {
       this.spinner.stop('failed');
       throw error;
     }
-
-    const summary = formation.map(f => `${f.type} at ${f.quantity}:${f.dynoSize ?? '-'}`).join(', ');
-    this.spinner.stop(`done, now running ${summary}.`);
-
-    return {name, formation};
   }
 }

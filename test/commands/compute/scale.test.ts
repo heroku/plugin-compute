@@ -95,11 +95,14 @@ describe('compute scale', () => {
     vi.restoreAllMocks();
   });
 
-  it('scales dyno size via the Heroku proxy by default', async () => {
+  it('scales dyno size via the Heroku proxy', async () => {
     requestStub.mockResolvedValue({dyno_size: {name: 'dyno-1c-4gb'}, quantity: 1, type: 'web'});
 
     const result = await Scale.run([
-      'web:dyno-1c-4gb',
+      '--process-type',
+      'web',
+      '--size',
+      'dyno-1c-4gb',
       '--name',
       'CreditRatingScorer',
       '--target-org',
@@ -121,33 +124,30 @@ describe('compute scale', () => {
   it('accepts a mixed-case size and normalizes it to lowercase before sending', async () => {
     requestStub.mockResolvedValue({dyno_size: {name: 'dyno-1c-4gb'}, quantity: 1, type: 'web'});
 
-    await Scale.run(['web:DYNO-1C-4GB', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    await Scale.run([
+      '--process-type',
+      'web',
+      '--size',
+      'DYNO-1C-4GB',
+      '--name',
+      'CreditRatingScorer',
+      '--target-org',
+      testOrg.username,
+    ]);
 
     const call = findFormationCall(requestStub, 'PATCH');
 
     expect(JSON.parse((call![0] as {body: string}).body)).toEqual({dyno_size: {name: 'dyno-1c-4gb'}});
   });
 
-  it('rejects the whole invocation, without calling the Heroku proxy for any target, when one of several targets has an invalid size', async () => {
-    await expect(
-      Scale.run([
-        'web=2:dyno-4c-16gb',
-        'worker:xl',
-        '--name',
-        'CreditRatingScorer',
-        '--target-org',
-        testOrg.username,
-      ]),
-    ).rejects.toThrow('"xl" is not a valid size');
-
-    expect(findFormationCall(requestStub)).toBeUndefined();
-  });
-
   it('accepts a size containing a decimal point (Classic dyno-1c-0.5gb)', async () => {
     requestStub.mockResolvedValue({dyno_size: {name: 'dyno-1c-0.5gb'}, quantity: 1, type: 'web'});
 
     const result = await Scale.run([
-      'web:dyno-1c-0.5gb',
+      '--process-type',
+      'web',
+      '--size',
+      'dyno-1c-0.5gb',
       '--name',
       'CreditRatingScorer',
       '--target-org',
@@ -160,7 +160,16 @@ describe('compute scale', () => {
   it('scales quantity (including 0) via the Heroku proxy', async () => {
     requestStub.mockResolvedValue({quantity: 0, type: 'worker'});
 
-    const result = await Scale.run(['worker=0', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    const result = await Scale.run([
+      '--process-type',
+      'worker',
+      '--quantity',
+      '0',
+      '--name',
+      'CreditRatingScorer',
+      '--target-org',
+      testOrg.username,
+    ]);
 
     expect(result).toEqual({
       formation: [{dynoSize: undefined, quantity: 0, type: 'worker'}],
@@ -173,7 +182,18 @@ describe('compute scale', () => {
   it('scales dyno size and quantity together via the Heroku proxy', async () => {
     requestStub.mockResolvedValue({dyno_size: {name: 'dyno-4c-16gb'}, quantity: 2, type: 'web'});
 
-    await Scale.run(['web=2:dyno-4c-16gb', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    await Scale.run([
+      '--process-type',
+      'web',
+      '--quantity',
+      '2',
+      '--size',
+      'dyno-4c-16gb',
+      '--name',
+      'CreditRatingScorer',
+      '--target-org',
+      testOrg.username,
+    ]);
 
     const call = findFormationCall(requestStub, 'PATCH');
 
@@ -183,46 +203,18 @@ describe('compute scale', () => {
     });
   });
 
-  it('scales multiple process types in one invocation, one proxy call per type', async () => {
-    // Org.create()/getConnection() issues its own request through this same shared stub while
-    // resolving --target-org (see findFormationCall's comment) -- route by target substring
-    // rather than call index so that unrelated call doesn't shift which response goes to which PATCH.
+  it('rejects when --process-type is missing, without calling the Heroku proxy', async () => {
+    await expect(
+      Scale.run(['--quantity', '1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]),
+    ).rejects.toThrow(/process-type/v);
 
-    requestStub.mockImplementation(async (req: {url?: string}) => {
-      const target = req.url ? proxyTarget(req.url) : '';
-      if (target.endsWith('/formation/web')) {
-        return {dyno_size: {name: 'dyno-4c-16gb'}, quantity: 2, type: 'web'};
-      }
-
-      if (target.endsWith('/formation/worker')) {
-        return {dyno_size: {name: 'dyno-1c-0.5gb'}, quantity: 1, type: 'worker'};
-      }
-
-      return {quantity: 0, type: 'heroku-proxy-path-not-used'};
-    });
-
-    const result = await Scale.run([
-      'web=2:dyno-4c-16gb',
-      'worker=1:dyno-1c-0.5gb',
-      '--name',
-      'CreditRatingScorer',
-      '--target-org',
-      testOrg.username,
-    ]);
-
-    expect(result).toEqual({
-      formation: [
-        {dynoSize: 'dyno-4c-16gb', quantity: 2, type: 'web'},
-        {dynoSize: 'dyno-1c-0.5gb', quantity: 1, type: 'worker'},
-      ],
-      name: 'CreditRatingScorer',
-    });
+    expect(findFormationCall(requestStub)).toBeUndefined();
   });
 
-  it('rejects when no targets are given, without calling the Heroku proxy', async () => {
-    await expect(Scale.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
-      'Specify at least one process type to scale',
-    );
+  it('rejects when neither --quantity nor --size is given, without calling the Heroku proxy', async () => {
+    await expect(
+      Scale.run(['--process-type', 'web', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]),
+    ).rejects.toThrow('Specify a quantity and/or size to scale "web" to');
 
     expect(findFormationCall(requestStub)).toBeUndefined();
   });
@@ -232,7 +224,7 @@ describe('compute scale', () => {
   // by validateName rather than passed through, unlike before resolveHerokuAppId existed.
   it('rejects a hyphenated --name before querying or calling the Heroku proxy', async () => {
     await expect(
-      Scale.run(['web=1', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]),
+      Scale.run(['--process-type', 'web', '--quantity', '1', '--name', 'my-heroku-style-app', '--target-org', testOrg.username]),
     ).rejects.toThrow("isn't valid");
 
     expect(toolingQueryStub).not.toHaveBeenCalled();
@@ -247,24 +239,16 @@ describe('compute scale', () => {
     });
 
     await expect(
-      Scale.run(['web=1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]),
+      Scale.run(['--process-type', 'web', '--quantity', '1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]),
     ).rejects.toThrow("doesn't have a Heroku app identifier yet");
 
     expect(findFormationCall(requestStub)).toBeUndefined();
   });
 
-  it('rejects a malformed target, without calling the Heroku proxy', async () => {
+  it('rejects an invalid process type, without calling the Heroku proxy', async () => {
     await expect(
-      Scale.run(['web@2', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]),
-    ).rejects.toThrow('"web@2" isn\'t a valid scale target');
-
-    expect(findFormationCall(requestStub)).toBeUndefined();
-  });
-
-  it('rejects a target with neither a count nor a size, without calling the Heroku proxy', async () => {
-    await expect(
-      Scale.run(['web', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]),
-    ).rejects.toThrow('"web" doesn\'t specify a count or size');
+      Scale.run(['--process-type', 'web@2', '--quantity', '1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]),
+    ).rejects.toThrow('"web@2" isn\'t a valid process type');
 
     expect(findFormationCall(requestStub)).toBeUndefined();
   });
@@ -272,7 +256,7 @@ describe('compute scale', () => {
   it('rejects an invalid size, without calling the Heroku proxy', async () => {
     let error: Error | undefined;
     try {
-      await Scale.run(['web:xl', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      await Scale.run(['--process-type', 'web', '--size', 'xl', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
     } catch (error_) {
       error = error_ as Error;
     }
@@ -293,7 +277,7 @@ describe('compute scale', () => {
 
     let error: Error | undefined;
     try {
-      await Scale.run(['web=1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      await Scale.run(['--process-type', 'web', '--quantity', '1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
     } catch (error_) {
       error = error_ as Error;
     }
@@ -307,7 +291,7 @@ describe('compute scale', () => {
     requestStub.mockRejectedValue(Object.assign(new Error('bad proxy_url'), {errorCode: 'HEROKU_PROXY_ERROR'}));
 
     await expect(
-      Scale.run(['web=1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]),
+      Scale.run(['--process-type', 'web', '--quantity', '1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]),
     ).rejects.toThrow('The Salesforce Heroku API proxy rejected the request: bad proxy_url');
   });
 
@@ -315,14 +299,24 @@ describe('compute scale', () => {
     requestStub.mockRejectedValue(new Error('socket hang up'));
 
     await expect(
-      Scale.run(['web=1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]),
+      Scale.run(['--process-type', 'web', '--quantity', '1', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]),
     ).rejects.toThrow("Couldn't reach the Heroku Platform API through Salesforce: socket hang up");
   });
 
   it('returns the flattened result under --json, not the full status envelope', async () => {
     requestStub.mockResolvedValue({dyno_size: {name: 'dyno-1c-4gb'}, quantity: 1, type: 'web'});
 
-    await Scale.run(['web:dyno-1c-4gb', '--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
+    await Scale.run([
+      '--process-type',
+      'web',
+      '--size',
+      'dyno-1c-4gb',
+      '--name',
+      'CreditRatingScorer',
+      '--target-org',
+      testOrg.username,
+      '--json',
+    ]);
 
     const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as {result: unknown};
     expect(jsonOutput.result).toEqual({
@@ -334,7 +328,7 @@ describe('compute scale', () => {
   it('resolves --name from COMPUTE_APP_NAME when --name is not passed', async () => {
     process.env.COMPUTE_APP_NAME = 'CreditRatingScorer';
     try {
-      const result = await Scale.run(['web=1', '--target-org', testOrg.username]);
+      const result = await Scale.run(['--process-type', 'web', '--quantity', '1', '--target-org', testOrg.username]);
       expect(result.name).toBe('CreditRatingScorer');
       const call = findFormationCall(requestStub, 'PATCH');
       expect(proxyTarget((call![0] as {url: string}).url)).toBe(
@@ -352,7 +346,7 @@ describe('compute scale', () => {
     process.env.COMPUTE_APP_NAME = 'my-heroku-style-app';
     let error: Error | undefined;
     try {
-      await Scale.run(['web=1', '--target-org', testOrg.username]);
+      await Scale.run(['--process-type', 'web', '--quantity', '1', '--target-org', testOrg.username]);
     } catch (error_) {
       error = error_ as Error;
     } finally {
@@ -373,7 +367,7 @@ describe('compute scale', () => {
     await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
     process.chdir(appDir);
     try {
-      const result = await Scale.run(['web=1', '--target-org', testOrg.username]);
+      const result = await Scale.run(['--process-type', 'web', '--quantity', '1', '--target-org', testOrg.username]);
       expect(result.name).toBe('CreditRatingScorer');
     } finally {
       process.chdir(originalCwd);
@@ -387,7 +381,7 @@ describe('compute scale', () => {
     process.chdir(tmp);
     let error: Error | undefined;
     try {
-      await Scale.run(['web=1', '--target-org', testOrg.username]);
+      await Scale.run(['--process-type', 'web', '--quantity', '1', '--target-org', testOrg.username]);
     } catch (error_) {
       error = error_ as Error;
     } finally {

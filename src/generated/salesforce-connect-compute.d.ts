@@ -4,181 +4,181 @@
  */
 
 export interface paths {
-  '/connect/compute/source': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/connect/compute/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a Compute deployment bundle source
+         * @description Uploads a Heroku Compute deployment bundle (OpenAPI spec plus application source tarball) for a named Compute app. This only creates a pending PlatformComputeAppBuild record -- it does not start a build by itself. Deploying the app's compute-meta.xml through the Metadata API is what triggers the build. Requires the `DeployCompute` user permission. This is an Expensive-cost Connect resource -- callers should avoid polling it and should instead poll build status separately.
+         */
+        post: operations["uploadComputeSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Upload a Compute deployment bundle source
-     * @description Uploads a Heroku Compute deployment bundle (OpenAPI spec plus application source tarball) for a named Compute app. This only creates a pending PlatformComputeAppBuild record -- it does not start a build by itself. Deploying the app's compute-meta.xml through the Metadata API is what triggers the build. Requires the `DeployCompute` user permission. This is an Expensive-cost Connect resource -- callers should avoid polling it and should instead poll build status separately.
-     */
-    post: operations['uploadComputeSource'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/connect/compute/{app_id_or_name}/source': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/connect/compute/{app_id_or_name}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a Compute app's deployed source
+         * @description Downloads the same nested deployment bundle (OpenAPI spec plus application source tarball) most recently deployed for a Compute app -- the GET counterpart to the upload above, used by `sf compute source retrieve` alongside a Metadata API retrieve of the app's compute-meta.xml. Also accepts a C2C JWT (minted for the `sfdc.salesforce-compute` Core CASC integration) for Heroku Builds' own inbound fetch, in addition to a standard org access token. Requires the `DeployCompute` or `ManageCompute` user permission on the standard-token path. Speculative resource -- see the Compute tag description above; not yet built in core. See W-23502012.
+         */
+        get: operations["downloadComputeSource"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Download a Compute app's deployed source
-     * @description Downloads the same nested deployment bundle (OpenAPI spec plus application source tarball) most recently deployed for a Compute app -- the GET counterpart to the upload above, used by `sf compute source retrieve` alongside a Metadata API retrieve of the app's compute-meta.xml. Also accepts a C2C JWT (minted for the `sfdc.salesforce-compute` Core CASC integration) for Heroku Builds' own inbound fetch, in addition to a standard org access token. Requires the `DeployCompute` or `ManageCompute` user permission on the standard-token path. Speculative resource -- see the Compute tag description above; not yet built in core. See W-23502012.
-     */
-    get: operations['downloadComputeSource'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    /** @description Result of a Compute deployment bundle source upload. */
-    ComputeSourceUpload: {
-      /**
-       * @description PlatformComputeApp record Id.
-       * @example 0abEE0000004CqYYAU
-       */
-      platformComputeId: string;
-      /**
-       * @description PlatformComputeAppBuild record Id.
-       * @example 0acEE0000004D1ZYAU
-       */
-      buildId: string;
-      /**
-       * Format: int64
-       * @description Size in bytes of the uploaded source blob.
-       * @example 184320
-       */
-      sourceBlobSize: number;
-      /**
-       * Format: date-time
-       * @description Timestamp the source blob was uploaded.
-       */
-      uploadedAt: string;
+    schemas: {
+        /** @description Result of a Compute deployment bundle source upload. */
+        ComputeSourceUpload: {
+            /**
+             * @description PlatformComputeApp record Id.
+             * @example 0abEE0000004CqYYAU
+             */
+            platformComputeId: string;
+            /**
+             * @description PlatformComputeAppBuild record Id.
+             * @example 0acEE0000004D1ZYAU
+             */
+            buildId: string;
+            /**
+             * Format: int64
+             * @description Size in bytes of the uploaded source blob.
+             * @example 184320
+             */
+            sourceBlobSize: number;
+            /**
+             * Format: date-time
+             * @description Timestamp the source blob was uploaded.
+             */
+            uploadedAt: string;
+        };
+        /** @description Standard Salesforce Connect API error shape. */
+        ConnectError: {
+            message: string;
+            errorCode: string;
+        };
     };
-    /** @description Standard Salesforce Connect API error shape. */
-    ConnectError: {
-      message: string;
-      errorCode: string;
+    responses: {
+        /** @description Malformed request (e.g. missing name/bundle, invalid tarball). */
+        BadRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ConnectError"][];
+            };
+        };
+        /** @description Caller lacks the DeployCompute permission. */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ConnectError"][];
+            };
+        };
+        /** @description No PlatformComputeApp exists with the given name. */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ConnectError"][];
+            };
+        };
     };
-  };
-  responses: {
-    /** @description Malformed request (e.g. missing name/bundle, invalid tarball). */
-    BadRequest: {
-      headers: {
-        [name: string]: unknown;
-      };
-      content: {
-        'application/json': components['schemas']['ConnectError'][];
-      };
-    };
-    /** @description Caller lacks the DeployCompute permission. */
-    Forbidden: {
-      headers: {
-        [name: string]: unknown;
-      };
-      content: {
-        'application/json': components['schemas']['ConnectError'][];
-      };
-    };
-    /** @description No PlatformComputeApp exists with the given name. */
-    NotFound: {
-      headers: {
-        [name: string]: unknown;
-      };
-      content: {
-        'application/json': components['schemas']['ConnectError'][];
-      };
-    };
-  };
-  parameters: never;
-  requestBodies: never;
-  headers: never;
-  pathItems: never;
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  uploadComputeSource: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'multipart/form-data': {
-          /**
-           * @description DeveloperName of the PlatformComputeApp to deploy source for.
-           * @example CreditRatingScorer
-           */
-          name: string;
-          /**
-           * Format: binary
-           * @description Nested deployment bundle tarball (deployment-bundle.tar.gz) containing the app's OpenAPI spec and source tree.
-           */
-          bundle: string;
+    uploadComputeSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-    };
-    responses: {
-      /** @description Source uploaded; a pending PlatformComputeAppBuild record was created. */
-      200: {
-        headers: {
-          [name: string]: unknown;
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * @description DeveloperName of the PlatformComputeApp to deploy source for.
+                     * @example CreditRatingScorer
+                     */
+                    name: string;
+                    /**
+                     * Format: binary
+                     * @description Nested deployment bundle tarball (deployment-bundle.tar.gz) containing the app's OpenAPI spec and source tree.
+                     */
+                    bundle: string;
+                };
+            };
         };
-        content: {
-          'application/json': components['schemas']['ComputeSourceUpload'];
+        responses: {
+            /** @description Source uploaded; a pending PlatformComputeAppBuild record was created. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComputeSourceUpload"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
-      };
-      400: components['responses']['BadRequest'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
     };
-  };
-  downloadComputeSource: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /**
-         * @description PlatformComputeApp Id or DeveloperName.
-         * @example CreditRatingScorer
-         */
-        app_id_or_name: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Deployment bundle tarball (deployment-bundle.tar.gz) most recently deployed for the app. */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    downloadComputeSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description PlatformComputeApp Id or DeveloperName.
+                 * @example CreditRatingScorer
+                 */
+                app_id_or_name: string;
+            };
+            cookie?: never;
         };
-        content: {
-          'application/gzip': string;
+        requestBody?: never;
+        responses: {
+            /** @description Deployment bundle tarball (deployment-bundle.tar.gz) most recently deployed for the app. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/gzip": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
-      };
-      400: components['responses']['BadRequest'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
     };
-  };
 }

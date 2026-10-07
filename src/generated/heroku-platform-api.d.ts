@@ -4,1507 +4,1505 @@
  */
 
 export interface paths {
-  '/apps/{app_id_or_name}': {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
+    "/apps/{app_id_or_name}": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        /** Info for an app */
+        get: operations["getApp"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Info for an app */
-    get: operations['getApp'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/apps/{app_id_or_name}/builds': {
-    parameters: {
-      query?: never;
-      header: {
+    "/apps/{app_id_or_name}/builds": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
         /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
+         * List builds for an app
+         * @description Returns builds oldest-first. `sf compute build output` uses this (rather than getBuild by id) to reach the latest build's `output_stream_url`, because the only build identifier the CLI has client-side is PlatformComputeAppBuild's Salesforce record Id, not a Heroku build UUID -- so it lists and takes the last element instead of fetching by id.
          */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
+        get: operations["listBuilds"];
+        put?: never;
         /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
+         * Create a build from a source tarball
+         * @description Starts a build of the given source blob. `source_blob.url` is typically the `get_url` returned from a prior Source Create call.
          */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
+        post: operations["createBuild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * List builds for an app
-     * @description Returns builds oldest-first. `sf compute build output` uses this (rather than getBuild by id) to reach the latest build's `output_stream_url`, because the only build identifier the CLI has client-side is PlatformComputeAppBuild's Salesforce record Id, not a Heroku build UUID -- so it lists and takes the last element instead of fetching by id.
-     */
-    get: operations['listBuilds'];
-    put?: never;
-    /**
-     * Create a build from a source tarball
-     * @description Starts a build of the given source blob. `source_blob.url` is typically the `get_url` returned from a prior Source Create call.
-     */
-    post: operations['createBuild'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/apps/{app_id_or_name}/builds/{build_id}': {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-        /**
-         * @description Unique identifier of the build.
-         * @example 01234567-89ab-cdef-0123-456789abcdef
-         */
-        build_id: string;
-      };
-      cookie?: never;
+    "/apps/{app_id_or_name}/builds/{build_id}": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+                /**
+                 * @description Unique identifier of the build.
+                 * @example 01234567-89ab-cdef-0123-456789abcdef
+                 */
+                build_id: string;
+            };
+            cookie?: never;
+        };
+        /** Info for a build */
+        get: operations["getBuild"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Info for a build */
-    get: operations['getBuild'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/apps/{app_id_or_name}/config-vars': {
-    parameters: {
-      query?: never;
-      header: {
+    "/apps/{app_id_or_name}/config-vars": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        /** Info for an app's config vars */
+        get: operations["getConfigVars"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
         /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
+         * Update config vars for an app
+         * @description Merges the given key/value pairs into the app's config vars. Setting a key's value to `null` deletes that config var.
          */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
+        patch: operations["updateConfigVars"];
+        trace?: never;
     };
-    /** Info for an app's config vars */
-    get: operations['getConfigVars'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /**
-     * Update config vars for an app
-     * @description Merges the given key/value pairs into the app's config vars. Setting a key's value to `null` deletes that config var.
-     */
-    patch: operations['updateConfigVars'];
-    trace?: never;
-  };
-  '/apps/{app_id_or_name}/dynos': {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
+    "/apps/{app_id_or_name}/dynos": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        /** List dynos for an app */
+        get: operations["listDynos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** List dynos for an app */
-    get: operations['listDynos'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/apps/{app_id_or_name}/formation': {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
+    "/apps/{app_id_or_name}/formation": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        /** List process type formation for an app */
+        get: operations["listFormation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Batch update process types for an app */
+        patch: operations["batchUpdateFormation"];
+        trace?: never;
     };
-    /** List process type formation for an app */
-    get: operations['listFormation'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Batch update process types for an app */
-    patch: operations['batchUpdateFormation'];
-    trace?: never;
-  };
-  '/apps/{app_id_or_name}/formation/{formation_id_or_type}': {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-        /**
-         * @description Unique identifier or process type name of the formation.
-         * @example web
-         */
-        formation_id_or_type: string;
-      };
-      cookie?: never;
+    "/apps/{app_id_or_name}/formation/{formation_id_or_type}": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+                /**
+                 * @description Unique identifier or process type name of the formation.
+                 * @example web
+                 */
+                formation_id_or_type: string;
+            };
+            cookie?: never;
+        };
+        /** Info for a process type */
+        get: operations["getFormation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update (scale/resize) a process type */
+        patch: operations["updateFormation"];
+        trace?: never;
     };
-    /** Info for a process type */
-    get: operations['getFormation'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Update (scale/resize) a process type */
-    patch: operations['updateFormation'];
-    trace?: never;
-  };
-  '/apps/{app_id_or_name}/log-sessions': {
-    parameters: {
-      query?: never;
-      header: {
+    "/apps/{app_id_or_name}/log-sessions": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
         /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
+         * Create a log session
+         * @description Creates a reference to an HTTP log stream for the app, to obtain a `logplex_url` for `sf compute get runtime-log` and `sf compute tail runtime-log` to read or stream from. The CLI calls this directly through the Salesforce Heroku API proxy (/services/data/vXX.0/heroku/proxy, see herokuProxyApi.ts); the returned `logplex_url` is itself pre-authorized, so the CLI then fetches/streams it directly, without going back through the proxy.
          */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
+        post: operations["createLogSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Create a log session
-     * @description Creates a reference to an HTTP log stream for the app, to obtain a `logplex_url` for `sf compute logs` to stream or tail from. The CLI calls this directly through the Salesforce Heroku API proxy (/services/data/vXX.0/heroku/proxy, see herokuProxyApi.ts); the returned `logplex_url` is itself pre-authorized, so the CLI then fetches/streams it directly, without going back through the proxy.
-     */
-    post: operations['createLogSession'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/apps/{app_id_or_name}/releases': {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
+    "/apps/{app_id_or_name}/releases": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        /** List releases for an app */
+        get: operations["listReleases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** List releases for an app */
-    get: operations['listReleases'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/apps/{app_id_or_name}/releases/{release_id_or_version}': {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-        /**
-         * @description Unique identifier or version number of the release.
-         * @example 11
-         */
-        release_id_or_version: string;
-      };
-      cookie?: never;
+    "/apps/{app_id_or_name}/releases/{release_id_or_version}": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+                /**
+                 * @description Unique identifier or version number of the release.
+                 * @example 11
+                 */
+                release_id_or_version: string;
+            };
+            cookie?: never;
+        };
+        /** Info for a release */
+        get: operations["getRelease"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Info for a release */
-    get: operations['getRelease'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/apps/{app_id_or_name}/slugs/{slug_id}': {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-        /**
-         * @description Unique identifier of the slug.
-         * @example 01234567-89ab-cdef-0123-456789abcdef
-         */
-        slug_id: string;
-      };
-      cookie?: never;
+    "/apps/{app_id_or_name}/slugs/{slug_id}": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+                /**
+                 * @description Unique identifier of the slug.
+                 * @example 01234567-89ab-cdef-0123-456789abcdef
+                 */
+                slug_id: string;
+            };
+            cookie?: never;
+        };
+        /** Info for a slug */
+        get: operations["getSlug"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Info for a slug */
-    get: operations['getSlug'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/sources': {
-    parameters: {
-      query?: never;
-      header: {
+    "/sources": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
         /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
+         * Create source upload/download URLs
+         * @description Creates a short-lived pair of URLs for uploading (`put_url`) and downloading (`get_url`) a gzipped source tarball. Used ahead of Build Create: upload the tarball to `put_url`, then pass `get_url` as the build's `source_blob.url`. There is no Source Info operation in the Heroku Platform API -- Source is create-only.
          */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path?: never;
-      cookie?: never;
+        post: operations["createSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Create source upload/download URLs
-     * @description Creates a short-lived pair of URLs for uploading (`put_url`) and downloading (`get_url`) a gzipped source tarball. Used ahead of Build Create: upload the tarball to `put_url`, then pass `get_url` as the build's `source_blob.url`. There is no Source Info operation in the Heroku Platform API -- Source is create-only.
-     */
-    post: operations['createSource'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/oauth/tokens': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/oauth/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange a grant or refresh token for an OAuth token
+         * @description Fallback token exchange for callers that must talk to the Heroku Platform API directly. Prefer obtaining credentials through the Salesforce Connect API's mirrored auth resource where available.
+         */
+        post: operations["createOAuthToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /**
-     * Exchange a grant or refresh token for an OAuth token
-     * @description Fallback token exchange for callers that must talk to the Heroku Platform API directly. Prefer obtaining credentials through the Salesforce Connect API's mirrored auth resource where available.
-     */
-    post: operations['createOAuthToken'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    App: {
-      /** Format: uuid */
-      id?: string;
-      /** @example credit-rating-scorer */
-      name?: string;
-      acm?: boolean;
-      /** Format: date-time */
-      archived_at?: string | null;
-      build_stack?: {
-        /** Format: uuid */
-        id?: string;
-        /** @example heroku-24 */
-        name?: string;
-      };
-      buildpack_provided_description?: string | null;
-      /** Format: date-time */
-      created_at?: string;
-      generation?: {
-        /** Format: uuid */
-        id?: string;
-        /** @example fir */
-        name?: string;
-      };
-      git_url?: string;
-      internal_routing?: boolean | null;
-      maintenance?: boolean;
-      organization?: {
-        /** Format: uuid */
-        id?: string;
-        name?: string;
-      } | null;
-      owner?: {
-        /** Format: email */
-        email?: string;
-        /** Format: uuid */
-        id?: string;
-      };
-      region?: {
-        /** Format: uuid */
-        id?: string;
-        /** @example us */
-        name?: string;
-      };
-      /** Format: date-time */
-      released_at?: string;
-      repo_size?: number | null;
-      slug_size?: number | null;
-      space?: {
-        /** Format: uuid */
-        id?: string;
-        name?: string;
-        shield?: boolean;
-      } | null;
-      stack?: {
-        /** Format: uuid */
-        id?: string;
-        /** @example heroku-24 */
-        name?: string;
-      };
-      team?: {
-        /** Format: uuid */
-        id?: string;
-        name?: string;
-      } | null;
-      /** Format: date-time */
-      updated_at?: string;
-      web_url?: string;
-    };
-    Build: {
-      /** Format: uuid */
-      id?: string;
-      app?: {
-        /** Format: uuid */
-        id?: string;
-      };
-      buildpacks?:
-        | {
+    schemas: {
+        App: {
+            /** Format: uuid */
+            id?: string;
+            /** @example credit-rating-scorer */
             name?: string;
-            url?: string;
-          }[]
-        | null;
-      /** Format: date-time */
-      created_at?: string;
-      /** @description Streams build output as text/plain or text/event-stream. Resumable via Range (text/plain) or Last-Event-Id (text/event-stream) request headers. */
-      output_stream_url?: string;
-      release?: {
-        /** Format: uuid */
-        id?: string;
-      } | null;
-      slug?: {
-        /** Format: uuid */
-        id?: string;
-      } | null;
-      source_blob?: {
-        checksum?: string | null;
-        url?: string;
-        version?: string | null;
-        version_description?: string | null;
-      };
-      /** @example heroku-24 */
-      stack?: string;
-      /** @enum {string} */
-      status?: 'failed' | 'pending' | 'succeeded';
-      /** Format: date-time */
-      updated_at?: string;
-      user?: {
-        /** Format: uuid */
-        id?: string;
-        /** Format: email */
-        email?: string;
-      };
-    };
-    BuildCreateRequest: {
-      source_blob: {
-        /** @example SHA256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 */
-        checksum?: string | null;
-        /** @example https://api.heroku.com/sources/1234.tgz */
-        url: string;
-        /** @example v1.3.0 */
-        version?: string | null;
-        version_description?: string | null;
-      };
-      buildpacks?: {
-        url?: string;
-      }[];
-    };
-    /**
-     * @description Flat map of config var name to value.
-     * @example {
-     *       "HEROKU_APPLINK_URL": "https://applink.heroku.com",
-     *       "LOG_LEVEL": "info"
-     *     }
-     */
-    ConfigVars: {
-      [key: string]: string;
-    };
-    /**
-     * @description Config var name to value; a null value deletes that config var.
-     * @example {
-     *       "LOG_LEVEL": "debug",
-     *       "UNUSED_VAR": null
-     *     }
-     */
-    ConfigVarsUpdate: {
-      [key: string]: string | null;
-    };
-    Dyno: {
-      app?: {
-        /** Format: uuid */
-        id?: string;
-        name?: string;
-      };
-      attach_url?: string | null;
-      command?: string;
-      /** Format: date-time */
-      created_at?: string;
-      /** Format: uuid */
-      id?: string;
-      /** @example web.1 */
-      name?: string;
-      release?: {
-        /** Format: uuid */
-        id?: string;
-        version?: number;
-      };
-      /** @example standard-1X */
-      size?: string;
-      /** @enum {string} */
-      state?: 'crashed' | 'down' | 'idle' | 'starting' | 'up';
-      /** @example web */
-      type?: string;
-      /** Format: date-time */
-      updated_at?: string;
-    };
-    Formation: {
-      app?: {
-        /** Format: uuid */
-        id?: string;
-        name?: string;
-      };
-      command?: string;
-      /** Format: date-time */
-      created_at?: string;
-      dyno_size?: {
-        /** Format: uuid */
-        id?: string;
-        /** @example eco */
-        name?: string;
-      };
-      /** Format: uuid */
-      id?: string;
-      quantity?: number;
-      /**
-       * @description Deprecated; refer to dyno_size instead.
-       * @example standard-1X
-       */
-      size?: string;
-      /** @example web */
-      type?: string;
-      /** Format: date-time */
-      updated_at?: string;
-    };
-    FormationUpdateRequest: {
-      dyno_size?: {
-        /** Format: uuid */
-        id?: string;
-        /** @example Standard-1X */
-        name?: string;
-      };
-      /** @example 1 */
-      quantity?: number;
-    };
-    FormationBatchUpdateRequest: {
-      updates: {
-        /**
-         * @description Id or name of the process type to update.
-         * @example web
-         */
-        type: string;
-        quantity?: number;
-        dyno_size?: {
-          /** Format: uuid */
-          id?: string;
+            acm?: boolean;
+            /** Format: date-time */
+            archived_at?: string | null;
+            build_stack?: {
+                /** Format: uuid */
+                id?: string;
+                /** @example heroku-24 */
+                name?: string;
+            };
+            buildpack_provided_description?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            generation?: {
+                /** Format: uuid */
+                id?: string;
+                /** @example fir */
+                name?: string;
+            };
+            git_url?: string;
+            internal_routing?: boolean | null;
+            maintenance?: boolean;
+            organization?: {
+                /** Format: uuid */
+                id?: string;
+                name?: string;
+            } | null;
+            owner?: {
+                /** Format: email */
+                email?: string;
+                /** Format: uuid */
+                id?: string;
+            };
+            region?: {
+                /** Format: uuid */
+                id?: string;
+                /** @example us */
+                name?: string;
+            };
+            /** Format: date-time */
+            released_at?: string;
+            repo_size?: number | null;
+            slug_size?: number | null;
+            space?: {
+                /** Format: uuid */
+                id?: string;
+                name?: string;
+                shield?: boolean;
+            } | null;
+            stack?: {
+                /** Format: uuid */
+                id?: string;
+                /** @example heroku-24 */
+                name?: string;
+            };
+            team?: {
+                /** Format: uuid */
+                id?: string;
+                name?: string;
+            } | null;
+            /** Format: date-time */
+            updated_at?: string;
+            web_url?: string;
         };
-      }[];
-    };
-    LogSession: {
-      /** Format: date-time */
-      created_at?: string;
-      /** Format: uuid */
-      id?: string;
-      /** @example https://logplex.heroku.com/sessions/01234567-89ab-cdef-0123-456789abcdef?srv=1325419200 */
-      logplex_url?: string;
-      /** Format: date-time */
-      updated_at?: string;
-    };
-    LogSessionCreateRequest: {
-      /** @example web.1 */
-      dyno_name?: string;
-      /** @example 100 */
-      lines?: number;
-      /** @example app */
-      source?: string;
-      tail?: boolean;
-      /** @example web */
-      type?: string;
-    };
-    Release: {
-      addon_plan_names?: string[];
-      app?: {
-        /** Format: uuid */
-        id?: string;
-        name?: string;
-      };
-      artifacts?: {
-        /** @example slug */
-        type?: string;
-        /** Format: uuid */
-        id?: string;
-      }[];
-      /** Format: date-time */
-      created_at?: string;
-      current?: boolean;
-      description?: string;
-      eligible_for_rollback?: boolean;
-      /** Format: uuid */
-      id?: string;
-      output_stream_url?: string | null;
-      slug?: {
-        /** Format: uuid */
-        id?: string;
-      } | null;
-      /** @enum {string} */
-      status?: 'failed' | 'pending' | 'succeeded' | 'expired';
-      /** Format: date-time */
-      updated_at?: string;
-      user?: {
-        /** Format: uuid */
-        id?: string;
-        /** Format: email */
-        email?: string;
-      };
-      version?: number;
-    };
-    Slug: {
-      blob?: {
-        /** @example GET */
-        method?: string;
-        /** @example https://api.heroku.com/slugs/1234.tgz */
-        url?: string;
-      };
-      buildpack_provided_description?: string | null;
-      checksum?: string | null;
-      commit?: string | null;
-      commit_description?: string | null;
-      /** Format: date-time */
-      created_at?: string;
-      /** Format: date-time */
-      deleted_at?: string | null;
-      /** Format: uuid */
-      id?: string;
-      /**
-       * @example {
-       *       "web": "./bin/web -p $PORT"
-       *     }
-       */
-      process_types?: {
-        [key: string]: string;
-      };
-      size?: number | null;
-      stack?: {
-        /** Format: uuid */
-        id?: string;
-        /** @example heroku-24 */
-        name?: string;
-      };
-      /** Format: date-time */
-      updated_at?: string;
-    };
-    Source: {
-      source_blob?: {
-        /** @example https://api.heroku.com/sources/1234.tgz */
-        get_url?: string;
-        /** @example https://api.heroku.com/sources/1234.tgz */
-        put_url?: string;
-      };
-    };
-    OAuthToken: {
-      access_token?: {
-        /** @example 2592000 */
-        expires_in?: number | null;
-        /** Format: uuid */
-        id?: string;
-        /** @example HRKU-01234567-89ab-cdef-0123-456789abcdef */
-        token?: string;
-      };
-      authorization?: {
-        /** Format: uuid */
-        id?: string;
-      };
-      client?: {
-        secret?: string;
-      } | null;
-      /** Format: date-time */
-      created_at?: string;
-      grant?: {
-        code?: string;
-        /** @enum {string} */
-        type?: 'authorization_code' | 'refresh_token';
-      };
-      /** Format: uuid */
-      id?: string;
-      refresh_token?: {
-        expires_in?: number | null;
-        /** Format: uuid */
-        id?: string;
-        token?: string;
-      };
-      session?: {
-        /** Format: uuid */
-        id?: string;
-      };
-      /** Format: date-time */
-      updated_at?: string;
-      user?: {
-        /** Format: uuid */
-        id?: string;
-      };
-    };
-    OAuthTokenCreateRequest: {
-      client?: {
-        /** @example 01234567-89ab-cdef-0123-456789abcdef */
-        secret?: string;
-      };
-      grant: {
-        /** @example 01234567-89ab-cdef-0123-456789abcdef */
-        code?: string;
-        /** @enum {string} */
-        type?: 'authorization_code' | 'refresh_token';
-      };
-      refresh_token?: {
-        /** @example HRKU-01234567-89ab-cdef-0123-456789abcdef */
-        token?: string;
-      };
-    };
-    /** @description Standard Heroku Platform API error shape. */
-    HerokuError: {
-      /**
-       * @description Machine-readable error identifier.
-       * @example not_found
-       */
-      id: string;
-      /** @example Couldn't find that app. */
-      message: string;
-      /** @description Optional URL with more information about the error. */
-      url?: string | null;
-    };
-  };
-  responses: {
-    /** @description Missing or invalid OAuth token. */
-    Unauthorized: {
-      headers: {
-        [name: string]: unknown;
-      };
-      content: {
-        'application/json': components['schemas']['HerokuError'];
-      };
-    };
-    /** @description Caller is not authorized to perform this action. */
-    Forbidden: {
-      headers: {
-        [name: string]: unknown;
-      };
-      content: {
-        'application/json': components['schemas']['HerokuError'];
-      };
-    };
-    /** @description No resource exists with the given identifier. */
-    NotFound: {
-      headers: {
-        [name: string]: unknown;
-      };
-      content: {
-        'application/json': components['schemas']['HerokuError'];
-      };
-    };
-    /** @description Request was well-formed but semantically invalid. */
-    UnprocessableEntity: {
-      headers: {
-        [name: string]: unknown;
-      };
-      content: {
-        'application/json': components['schemas']['HerokuError'];
-      };
-    };
-  };
-  parameters: {
-    /**
-     * @description Unique identifier or name of the app.
-     * @example credit-rating-scorer
-     */
-    AppIdOrName: string;
-    /**
-     * @description Required Heroku Platform API version header.
-     * @example application/vnd.heroku+json; version=3
-     */
-    HerokuAcceptHeader: 'application/vnd.heroku+json; version=3';
-    /**
-     * @description Heroku's Range-header-based pagination/ordering syntax, e.g. `version ..; max=1; order=desc` to fetch only the single highest-version release.
-     * @example version ..; max=1; order=desc
-     */
-    HerokuRangeHeader: string;
-  };
-  requestBodies: never;
-  headers: never;
-  pathItems: never;
-}
-export type $defs = Record<string, never>;
-export interface operations {
-  getApp: {
-    parameters: {
-      query?: never;
-      header: {
+        Build: {
+            /** Format: uuid */
+            id?: string;
+            app?: {
+                /** Format: uuid */
+                id?: string;
+            };
+            buildpacks?: {
+                name?: string;
+                url?: string;
+            }[] | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** @description Streams build output as text/plain or text/event-stream. Resumable via Range (text/plain) or Last-Event-Id (text/event-stream) request headers. */
+            output_stream_url?: string;
+            release?: {
+                /** Format: uuid */
+                id?: string;
+            } | null;
+            slug?: {
+                /** Format: uuid */
+                id?: string;
+            } | null;
+            source_blob?: {
+                checksum?: string | null;
+                url?: string;
+                version?: string | null;
+                version_description?: string | null;
+            };
+            /** @example heroku-24 */
+            stack?: string;
+            /** @enum {string} */
+            status?: "failed" | "pending" | "succeeded";
+            /** Format: date-time */
+            updated_at?: string;
+            user?: {
+                /** Format: uuid */
+                id?: string;
+                /** Format: email */
+                email?: string;
+            };
+        };
+        BuildCreateRequest: {
+            source_blob: {
+                /** @example SHA256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 */
+                checksum?: string | null;
+                /** @example https://api.heroku.com/sources/1234.tgz */
+                url: string;
+                /** @example v1.3.0 */
+                version?: string | null;
+                version_description?: string | null;
+            };
+            buildpacks?: {
+                url?: string;
+            }[];
+        };
         /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
+         * @description Flat map of config var name to value.
+         * @example {
+         *       "HEROKU_APPLINK_URL": "https://applink.heroku.com",
+         *       "LOG_LEVEL": "info"
+         *     }
          */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
+        ConfigVars: {
+            [key: string]: string;
+        };
+        /**
+         * @description Config var name to value; a null value deletes that config var.
+         * @example {
+         *       "LOG_LEVEL": "debug",
+         *       "UNUSED_VAR": null
+         *     }
+         */
+        ConfigVarsUpdate: {
+            [key: string]: string | null;
+        };
+        Dyno: {
+            app?: {
+                /** Format: uuid */
+                id?: string;
+                name?: string;
+            };
+            attach_url?: string | null;
+            command?: string;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: uuid */
+            id?: string;
+            /** @example web.1 */
+            name?: string;
+            release?: {
+                /** Format: uuid */
+                id?: string;
+                version?: number;
+            };
+            /** @example standard-1X */
+            size?: string;
+            /** @enum {string} */
+            state?: "crashed" | "down" | "idle" | "starting" | "up";
+            /** @example web */
+            type?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        Formation: {
+            app?: {
+                /** Format: uuid */
+                id?: string;
+                name?: string;
+            };
+            command?: string;
+            /** Format: date-time */
+            created_at?: string;
+            dyno_size?: {
+                /** Format: uuid */
+                id?: string;
+                /** @example eco */
+                name?: string;
+            };
+            /** Format: uuid */
+            id?: string;
+            quantity?: number;
+            /**
+             * @description Deprecated; refer to dyno_size instead.
+             * @example standard-1X
+             */
+            size?: string;
+            /** @example web */
+            type?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        FormationUpdateRequest: {
+            dyno_size?: {
+                /** Format: uuid */
+                id?: string;
+                /** @example Standard-1X */
+                name?: string;
+            };
+            /** @example 1 */
+            quantity?: number;
+        };
+        FormationBatchUpdateRequest: {
+            updates: {
+                /**
+                 * @description Id or name of the process type to update.
+                 * @example web
+                 */
+                type: string;
+                quantity?: number;
+                dyno_size?: {
+                    /** Format: uuid */
+                    id?: string;
+                };
+            }[];
+        };
+        LogSession: {
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: uuid */
+            id?: string;
+            /** @example https://logplex.heroku.com/sessions/01234567-89ab-cdef-0123-456789abcdef?srv=1325419200 */
+            logplex_url?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        LogSessionCreateRequest: {
+            /** @example web.1 */
+            dyno_name?: string;
+            /** @example 100 */
+            lines?: number;
+            /** @example app */
+            source?: string;
+            tail?: boolean;
+            /** @example web */
+            type?: string;
+        };
+        Release: {
+            addon_plan_names?: string[];
+            app?: {
+                /** Format: uuid */
+                id?: string;
+                name?: string;
+            };
+            artifacts?: {
+                /** @example slug */
+                type?: string;
+                /** Format: uuid */
+                id?: string;
+            }[];
+            /** Format: date-time */
+            created_at?: string;
+            current?: boolean;
+            description?: string;
+            eligible_for_rollback?: boolean;
+            /** Format: uuid */
+            id?: string;
+            output_stream_url?: string | null;
+            slug?: {
+                /** Format: uuid */
+                id?: string;
+            } | null;
+            /** @enum {string} */
+            status?: "failed" | "pending" | "succeeded" | "expired";
+            /** Format: date-time */
+            updated_at?: string;
+            user?: {
+                /** Format: uuid */
+                id?: string;
+                /** Format: email */
+                email?: string;
+            };
+            version?: number;
+        };
+        Slug: {
+            blob?: {
+                /** @example GET */
+                method?: string;
+                /** @example https://api.heroku.com/slugs/1234.tgz */
+                url?: string;
+            };
+            buildpack_provided_description?: string | null;
+            checksum?: string | null;
+            commit?: string | null;
+            commit_description?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            deleted_at?: string | null;
+            /** Format: uuid */
+            id?: string;
+            /**
+             * @example {
+             *       "web": "./bin/web -p $PORT"
+             *     }
+             */
+            process_types?: {
+                [key: string]: string;
+            };
+            size?: number | null;
+            stack?: {
+                /** Format: uuid */
+                id?: string;
+                /** @example heroku-24 */
+                name?: string;
+            };
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        Source: {
+            source_blob?: {
+                /** @example https://api.heroku.com/sources/1234.tgz */
+                get_url?: string;
+                /** @example https://api.heroku.com/sources/1234.tgz */
+                put_url?: string;
+            };
+        };
+        OAuthToken: {
+            access_token?: {
+                /** @example 2592000 */
+                expires_in?: number | null;
+                /** Format: uuid */
+                id?: string;
+                /** @example HRKU-01234567-89ab-cdef-0123-456789abcdef */
+                token?: string;
+            };
+            authorization?: {
+                /** Format: uuid */
+                id?: string;
+            };
+            client?: {
+                secret?: string;
+            } | null;
+            /** Format: date-time */
+            created_at?: string;
+            grant?: {
+                code?: string;
+                /** @enum {string} */
+                type?: "authorization_code" | "refresh_token";
+            };
+            /** Format: uuid */
+            id?: string;
+            refresh_token?: {
+                expires_in?: number | null;
+                /** Format: uuid */
+                id?: string;
+                token?: string;
+            };
+            session?: {
+                /** Format: uuid */
+                id?: string;
+            };
+            /** Format: date-time */
+            updated_at?: string;
+            user?: {
+                /** Format: uuid */
+                id?: string;
+            };
+        };
+        OAuthTokenCreateRequest: {
+            client?: {
+                /** @example 01234567-89ab-cdef-0123-456789abcdef */
+                secret?: string;
+            };
+            grant: {
+                /** @example 01234567-89ab-cdef-0123-456789abcdef */
+                code?: string;
+                /** @enum {string} */
+                type?: "authorization_code" | "refresh_token";
+            };
+            refresh_token?: {
+                /** @example HRKU-01234567-89ab-cdef-0123-456789abcdef */
+                token?: string;
+            };
+        };
+        /** @description Standard Heroku Platform API error shape. */
+        HerokuError: {
+            /**
+             * @description Machine-readable error identifier.
+             * @example not_found
+             */
+            id: string;
+            /** @example Couldn't find that app. */
+            message: string;
+            /** @description Optional URL with more information about the error. */
+            url?: string | null;
+        };
+    };
+    responses: {
+        /** @description Missing or invalid OAuth token. */
+        Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["HerokuError"];
+            };
+        };
+        /** @description Caller is not authorized to perform this action. */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["HerokuError"];
+            };
+        };
+        /** @description No resource exists with the given identifier. */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["HerokuError"];
+            };
+        };
+        /** @description Request was well-formed but semantically invalid. */
+        UnprocessableEntity: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["HerokuError"];
+            };
+        };
+    };
+    parameters: {
         /**
          * @description Unique identifier or name of the app.
          * @example credit-rating-scorer
          */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The app. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['App'];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-    };
-  };
-  listBuilds: {
-    parameters: {
-      query?: never;
-      header: {
+        AppIdOrName: string;
         /**
          * @description Required Heroku Platform API version header.
          * @example application/vnd.heroku+json; version=3
          */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Builds for the app, oldest first. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['Build'][];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-    };
-  };
-  createBuild: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['BuildCreateRequest'];
-      };
-    };
-    responses: {
-      /** @description Build was created and started. */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['Build'];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-      422: components['responses']['UnprocessableEntity'];
-    };
-  };
-  getBuild: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-        /**
-         * @description Unique identifier of the build.
-         * @example 01234567-89ab-cdef-0123-456789abcdef
-         */
-        build_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The build. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['Build'];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-    };
-  };
-  getConfigVars: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Flat map of config var name to value. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ConfigVars'];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-    };
-  };
-  updateConfigVars: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ConfigVarsUpdate'];
-      };
-    };
-    responses: {
-      /** @description Full, updated map of config vars. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ConfigVars'];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-    };
-  };
-  listDynos: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Dynos for the app. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['Dyno'][];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-    };
-  };
-  listFormation: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Process types for the app. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['Formation'][];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-    };
-  };
-  batchUpdateFormation: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['FormationBatchUpdateRequest'];
-      };
-    };
-    responses: {
-      /** @description Updated process types. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['Formation'][];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-      422: components['responses']['UnprocessableEntity'];
-    };
-  };
-  getFormation: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-        /**
-         * @description Unique identifier or process type name of the formation.
-         * @example web
-         */
-        formation_id_or_type: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The process type. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['Formation'];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-    };
-  };
-  updateFormation: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-        /**
-         * @description Unique identifier or process type name of the formation.
-         * @example web
-         */
-        formation_id_or_type: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['FormationUpdateRequest'];
-      };
-    };
-    responses: {
-      /** @description The updated process type. */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['Formation'];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-      422: components['responses']['UnprocessableEntity'];
-    };
-  };
-  createLogSession: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
-    };
-    requestBody?: {
-      content: {
-        'application/json': components['schemas']['LogSessionCreateRequest'];
-      };
-    };
-    responses: {
-      /** @description The log session. */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['LogSession'];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-    };
-  };
-  listReleases: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
+        HerokuAcceptHeader: "application/vnd.heroku+json; version=3";
         /**
          * @description Heroku's Range-header-based pagination/ordering syntax, e.g. `version ..; max=1; order=desc` to fetch only the single highest-version release.
          * @example version ..; max=1; order=desc
          */
-        Range?: components['parameters']['HerokuRangeHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-      };
-      cookie?: never;
+        HerokuRangeHeader: string;
     };
-    requestBody?: never;
-    responses: {
-      /** @description Releases for the app, oldest first. */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
+}
+export type $defs = Record<string, never>;
+export interface operations {
+    getApp: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
         };
-        content: {
-          'application/json': components['schemas']['Release'][];
+        requestBody?: never;
+        responses: {
+            /** @description The app. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["App"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
     };
-  };
-  getRelease: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-        /**
-         * @description Unique identifier or version number of the release.
-         * @example 11
-         */
-        release_id_or_version: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The release. */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    listBuilds: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
         };
-        content: {
-          'application/json': components['schemas']['Release'];
+        requestBody?: never;
+        responses: {
+            /** @description Builds for the app, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Build"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
     };
-  };
-  getSlug: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path: {
-        /**
-         * @description Unique identifier or name of the app.
-         * @example credit-rating-scorer
-         */
-        app_id_or_name: components['parameters']['AppIdOrName'];
-        /**
-         * @description Unique identifier of the slug.
-         * @example 01234567-89ab-cdef-0123-456789abcdef
-         */
-        slug_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description The slug. */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    createBuild: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
         };
-        content: {
-          'application/json': components['schemas']['Slug'];
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildCreateRequest"];
+            };
         };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      404: components['responses']['NotFound'];
-    };
-  };
-  createSource: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Source upload/download URLs. */
-      201: {
-        headers: {
-          [name: string]: unknown;
+        responses: {
+            /** @description Build was created and started. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Build"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["UnprocessableEntity"];
         };
-        content: {
-          'application/json': components['schemas']['Source'];
+    };
+    getBuild: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+                /**
+                 * @description Unique identifier of the build.
+                 * @example 01234567-89ab-cdef-0123-456789abcdef
+                 */
+                build_id: string;
+            };
+            cookie?: never;
         };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-    };
-  };
-  createOAuthToken: {
-    parameters: {
-      query?: never;
-      header: {
-        /**
-         * @description Required Heroku Platform API version header.
-         * @example application/vnd.heroku+json; version=3
-         */
-        Accept: components['parameters']['HerokuAcceptHeader'];
-      };
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['OAuthTokenCreateRequest'];
-      };
-    };
-    responses: {
-      /** @description The new OAuth token. */
-      201: {
-        headers: {
-          [name: string]: unknown;
+        requestBody?: never;
+        responses: {
+            /** @description The build. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Build"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
-        content: {
-          'application/json': components['schemas']['OAuthToken'];
-        };
-      };
-      401: components['responses']['Unauthorized'];
-      403: components['responses']['Forbidden'];
-      422: components['responses']['UnprocessableEntity'];
     };
-  };
+    getConfigVars: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Flat map of config var name to value. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigVars"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateConfigVars: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigVarsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Full, updated map of config vars. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigVars"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listDynos: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dynos for the app. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dyno"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listFormation: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Process types for the app. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Formation"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    batchUpdateFormation: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormationBatchUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated process types. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Formation"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    getFormation: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+                /**
+                 * @description Unique identifier or process type name of the formation.
+                 * @example web
+                 */
+                formation_id_or_type: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The process type. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Formation"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateFormation: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+                /**
+                 * @description Unique identifier or process type name of the formation.
+                 * @example web
+                 */
+                formation_id_or_type: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormationUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated process type. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Formation"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    createLogSession: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["LogSessionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description The log session. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogSession"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listReleases: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+                /**
+                 * @description Heroku's Range-header-based pagination/ordering syntax, e.g. `version ..; max=1; order=desc` to fetch only the single highest-version release.
+                 * @example version ..; max=1; order=desc
+                 */
+                Range?: components["parameters"]["HerokuRangeHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Releases for the app, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Release"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getRelease: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+                /**
+                 * @description Unique identifier or version number of the release.
+                 * @example 11
+                 */
+                release_id_or_version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The release. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Release"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getSlug: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+                /**
+                 * @description Unique identifier of the slug.
+                 * @example 01234567-89ab-cdef-0123-456789abcdef
+                 */
+                slug_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The slug. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Slug"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createSource: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Source upload/download URLs. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Source"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createOAuthToken: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OAuthTokenCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description The new OAuth token. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthToken"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
 }

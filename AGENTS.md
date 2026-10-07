@@ -2,8 +2,9 @@
 
 `@heroku/plugin-compute` is a Salesforce CLI (`sf`) plugin, built on the
 oclif plugin framework and `@salesforce/sf-plugins-core`, that adds
-`sf compute deploy|display|generate|list|logs|get build-log|scale|config|config
-get|config set|config unset` — commands for managing "compute apps"
+`sf compute deploy|display|generate|list|get runtime-log|tail runtime-log|
+get build-log|scale|config|config get|config set|config unset` — commands
+for managing "compute apps"
 (Heroku-backed `PlatformComputeApp` metadata invocable from Apex/Flow via
 AppLink External Services).
 
@@ -39,8 +40,8 @@ This overrides the global git-workflow defaults — treat every session as
 write-file-only unless told otherwise.
 
 For every `sf compute` command — deploy/display/generate/list and every
-command added since (logs/get build-log/scale/config/config get/config
-set/config unset) — consult an Architect-role and QA-role review both
+command added since (get runtime-log/tail runtime-log/get build-log/scale/config/config
+get/config set/config unset) — consult an Architect-role and QA-role review both
 BEFORE and AFTER implementing changes.
 
 ## Gotcha: `SfCommand.table()` styling is a no-op — don't chase it
@@ -74,7 +75,7 @@ nothing to fix at this layer.
   Do not swap that ordering back. `--source-dir` is deploy's own mechanism
   for pointing at an app directory from anywhere — it is not the same as the
   `--name`/`COMPUTE_APP_NAME`/directory-detection fallback chain used by
-  display/logs/get build-log/scale/config/config get/config set/config unset.
+  display/get runtime-log/tail runtime-log/get build-log/scale/config/config get/config set/config unset.
 - **`sf compute list` has no `--verbose` flag** and always shows exactly 4
   columns (`name`, `masterLabel`, `status`, `statusReason`). Explicit user
   decision: "if the customer wants more details, they should use the display
@@ -88,7 +89,7 @@ nothing to fix at this layer.
   They match the canonical standard verbs in `common-actions.html`
   (list = simple table, display = full detail, deploy = push local source,
   generate = scaffold). None of the four need interactive prompts or
-  sub-actions today. logs/get build-log/scale/config/config
+  sub-actions today. get runtime-log/tail runtime-log/get build-log/scale/config/config
   get/config set/config unset were added in a later session — re-audit
   before assuming the same guide compliance for those.
 

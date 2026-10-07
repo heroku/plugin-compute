@@ -8,9 +8,10 @@ info:
     IComputeSourceUploadResource.java). Covers the deployment bundle source
     upload/download used by `sf compute deploy` and `sf compute source
     retrieve`; add further Compute Connect resources here as they land in
-    core. The build log lookup (`sf compute build output`), log session
-    creation (`sf compute logs`), and dyno formation update (`sf compute
-    scale`) have all moved off Connect onto the Salesforce Heroku API proxy --
+    core. The build log lookup (`sf compute get build-log`), log session
+    creation (`sf compute get runtime-log` / `sf compute tail runtime-log`),
+    and dyno formation update (`sf compute scale`) have all moved off Connect
+    onto the Salesforce Heroku API proxy --
     see the Compute tag description below.
   version: '64.0'
 externalDocs:

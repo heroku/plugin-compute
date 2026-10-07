@@ -7,8 +7,8 @@ Print the build/compile log for a compute app's latest build.
 Fetches the bounded build/compile log (dependency install, slug compile,
 release) for the most recent build of a compute app -- useful right after
 deploy to confirm the build compiled. This is a one-shot fetch of a
-finished-or-in-progress log, not a live stream; use compute logs --tail for
-the ongoing runtime log.
+finished-or-in-progress log, not a live stream; use compute tail runtime-log
+for the ongoing runtime log.
 
 This is a read-only, org-mediated lookup by --name (the app's DeveloperName)
 -- the org calls Heroku's Build Info API on your behalf. It doesn't read from

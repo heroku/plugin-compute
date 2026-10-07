@@ -11,10 +11,11 @@ Manage Salesforce Compute apps.
 * [`sf compute display`](#sf-compute-display)
 * [`sf compute generate`](#sf-compute-generate)
 * [`sf compute get build-log`](#sf-compute-get-build-log)
+* [`sf compute get runtime-log`](#sf-compute-get-runtime-log)
 * [`sf compute list`](#sf-compute-list)
-* [`sf compute logs`](#sf-compute-logs)
 * [`sf compute scale [TARGET]`](#sf-compute-scale-target)
 * [`sf compute source retrieve`](#sf-compute-source-retrieve)
+* [`sf compute tail runtime-log`](#sf-compute-tail-runtime-log)
 
 ## `sf compute config get [KEY]`
 
@@ -342,8 +343,8 @@ DESCRIPTION
   Fetches the bounded build/compile log (dependency install, slug compile,
   release) for the most recent build of a compute app -- useful right after
   deploy to confirm the build compiled. This is a one-shot fetch of a
-  finished-or-in-progress log, not a live stream; use compute logs --tail for
-  the ongoing runtime log.
+  finished-or-in-progress log, not a live stream; use compute tail runtime-log
+  for the ongoing runtime log.
 
   This is a read-only, org-mediated lookup by --name (the app's DeveloperName)
   -- the org calls Heroku's Build Info API on your behalf. It doesn't read from
@@ -356,6 +357,54 @@ EXAMPLES
 ```
 
 _See code: [src/commands/compute/get/build-log.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/get/build-log.ts)_
+
+## `sf compute get runtime-log`
+
+Print the recent runtime log for a compute app.
+
+```
+USAGE
+  $ sf compute get runtime-log -o <value> [--json] [--flags-dir <value>] [-n <value>] [--num <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to fetch logs for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+      --num=<value>         [default: 100] Number of recent log lines to print.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Print the recent runtime log for a compute app.
+
+  Fetches a compute app's runtime log -- the app's ongoing output (request
+  handling, application logs), not the build/compile log; use compute get
+  build-log for that.
+
+  This prints the most recent log lines and exits. To keep the session open and
+  stream new lines as they arrive, use compute tail runtime-log.
+
+  This is an org-mediated operation by --name (the app's DeveloperName) -- the
+  org creates a log session with Heroku on your behalf and hands back a
+  short-lived, pre-authorized URL that the CLI reads from directly. It doesn't
+  read from or require a local Salesforce DX project.
+
+EXAMPLES
+  Print the most recent log lines:
+
+    $ sf compute get runtime-log --name CreditRatingScorer --target-org my-org
+
+  Print the most recent 500 log lines:
+
+    $ sf compute get runtime-log --name CreditRatingScorer --num 500 --target-org my-org
+```
+
+_See code: [src/commands/compute/get/runtime-log.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/get/runtime-log.ts)_
 
 ## `sf compute list`
 
@@ -391,63 +440,6 @@ EXAMPLES
 ```
 
 _See code: [src/commands/compute/list.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/list.ts)_
-
-## `sf compute logs`
-
-Print or stream the runtime log for a compute app.
-
-```
-USAGE
-  $ sf compute logs -o <value> [--flags-dir <value>] [-n <value>] [--num <value>] [--tail | --json]
-
-FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to fetch logs for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-      --num=<value>         [default: 100] Number of historical log lines to print before new output.
-      --tail                Keep the session open and print new log lines as they arrive.
-
-GLOBAL FLAGS
-  --flags-dir=<value>  Import flag values from a directory.
-  --json               Format output as json.
-
-DESCRIPTION
-  Print or stream the runtime log for a compute app.
-
-  Fetches a compute app's runtime log -- this is the app's ongoing output
-  (request handling, application logs), not the build/compile log; use
-  compute get build-log for that.
-
-  This is an org-mediated operation by --name (the app's DeveloperName) -- the
-  org creates a log session with Heroku on your behalf and hands back a
-  short-lived, pre-authorized URL that the CLI reads from directly. It doesn't
-  read from or require a local Salesforce DX project.
-
-  By default this prints the most recent log lines and exits. Pass --tail to
-  keep the session open and print new lines as they arrive, until you stop it
-  with Ctrl-C or the session ends on its own.
-
-  --tail can't be combined with --json, since a live stream has no single
-  point at which to emit one JSON result.
-
-EXAMPLES
-  Print the most recent log lines:
-
-    $ sf compute logs --name CreditRatingScorer --target-org my-org
-
-  Print the most recent 500 log lines:
-
-    $ sf compute logs --name CreditRatingScorer --num 500 --target-org my-org
-
-  Tail the log until stopped with Ctrl-C:
-
-    $ sf compute logs --name CreditRatingScorer --tail --target-org my-org
-```
-
-_See code: [src/commands/compute/logs.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/logs.ts)_
 
 ## `sf compute scale [TARGET]`
 
@@ -543,3 +535,51 @@ FLAG DESCRIPTIONS
 ```
 
 _See code: [src/commands/compute/source/retrieve.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/source/retrieve.ts)_
+
+## `sf compute tail runtime-log`
+
+Stream the live runtime log for a compute app.
+
+```
+USAGE
+  $ sf compute tail runtime-log -o <value> [--flags-dir <value>] [-n <value>] [--num <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to tail logs for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+      --num=<value>         [default: 100] Number of recent log lines to print before streaming new output.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+
+DESCRIPTION
+  Stream the live runtime log for a compute app.
+
+  Streams a compute app's runtime log -- the app's ongoing output (request
+  handling, application logs), not the build/compile log; use compute get
+  build-log for that.
+
+  Keeps the session open and prints new log lines as they arrive, until you stop
+  it with Ctrl-C or the session ends on its own. For a one-time snapshot of the
+  most recent lines, use compute get runtime-log.
+
+  This is an org-mediated operation by --name (the app's DeveloperName) -- the
+  org creates a log session with Heroku on your behalf and hands back a
+  short-lived, pre-authorized URL that the CLI reads from directly. It doesn't
+  read from or require a local Salesforce DX project.
+
+EXAMPLES
+  Tail the log until stopped with Ctrl-C:
+
+    $ sf compute tail runtime-log --name CreditRatingScorer --target-org my-org
+
+  Print the most recent 500 lines, then keep streaming:
+
+    $ sf compute tail runtime-log --name CreditRatingScorer --num 500 --target-org my-org
+```
+
+_See code: [src/commands/compute/tail/runtime-log.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/tail/runtime-log.ts)_

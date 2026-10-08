@@ -110,23 +110,29 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     let formation: HerokuFormationSummary | undefined;
     let release: number | undefined;
     if (appId) {
-      // Independent try/catch blocks -- one fetch failing must never blank out the others.
-      try {
-        herokuApp = await fetchComputeAppViaProxy(connection, {name, appId});
-      } catch (error) {
-        this.warn(messages.getMessage('warning.herokuAppUnavailable', [(error as Error).message]));
+      // Fetched concurrently, they are independent of each other.
+      const [appResult, formationResult, releaseResult] = await Promise.allSettled([
+        fetchComputeAppViaProxy(connection, {name, appId}),
+        fetchComputeFormationViaProxy(connection, {name, appId}),
+        fetchLatestReleaseVersionViaProxy(connection, {name, appId}),
+      ]);
+
+      if (appResult.status === 'fulfilled') {
+        herokuApp = appResult.value;
+      } else {
+        this.warn(messages.getMessage('warning.herokuAppUnavailable', [(appResult.reason as Error).message]));
       }
 
-      try {
-        formation = await fetchComputeFormationViaProxy(connection, {name, appId});
-      } catch (error) {
-        this.warn(messages.getMessage('warning.herokuFormationUnavailable', [(error as Error).message]));
+      if (formationResult.status === 'fulfilled') {
+        formation = formationResult.value;
+      } else {
+        this.warn(messages.getMessage('warning.herokuFormationUnavailable', [(formationResult.reason as Error).message]));
       }
 
-      try {
-        release = await fetchLatestReleaseVersionViaProxy(connection, {name, appId});
-      } catch (error) {
-        this.warn(messages.getMessage('warning.herokuReleaseUnavailable', [(error as Error).message]));
+      if (releaseResult.status === 'fulfilled') {
+        release = releaseResult.value;
+      } else {
+        this.warn(messages.getMessage('warning.herokuReleaseUnavailable', [(releaseResult.reason as Error).message]));
       }
     }
 

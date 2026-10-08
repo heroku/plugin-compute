@@ -457,6 +457,22 @@ describe('compute display via the Heroku proxy', () => {
     expect(sfCommandStubs.warn.called).toBe(false);
   });
 
+  it('omits herokuApp from the result and --json output when the app has no name, region, or generation', async () => {
+    stubProxyResponses([{dyno_size: {name: 'Basic'}, quantity: 1, type: 'web'}], [{version: 7}], {});
+
+    const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
+
+    expect(result.herokuApp).toBeUndefined();
+    expect(result.formation).toEqual([{dynoSize: 'Basic', quantity: 1, type: 'web'}]);
+    expect(result.release).toBe(7);
+    expect(sfCommandStubs.warn.called).toBe(false);
+
+    const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as Record<string, unknown>;
+    expect(JSON.stringify(jsonOutput)).not.toContain('herokuApp');
+    expect(JSON.stringify(jsonOutput)).toContain('formation');
+    expect(JSON.stringify(jsonOutput)).toContain('"release":7');
+  });
+
   it('warns and still renders formation and release when the app proxy call fails, without herokuApp in the result', async () => {
     requestStub.mockImplementation(async (req: {url: string}) => {
       if (req.url.includes(encodeURIComponent('/formation'))) {

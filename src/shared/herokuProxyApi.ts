@@ -131,14 +131,17 @@ export type HerokuAppSummary = {generation?: string; name?: string; region?: str
 export async function fetchComputeAppViaProxy(
   connection: Connection,
   params: {appId: string; name: string},
-): Promise<HerokuAppSummary> {
+): Promise<HerokuAppSummary | undefined> {
   try {
     const app = await herokuProxyRequest<components['schemas']['App']>(connection, {
       method: 'GET',
       path: '/apps/{app_id_or_name}',
       params: {app_id_or_name: params.appId},
     });
-    return {name: app.name, region: app.region?.name, generation: app.generation?.name};
+    const summary: HerokuAppSummary = {name: app.name, region: app.region?.name, generation: app.generation?.name};
+    return summary.name === undefined && summary.region === undefined && summary.generation === undefined
+      ? undefined
+      : summary;
   } catch (error) {
     throwHerokuProxyComputeError(error, params.name);
   }

@@ -124,6 +124,29 @@ function throwHerokuProxyComputeError(err: unknown, name: string, notFoundMessag
   throw messages.createError('error.herokuApiRequestFailed', [err instanceof Error ? err.message : String(err)]);
 }
 
+// Fields are optional because Heroku's App schema marks them all optional, so a missing one renders
+// as a placeholder dash rather than failing the fetch.
+export type HerokuAppSummary = {generation?: string; name?: string; region?: string};
+
+export async function fetchComputeAppViaProxy(
+  connection: Connection,
+  params: {appId: string; name: string},
+): Promise<HerokuAppSummary | undefined> {
+  try {
+    const app = await herokuProxyRequest<components['schemas']['App']>(connection, {
+      method: 'GET',
+      path: '/apps/{app_id_or_name}',
+      params: {app_id_or_name: params.appId},
+    });
+    const summary: HerokuAppSummary = {name: app.name, region: app.region?.name, generation: app.generation?.name};
+    return summary.name === undefined && summary.region === undefined && summary.generation === undefined
+      ? undefined
+      : summary;
+  } catch (error) {
+    throwHerokuProxyComputeError(error, params.name);
+  }
+}
+
 export type HerokuFormationSummary = Array<{dynoSize?: string; quantity: number; type: string}>;
 
 export async function fetchComputeFormationViaProxy(

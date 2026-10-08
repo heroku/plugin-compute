@@ -201,7 +201,7 @@ describe('compute display', () => {
     expect(result.externalServiceActive).toBeUndefined();
   });
 
-  it('skips both Heroku proxy calls and leaves formation/release undefined when ExternalAppIdentifier is missing, without warning', async () => {
+  it('skips all Heroku proxy calls and leaves herokuApp/formation/release undefined when ExternalAppIdentifier is missing, without warning', async () => {
     resolveWith([{...activeRecord, ExternalAppIdentifier: undefined}]);
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
@@ -398,9 +398,11 @@ describe('compute display via the Heroku proxy', () => {
     vi.restoreAllMocks();
   });
 
-  // Both formation and release are fetched via the same connection.request stub -- distinguish
-  // calls by their proxy_url target path rather than call order, since the two fetches in
-  // display.ts run in an order that's an implementation detail, not a contract.
+  // App, formation and release are all fetched via the same connection.request stub -- distinguish
+  // calls by their proxy_url target path rather than call order, since the fetches in display.ts
+  // run in an order that's an implementation detail, not a contract. The /apps/<id> branch must
+  // stay last: its substring is a prefix of the /formation and /releases URLs, so those are checked
+  // first.
   function stubProxyResponses(formation: unknown, release: unknown, app: unknown = {}): void {
     requestStub.mockImplementation(async (req: {url: string}) => {
       if (req.url.includes(encodeURIComponent('/formation'))) {
@@ -540,7 +542,7 @@ describe('compute display via the Heroku proxy', () => {
     ).toContain("Couldn't fetch the latest release from Heroku");
   });
 
-  it('drops the formation and release keys from --json output when both proxy calls fail', async () => {
+  it('drops the herokuApp, formation and release keys from --json output when all three proxy calls fail', async () => {
     requestStub.mockRejectedValue(new Error('socket hang up'));
 
     await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);

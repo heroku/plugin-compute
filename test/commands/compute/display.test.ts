@@ -206,6 +206,7 @@ describe('compute display', () => {
 
     const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
+    expect(result.herokuApp).toBeUndefined();
     expect(result.formation).toBeUndefined();
     expect(result.release).toBeUndefined();
     expect(sfCommandStubs.warn.called).toBe(false);
@@ -400,7 +401,7 @@ describe('compute display via the Heroku proxy', () => {
   // Both formation and release are fetched via the same connection.request stub -- distinguish
   // calls by their proxy_url target path rather than call order, since the two fetches in
   // display.ts run in an order that's an implementation detail, not a contract.
-  function stubProxyResponses(formation: unknown, release: unknown): void {
+  function stubProxyResponses(formation: unknown, release: unknown, app: unknown = {}): void {
     requestStub.mockImplementation(async (req: {url: string}) => {
       if (req.url.includes(encodeURIComponent('/formation'))) {
         return formation;
@@ -408,6 +409,10 @@ describe('compute display via the Heroku proxy', () => {
 
       if (req.url.includes(encodeURIComponent('/releases'))) {
         return release;
+      }
+
+      if (req.url.includes(encodeURIComponent('/apps/a1b2c3d4-heroku-app-id'))) {
+        return app;
       }
 
       throw new Error(`unexpected proxy request: ${req.url}`);
@@ -433,6 +438,51 @@ describe('compute display via the Heroku proxy', () => {
     const allRows = tableCalls.flatMap(c => c.args[0].data);
     expect(allRows).toContainEqual({key: 'Formation', value: 'web=2:Standard-1X'});
     expect(allRows).toContainEqual({key: 'Release', value: '11'});
+  });
+
+  it('renders the App Name, Region, and Generation rows from the Heroku app fetch', async () => {
+    stubProxyResponses([], [], {generation: {name: 'fir'}, name: 'lease-agreement-parser', region: {name: 'us'}});
+
+    await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    const tableCalls = sfCommandStubs.table.getCalls() as unknown as Array<{
+      args: [{data: Array<{key: string; value: string}>}];
+    }>;
+    const allRows = tableCalls.flatMap(c => c.args[0].data);
+    expect(allRows).toContainEqual({key: 'App Name', value: 'lease-agreement-parser'});
+    expect(allRows).toContainEqual({key: 'Region', value: 'us'});
+    expect(allRows).toContainEqual({key: 'Generation', value: 'fir'});
+    expect(sfCommandStubs.warn.called).toBe(false);
+  });
+
+  it('warns and still renders formation and release when the app proxy call fails, without herokuApp in the result', async () => {
+    requestStub.mockImplementation(async (req: {url: string}) => {
+      if (req.url.includes(encodeURIComponent('/formation'))) {
+        return [{dyno_size: {name: 'Basic'}, quantity: 1, type: 'web'}];
+      }
+
+      if (req.url.includes(encodeURIComponent('/releases'))) {
+        return [{version: 4}];
+      }
+
+      throw new Error('socket hang up');
+    });
+
+    const result = await Display.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result.herokuApp).toBeUndefined();
+    const tableCalls = sfCommandStubs.table.getCalls() as unknown as Array<{
+      args: [{data: Array<{key: string; value: string}>}];
+    }>;
+    const allRows = tableCalls.flatMap(c => c.args[0].data);
+    expect(allRows).toContainEqual({key: 'Formation', value: 'web=1:Basic'});
+    expect(allRows).toContainEqual({key: 'Release', value: '4'});
+    expect(
+      sfCommandStubs.warn
+        .getCalls()
+        .map(c => c.args[0] as string)
+        .join('\n'),
+    ).toContain("Couldn't fetch app details from Heroku");
   });
 
   it('still renders the Heroku App table (with a placeholder Formation row) when the formation is empty', async () => {
@@ -498,5 +548,6 @@ describe('compute display via the Heroku proxy', () => {
 
     expect(JSON.stringify(jsonOutput)).not.toContain('formation');
     expect(JSON.stringify(jsonOutput)).not.toContain('"release"');
+    expect(JSON.stringify(jsonOutput)).not.toContain('herokuApp');
   });
 });

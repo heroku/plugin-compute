@@ -23,6 +23,10 @@ directory's app name if that isn't set either.
 
 Also show external service registration and current build detail.
 
+# warning.herokuAppUnavailable
+
+Couldn't fetch app details from Heroku: %s
+
 # warning.herokuFormationUnavailable
 
 Couldn't fetch dyno formation from Heroku: %s

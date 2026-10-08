@@ -9,6 +9,9 @@
         "formation": {
           "$ref": "#/definitions/HerokuFormationSummary"
         },
+        "herokuApp": {
+          "$ref": "#/definitions/HerokuAppSummary"
+        },
         "orgId": {
           "type": "string"
         },
@@ -115,6 +118,21 @@
         ],
         "additionalProperties": false
       }
+    },
+    "HerokuAppSummary": {
+      "type": "object",
+      "properties": {
+        "generation": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

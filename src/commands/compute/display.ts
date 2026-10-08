@@ -25,8 +25,10 @@ import {
   toComputeAppSummary,
 } from '../../shared/computeQuery.js';
 import {
+  fetchComputeAppViaProxy,
   fetchComputeFormationViaProxy,
   fetchLatestReleaseVersionViaProxy,
+  type HerokuAppSummary,
   type HerokuFormationSummary,
 } from '../../shared/herokuProxyApi.js';
 import {PLUGIN_NAME} from '../../shared/plugin-name.js';
@@ -34,11 +36,12 @@ import {PLUGIN_NAME} from '../../shared/plugin-name.js';
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.display');
 
-// formation/release are best-effort supplements to the org-side ComputeAppSummary fields, fetched
-// from Heroku via the Salesforce proxy -- never a replacement for the org-side fields, and never
-// fatal to the command if either fetch fails.
+// herokuApp/formation/release are best-effort supplements to the org-side ComputeAppSummary
+// fields, fetched from Heroku via the Salesforce proxy -- never a replacement for the org-side
+// fields, and never fatal to the command if any fetch fails.
 export type ComputeDisplayResult = ComputeAppSummary & {
   formation?: HerokuFormationSummary;
+  herokuApp?: HerokuAppSummary;
   orgId: string;
   release?: number;
 };
@@ -100,14 +103,20 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     const orgId = flags['target-org'].getOrgId();
     const appId = pickHerokuAppId(record);
 
-    // No Heroku app id yet (no successful build) -- skip both proxy calls entirely and let the
-    // Heroku App table render its placeholder dashes below, same as the unsourced App Name/Region
-    // rows. Not a warning-worthy condition: it's the expected state for a brand-new app.
+    // No Heroku app id yet (the deploy hasn't created the Heroku app) -- skip every proxy call
+    // entirely and let the Heroku App table render its placeholder dashes below. Not a
+    // warning-worthy condition: it's the expected state for a brand-new app.
+    let herokuApp: HerokuAppSummary | undefined;
     let formation: HerokuFormationSummary | undefined;
     let release: number | undefined;
     if (appId) {
-      // Independent try/catch blocks -- a release-fetch failure must never blank out formation
-      // display, and vice versa.
+      // Independent try/catch blocks -- one fetch failing must never blank out the others.
+      try {
+        herokuApp = await fetchComputeAppViaProxy(connection, {name, appId});
+      } catch (error) {
+        this.warn(messages.getMessage('warning.herokuAppUnavailable', [(error as Error).message]));
+      }
+
       try {
         formation = await fetchComputeFormationViaProxy(connection, {name, appId});
       } catch (error) {
@@ -122,7 +131,7 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     }
 
     this.renderComputeAppTable(result, name, orgId);
-    this.renderHerokuAppTable(formation, release);
+    this.renderHerokuAppTable(herokuApp, formation, release);
     if (flags.verbose) {
       this.renderExternalServiceTable(result);
       this.renderCurrentBuildTable(result);
@@ -130,7 +139,7 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     }
 
     return {
-      ...result, name, orgId, formation, release,
+      ...result, name, orgId, herokuApp, formation, release,
     };
   }
 
@@ -186,17 +195,18 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     });
   }
 
-  // App Name/Region have no Salesforce- or Heroku-side source wired up yet -- placeholder dashes
-  // until W-24154928 ("[API] Fetch compute app metadata and dyno formation via Connect API
-  // (display command)") ships. Formation and Release are fetched from Heroku via the Salesforce
-  // proxy above.
-  private renderHerokuAppTable(formation: HerokuFormationSummary | undefined, release: number | undefined): void {
+  // Every row is fetched from Heroku via the Salesforce proxy above.
+  private renderHerokuAppTable(
+    herokuApp: HerokuAppSummary | undefined,
+    formation: HerokuFormationSummary | undefined,
+    release: number | undefined,
+  ): void {
     this.styledHeader('Heroku App');
     this.table({
       data: [
-        {key: 'App Name', value: '-'},
-        {key: 'Region', value: '-'},
-        {key: 'Generation', value: '-'},
+        {key: 'App Name', value: herokuApp?.name ?? '-'},
+        {key: 'Region', value: herokuApp?.region ?? '-'},
+        {key: 'Generation', value: herokuApp?.generation ?? '-'},
         {key: 'Release', value: release === undefined ? '-' : String(release)},
         {key: 'Formation', value: formatFormation(formation)},
       ],

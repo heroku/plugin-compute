@@ -74,6 +74,9 @@
       },
       "compute:tail": {
         "description": "Stream a compute app's output as it is produced."
+      },
+      "compute:telemetry-drain": {
+        "description": "Manage a compute app's OpenTelemetry drains."
       }
     },
     "flexibleTaxonomy": true

@@ -180,3 +180,27 @@ The %s starter source download is invalid: %s.
 # error.templateSourceMalformed.actions
 
 - Run the command again; if it still fails, this plugin's pinned reference commit may need updating.
+
+# error.invalidSignal
+
+The telemetry signal "%s" isn't valid. Use a comma-separated list drawn from: %s.
+
+# error.invalidSignal.actions
+
+- Pass one or more of traces, metrics, logs (comma-separated), or "all" on its own for every signal.
+
+# error.invalidTransport
+
+The telemetry transport "%s" isn't valid. Use one of: %s.
+
+# error.invalidTransport.actions
+
+- Pass http (OTLP over HTTP), grpc (OTLP over gRPC), or splunk.
+
+# error.telemetryDrainNotFound
+
+Heroku didn't find a telemetry drain with ID %s.
+
+# error.telemetryDrainNotFound.actions
+
+- Confirm the telemetry drain ID is correct; it may have already been removed.

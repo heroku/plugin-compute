@@ -405,6 +405,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/apps/{app_id_or_name}/telemetry-drains": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        /** List telemetry drains for an app */
+        get: operations["listTelemetryDrains"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/telemetry-drains": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a telemetry drain */
+        post: operations["createTelemetryDrain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/telemetry-drains/{telemetry_drain_id}": {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier of the telemetry drain.
+                 * @example 01234567-89ab-cdef-0123-456789abcdef
+                 */
+                telemetry_drain_id: components["parameters"]["TelemetryDrainId"];
+            };
+            cookie?: never;
+        };
+        /** Info for a telemetry drain */
+        get: operations["getTelemetryDrain"];
+        put?: never;
+        post?: never;
+        /** Delete a telemetry drain */
+        delete: operations["deleteTelemetryDrain"];
+        options?: never;
+        head?: never;
+        /** Update a telemetry drain */
+        patch: operations["updateTelemetryDrain"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -734,6 +817,57 @@ export interface components {
                 put_url?: string;
             };
         };
+        TelemetryDrain: {
+            /** Format: uuid */
+            id?: string;
+            signals?: ("traces" | "metrics" | "logs")[];
+            owner?: {
+                /** Format: uuid */
+                id?: string;
+                /** @enum {string} */
+                type?: "app" | "space";
+            };
+            exporter?: {
+                /** @enum {string} */
+                type?: "otlp" | "otlphttp" | "splunk";
+                /** @example https://collector.example.com:4317 */
+                endpoint?: string;
+                headers?: {
+                    [key: string]: string;
+                };
+            };
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        TelemetryDrainCreateRequest: {
+            owner: {
+                id: string;
+                /** @enum {string} */
+                type: "app" | "space";
+            };
+            signals: ("traces" | "metrics" | "logs")[];
+            exporter: {
+                /** @enum {string} */
+                type: "otlp" | "otlphttp" | "splunk";
+                endpoint: string;
+                headers?: {
+                    [key: string]: string;
+                };
+            };
+        };
+        TelemetryDrainUpdateRequest: {
+            signals?: ("traces" | "metrics" | "logs")[];
+            exporter?: {
+                /** @enum {string} */
+                type?: "otlp" | "otlphttp" | "splunk";
+                endpoint?: string;
+                headers?: {
+                    [key: string]: string;
+                };
+            };
+        };
         OAuthToken: {
             access_token?: {
                 /** @example 2592000 */
@@ -859,6 +993,11 @@ export interface components {
          * @example version ..; max=1; order=desc
          */
         HerokuRangeHeader: string;
+        /**
+         * @description Unique identifier of the telemetry drain.
+         * @example 01234567-89ab-cdef-0123-456789abcdef
+         */
+        TelemetryDrainId: string;
     };
     requestBodies: never;
     headers: never;
@@ -1502,6 +1641,185 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    listTelemetryDrains: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier or name of the app.
+                 * @example credit-rating-scorer
+                 */
+                app_id_or_name: components["parameters"]["AppIdOrName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Telemetry drains owned by the app. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelemetryDrain"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createTelemetryDrain: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TelemetryDrainCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description The created telemetry drain. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelemetryDrain"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    getTelemetryDrain: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier of the telemetry drain.
+                 * @example 01234567-89ab-cdef-0123-456789abcdef
+                 */
+                telemetry_drain_id: components["parameters"]["TelemetryDrainId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The telemetry drain. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelemetryDrain"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteTelemetryDrain: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier of the telemetry drain.
+                 * @example 01234567-89ab-cdef-0123-456789abcdef
+                 */
+                telemetry_drain_id: components["parameters"]["TelemetryDrainId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The deleted telemetry drain. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelemetryDrain"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateTelemetryDrain: {
+        parameters: {
+            query?: never;
+            header: {
+                /**
+                 * @description Required Heroku Platform API version header.
+                 * @example application/vnd.heroku+json; version=3
+                 */
+                Accept: components["parameters"]["HerokuAcceptHeader"];
+            };
+            path: {
+                /**
+                 * @description Unique identifier of the telemetry drain.
+                 * @example 01234567-89ab-cdef-0123-456789abcdef
+                 */
+                telemetry_drain_id: components["parameters"]["TelemetryDrainId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TelemetryDrainUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated telemetry drain. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelemetryDrain"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             422: components["responses"]["UnprocessableEntity"];
         };
     };

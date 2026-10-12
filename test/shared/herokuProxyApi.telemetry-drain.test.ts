@@ -94,7 +94,7 @@ describe('herokuProxyApi telemetry drains', () => {
       const drain = {id: DRAIN_ID, signals: ['logs']};
       requestStub.mockResolvedValue(drain);
 
-      const result = await fetchTelemetryDrainViaProxy(connection, {drainId: 'a/b c', name: APP_NAME});
+      const result = await fetchTelemetryDrainViaProxy(connection, {drainId: 'a/b c'});
 
       expect(result).toEqual(drain);
       const req = telemetryCall(requestStub, 'GET');
@@ -149,7 +149,6 @@ describe('herokuProxyApi telemetry drains', () => {
 
       await updateTelemetryDrainViaProxy(connection, {
         drainId: DRAIN_ID,
-        name: APP_NAME,
         signals: ['metrics'],
       });
 
@@ -165,7 +164,7 @@ describe('herokuProxyApi telemetry drains', () => {
       const deleted = {id: DRAIN_ID, signals: ['traces']};
       requestStub.mockResolvedValue(deleted);
 
-      const result = await deleteTelemetryDrainViaProxy(connection, {drainId: DRAIN_ID, name: APP_NAME});
+      const result = await deleteTelemetryDrainViaProxy(connection, {drainId: DRAIN_ID});
 
       expect(result).toEqual(deleted);
       const req = telemetryCall(requestStub, 'DELETE');
@@ -187,21 +186,39 @@ describe('herokuProxyApi telemetry drains', () => {
 
     it('maps a not_found on a drain-id call to error.telemetryDrainNotFound, naming the drain', async () => {
       requestStub.mockRejectedValue(Object.assign(new Error("Couldn't find that."), {data: {id: 'not_found'}}));
-      await expect(fetchTelemetryDrainViaProxy(connection, {drainId: DRAIN_ID, name: APP_NAME})).rejects.toThrow(
+      await expect(fetchTelemetryDrainViaProxy(connection, {drainId: DRAIN_ID})).rejects.toThrow(
         `Heroku didn't find a telemetry drain with ID ${DRAIN_ID}.`,
       );
     });
 
     it('maps a HEROKU_PROXY_ERROR to error.herokuProxyRequestFailed', async () => {
       requestStub.mockRejectedValue(Object.assign(new Error('bad proxy_url'), {errorCode: 'HEROKU_PROXY_ERROR'}));
-      await expect(fetchTelemetryDrainViaProxy(connection, {drainId: DRAIN_ID, name: APP_NAME})).rejects.toThrow(
+      await expect(fetchTelemetryDrainViaProxy(connection, {drainId: DRAIN_ID})).rejects.toThrow(
         'The Salesforce Heroku API proxy rejected the request: bad proxy_url',
       );
     });
 
+    // A Heroku 422 surfaces as a passthrough error carrying Heroku's own id ('invalid_params') and
+    // message -- it must read as a rejection of what we sent, not as the connectivity-flavored
+    // herokuApiRequestFailed (which the id-less socket case below still gets).
+    it('maps a Heroku validation error (id set) to error.herokuRequestRejected, surfacing the message', async () => {
+      requestStub.mockRejectedValue(
+        Object.assign(new Error('endpoint is not a valid URL'), {data: {id: 'invalid_params'}}),
+      );
+      await expect(
+        createTelemetryDrainViaProxy(connection, {
+          appId: APP_ID,
+          name: APP_NAME,
+          endpoint: 'not-a-url',
+          exporterType: 'otlp',
+          signals: ['traces'],
+        }),
+      ).rejects.toThrow('Heroku rejected the request: endpoint is not a valid URL');
+    });
+
     it('maps an unrecognized failure to error.herokuApiRequestFailed', async () => {
       requestStub.mockRejectedValue(new Error('socket hang up'));
-      await expect(fetchTelemetryDrainViaProxy(connection, {drainId: DRAIN_ID, name: APP_NAME})).rejects.toThrow(
+      await expect(fetchTelemetryDrainViaProxy(connection, {drainId: DRAIN_ID})).rejects.toThrow(
         "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
       );
     });

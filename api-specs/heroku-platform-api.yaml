@@ -507,7 +507,7 @@ paths:
   /apps/{app_id_or_name}/telemetry-drains:
     parameters:
       - $ref: '#/components/parameters/AppIdOrName'
-      - $ref: '#/components/parameters/HerokuAcceptHeader'
+      - $ref: '#/components/parameters/HerokuSdkAcceptHeader'
     get:
       operationId: listTelemetryDrains
       summary: List telemetry drains for an app
@@ -529,7 +529,7 @@ paths:
           $ref: '#/components/responses/NotFound'
   /telemetry-drains:
     parameters:
-      - $ref: '#/components/parameters/HerokuAcceptHeader'
+      - $ref: '#/components/parameters/HerokuSdkAcceptHeader'
     post:
       operationId: createTelemetryDrain
       summary: Create a telemetry drain
@@ -558,7 +558,7 @@ paths:
   /telemetry-drains/{telemetry_drain_id}:
     parameters:
       - $ref: '#/components/parameters/TelemetryDrainId'
-      - $ref: '#/components/parameters/HerokuAcceptHeader'
+      - $ref: '#/components/parameters/HerokuSdkAcceptHeader'
     get:
       operationId: getTelemetryDrain
       summary: Info for a telemetry drain
@@ -642,6 +642,20 @@ components:
         type: string
         enum: ['application/vnd.heroku+json; version=3']
       example: application/vnd.heroku+json; version=3
+    HerokuSdkAcceptHeader:
+      name: Accept
+      in: header
+      required: true
+      description: >-
+        Heroku Platform API version header for the telemetry-drains endpoints,
+        which are only exposed under the `3.sdk` media-type variant. The plain
+        `version=3` media type returns 406 Not Acceptable for these paths. Do
+        not promote this variant to the other endpoints -- they accept
+        `version=3` only (see HerokuAcceptHeader).
+      schema:
+        type: string
+        enum: ['application/vnd.heroku+json; version=3.sdk']
+      example: application/vnd.heroku+json; version=3.sdk
     HerokuRangeHeader:
       name: Range
       in: header

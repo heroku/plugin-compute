@@ -104,6 +104,16 @@ The Salesforce Heroku API proxy rejected the request: %s
 - Confirm the target org supports the Heroku API proxy (API version 68.0 or later).
 - Run the command again; if it still fails, check Setup for outstanding compute app errors.
 
+# error.herokuRequestRejected
+
+Heroku rejected the request: %s
+
+# error.herokuRequestRejected.actions
+
+- Read the detail above for exactly what Heroku reported.
+- If it names an invalid value (for example an endpoint URL or a signal/exporter combination), fix it and run the command again.
+- If it points to a temporary problem or a permissions issue, retry in a moment or confirm you have the required access, then run the command again.
+
 # error.herokuFormationNotFound
 
 Heroku didn't find app %s or its %s process type.

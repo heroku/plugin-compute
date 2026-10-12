@@ -410,10 +410,10 @@ export interface paths {
             query?: never;
             header: {
                 /**
-                 * @description Required Heroku Platform API version header.
-                 * @example application/vnd.heroku+json; version=3
+                 * @description Heroku Platform API version header for the telemetry-drains endpoints, which are only exposed under the `3.sdk` media-type variant. The plain `version=3` media type returns 406 Not Acceptable for these paths. Do not promote this variant to the other endpoints -- they accept `version=3` only (see HerokuAcceptHeader).
+                 * @example application/vnd.heroku+json; version=3.sdk
                  */
-                Accept: components["parameters"]["HerokuAcceptHeader"];
+                Accept: components["parameters"]["HerokuSdkAcceptHeader"];
             };
             path: {
                 /**
@@ -439,10 +439,10 @@ export interface paths {
             query?: never;
             header: {
                 /**
-                 * @description Required Heroku Platform API version header.
-                 * @example application/vnd.heroku+json; version=3
+                 * @description Heroku Platform API version header for the telemetry-drains endpoints, which are only exposed under the `3.sdk` media-type variant. The plain `version=3` media type returns 406 Not Acceptable for these paths. Do not promote this variant to the other endpoints -- they accept `version=3` only (see HerokuAcceptHeader).
+                 * @example application/vnd.heroku+json; version=3.sdk
                  */
-                Accept: components["parameters"]["HerokuAcceptHeader"];
+                Accept: components["parameters"]["HerokuSdkAcceptHeader"];
             };
             path?: never;
             cookie?: never;
@@ -462,10 +462,10 @@ export interface paths {
             query?: never;
             header: {
                 /**
-                 * @description Required Heroku Platform API version header.
-                 * @example application/vnd.heroku+json; version=3
+                 * @description Heroku Platform API version header for the telemetry-drains endpoints, which are only exposed under the `3.sdk` media-type variant. The plain `version=3` media type returns 406 Not Acceptable for these paths. Do not promote this variant to the other endpoints -- they accept `version=3` only (see HerokuAcceptHeader).
+                 * @example application/vnd.heroku+json; version=3.sdk
                  */
-                Accept: components["parameters"]["HerokuAcceptHeader"];
+                Accept: components["parameters"]["HerokuSdkAcceptHeader"];
             };
             path: {
                 /**
@@ -988,6 +988,11 @@ export interface components {
          * @example application/vnd.heroku+json; version=3
          */
         HerokuAcceptHeader: "application/vnd.heroku+json; version=3";
+        /**
+         * @description Heroku Platform API version header for the telemetry-drains endpoints, which are only exposed under the `3.sdk` media-type variant. The plain `version=3` media type returns 406 Not Acceptable for these paths. Do not promote this variant to the other endpoints -- they accept `version=3` only (see HerokuAcceptHeader).
+         * @example application/vnd.heroku+json; version=3.sdk
+         */
+        HerokuSdkAcceptHeader: "application/vnd.heroku+json; version=3.sdk";
         /**
          * @description Heroku's Range-header-based pagination/ordering syntax, e.g. `version ..; max=1; order=desc` to fetch only the single highest-version release.
          * @example version ..; max=1; order=desc
@@ -1649,10 +1654,10 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description Required Heroku Platform API version header.
-                 * @example application/vnd.heroku+json; version=3
+                 * @description Heroku Platform API version header for the telemetry-drains endpoints, which are only exposed under the `3.sdk` media-type variant. The plain `version=3` media type returns 406 Not Acceptable for these paths. Do not promote this variant to the other endpoints -- they accept `version=3` only (see HerokuAcceptHeader).
+                 * @example application/vnd.heroku+json; version=3.sdk
                  */
-                Accept: components["parameters"]["HerokuAcceptHeader"];
+                Accept: components["parameters"]["HerokuSdkAcceptHeader"];
             };
             path: {
                 /**
@@ -1684,10 +1689,10 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description Required Heroku Platform API version header.
-                 * @example application/vnd.heroku+json; version=3
+                 * @description Heroku Platform API version header for the telemetry-drains endpoints, which are only exposed under the `3.sdk` media-type variant. The plain `version=3` media type returns 406 Not Acceptable for these paths. Do not promote this variant to the other endpoints -- they accept `version=3` only (see HerokuAcceptHeader).
+                 * @example application/vnd.heroku+json; version=3.sdk
                  */
-                Accept: components["parameters"]["HerokuAcceptHeader"];
+                Accept: components["parameters"]["HerokuSdkAcceptHeader"];
             };
             path?: never;
             cookie?: never;
@@ -1718,10 +1723,10 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description Required Heroku Platform API version header.
-                 * @example application/vnd.heroku+json; version=3
+                 * @description Heroku Platform API version header for the telemetry-drains endpoints, which are only exposed under the `3.sdk` media-type variant. The plain `version=3` media type returns 406 Not Acceptable for these paths. Do not promote this variant to the other endpoints -- they accept `version=3` only (see HerokuAcceptHeader).
+                 * @example application/vnd.heroku+json; version=3.sdk
                  */
-                Accept: components["parameters"]["HerokuAcceptHeader"];
+                Accept: components["parameters"]["HerokuSdkAcceptHeader"];
             };
             path: {
                 /**
@@ -1753,10 +1758,10 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description Required Heroku Platform API version header.
-                 * @example application/vnd.heroku+json; version=3
+                 * @description Heroku Platform API version header for the telemetry-drains endpoints, which are only exposed under the `3.sdk` media-type variant. The plain `version=3` media type returns 406 Not Acceptable for these paths. Do not promote this variant to the other endpoints -- they accept `version=3` only (see HerokuAcceptHeader).
+                 * @example application/vnd.heroku+json; version=3.sdk
                  */
-                Accept: components["parameters"]["HerokuAcceptHeader"];
+                Accept: components["parameters"]["HerokuSdkAcceptHeader"];
             };
             path: {
                 /**
@@ -1788,10 +1793,10 @@ export interface operations {
             query?: never;
             header: {
                 /**
-                 * @description Required Heroku Platform API version header.
-                 * @example application/vnd.heroku+json; version=3
+                 * @description Heroku Platform API version header for the telemetry-drains endpoints, which are only exposed under the `3.sdk` media-type variant. The plain `version=3` media type returns 406 Not Acceptable for these paths. Do not promote this variant to the other endpoints -- they accept `version=3` only (see HerokuAcceptHeader).
+                 * @example application/vnd.heroku+json; version=3.sdk
                  */
-                Accept: components["parameters"]["HerokuAcceptHeader"];
+                Accept: components["parameters"]["HerokuSdkAcceptHeader"];
             };
             path: {
                 /**

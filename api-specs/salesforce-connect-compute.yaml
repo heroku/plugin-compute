@@ -41,10 +41,11 @@ tags:
       Same sanctioned-ahead-of-core-landing status -- update this spec if the
       real resource's shape differs once it ships.
       Formation, config-vars, app-metadata, build-output, and log-session
-      resources that were previously drafted here have moved off Connect
-      entirely: they're served through the Salesforce Heroku API proxy
-      (/services/data/vXX.0/heroku/proxy, see herokuProxyApi.ts) so the CLI
-      never needs a Connect resource shaped around Heroku's data. See
+      resources that were previously drafted here are no longer modeled as
+      Heroku-shaped Connect resources: they're served through the generic
+      Salesforce Heroku API passthrough proxy
+      (/services/data/vXX.0/connect/compute/proxy, see herokuProxyApi.ts) so
+      the CLI never needs a Connect resource shaped around Heroku's data. See
       heroku-platform-api.yaml for those resources' shapes instead.
 paths:
   /connect/compute/source:

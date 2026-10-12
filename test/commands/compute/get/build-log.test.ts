@@ -47,7 +47,7 @@ function httpError(status: number, message = 'Not Found'): Error {
   return new HttpError(status, message);
 }
 
-// Every proxy-bound request lands on the same /services/data/vXX.0/heroku/proxy path with the
+// Every proxy-bound request lands on the same /services/data/vXX.0/connect/compute/proxy path with the
 // real Heroku target URL percent-encoded into the proxy_url query param -- decode it to inspect
 // which Heroku path/app a given call actually targeted, mirroring how herokuProxyRequest builds
 // it in herokuProxyApi.ts (see scale.test.ts/config/unset.test.ts for the same helper).

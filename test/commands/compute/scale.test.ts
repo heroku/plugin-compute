@@ -29,7 +29,7 @@ import {join} from 'node:path';
 
 import Scale from '../../../src/commands/compute/scale.js';
 
-// Every proxy-bound request lands on the same /services/data/vXX.0/heroku/proxy path with the
+// Every proxy-bound request lands on the same /services/data/vXX.0/connect/compute/proxy path with the
 // real Heroku target URL percent-encoded into the proxy_url query param -- decode it to inspect
 // which Heroku path/app/type a given call actually targeted, mirroring how herokuProxyRequest
 // builds it in herokuProxyApi.ts.
@@ -116,6 +116,11 @@ describe('compute scale', () => {
     const call = findFormationCall(requestStub, 'PATCH');
     expect(call, 'expected a PATCH proxied to Heroku formation').toBeDefined();
     const request = call![0] as {body: string; method: string; url: string};
+    // Pin the proxy base path itself: every other assertion in this suite only decodes the
+    // proxy_url query param, so without this a typo in the /connect/compute/proxy path (or a
+    // regression to the retired /heroku/proxy path) would pass silently. Version-agnostic so it
+    // stays correct whatever resolveComputeApiVersion's v68+ floor resolves to.
+    expect(request.url).toMatch(/^\/services\/data\/v\d+\.\d+\/connect\/compute\/proxy\?proxy_url=/v);
     expect(proxyTarget(request.url)).toBe('https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/formation/web');
 
     expect(JSON.parse(request.body)).toEqual({dyno_size: {name: 'dyno-1c-4gb'}});

@@ -27,7 +27,7 @@ const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 const HEROKU_API_BASE_URL = 'https://api.heroku.com';
 const HEROKU_ACCEPT_HEADER = 'application/vnd.heroku+json; version=3';
 
-// Distinguishes the two error shapes the /services/data/vXX.0/heroku/proxy endpoint can return,
+// Distinguishes the two error shapes the /services/data/vXX.0/connect/compute/proxy endpoint can return,
 // without forcing every caller to re-derive which one it got:
 // - 'proxy': the proxy itself rejected the request (bad proxy_url, 502 on the 25 MiB response
 //   cap, etc.) -- its body is [{ errorCode: 'HEROKU_PROXY_ERROR', message }].
@@ -77,7 +77,7 @@ type HerokuProxyRequestOptions = {
   path: string;
 };
 
-// THE ONLY function in this plugin that knows the /services/data/vXX.0/heroku/proxy?proxy_url=...
+// THE ONLY function in this plugin that knows the /services/data/vXX.0/connect/compute/proxy?proxy_url=...
 // shape -- every exported function below calls this and otherwise looks like it's talking to
 // Heroku's typed API directly.
 //
@@ -95,7 +95,7 @@ async function herokuProxyRequest<T>(connection: Connection, opts: HerokuProxyRe
 
   const targetUrl = `${HEROKU_API_BASE_URL}${targetPath}`;
   const version = resolveComputeApiVersion(connection);
-  const proxyUrl = `/services/data/v${version}/heroku/proxy?proxy_url=${encodeURIComponent(targetUrl)}`;
+  const proxyUrl = `/services/data/v${version}/connect/compute/proxy?proxy_url=${encodeURIComponent(targetUrl)}`;
 
   try {
     return await connection.request<T>({

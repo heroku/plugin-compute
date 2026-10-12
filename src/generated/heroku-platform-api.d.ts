@@ -253,7 +253,7 @@ export interface paths {
         put?: never;
         /**
          * Create a log session
-         * @description Creates a reference to an HTTP log stream for the app, to obtain a `logplex_url` for `sf compute get runtime-log` and `sf compute tail runtime-log` to read or stream from. The CLI calls this directly through the Salesforce Heroku API proxy (/services/data/vXX.0/heroku/proxy, see herokuProxyApi.ts); the returned `logplex_url` is itself pre-authorized, so the CLI then fetches/streams it directly, without going back through the proxy.
+         * @description Creates a reference to an HTTP log stream for the app, to obtain a `logplex_url` for `sf compute get runtime-log` and `sf compute tail runtime-log` to read or stream from. The CLI calls this directly through the Salesforce Heroku API proxy (/services/data/vXX.0/connect/compute/proxy, see herokuProxyApi.ts); the returned `logplex_url` is itself pre-authorized, so the CLI then fetches/streams it directly, without going back through the proxy.
          */
         post: operations["createLogSession"];
         delete?: never;

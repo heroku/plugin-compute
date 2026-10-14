@@ -115,7 +115,8 @@ describe('compute telemetry-drain get', () => {
       {key: 'Signals', value: 'traces, logs'},
       {key: 'Endpoint', value: 'https://collector.example.com:4317'},
       {key: 'Transport', value: 'gRPC'},
-      {key: 'Headers', value: '{"x-api-key":"secret"}'},
+      // The table masks header VALUES (keys stay) so a secret can't leak into scrollback/screenshots.
+      {key: 'Headers', value: '{"x-api-key":"<redacted>"}'},
     ]);
     expect(toolingQueryStub).not.toHaveBeenCalled();
   });
@@ -142,6 +143,9 @@ describe('compute telemetry-drain get', () => {
     expect(result.app).toBe(OWNER_APP_NAME);
     expect(result.app).not.toBe(DRAIN_ID);
     expect(result.app).not.toBe(OWNER_APP_ID);
+    // The raw owner rides through flat so --json can disambiguate what the `app` label collapses.
+    expect(result.ownerId).toBe(OWNER_APP_ID);
+    expect(result.ownerType).toBe('app');
   });
 
   it('is best-effort: when the owner-app lookup fails it still succeeds, labelling App with the owner id and not warning', async () => {
@@ -155,7 +159,10 @@ describe('compute telemetry-drain get', () => {
     const result = await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
 
     expect(result.app).toBe(OWNER_APP_ID);
+    expect(result.ownerId).toBe(OWNER_APP_ID);
+    expect(result.ownerType).toBe('app');
     expect(ownerCall(requestStub)).toBeDefined();
+    // #7: the swallowed lookup error is debug-logged, never warned -- a failed label is non-fatal.
     expect(sfCommandStubs.warn.called).toBe(false);
     const [{data}] = sfCommandStubs.table.firstCall.args as [{data: Array<{key: string; value: string}>}];
     expect(data.find(r => r.key === 'App')?.value).toBe(OWNER_APP_ID);
@@ -169,6 +176,8 @@ describe('compute telemetry-drain get', () => {
     const result = await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
 
     expect(result.app).toBe('space-uuid');
+    expect(result.ownerId).toBe('space-uuid');
+    expect(result.ownerType).toBe('space');
     expect(
       requestStub.mock.calls.every(c => !proxyTarget((c[0] as {url?: string}).url ?? '').startsWith('https://api.heroku.com/apps/')),
     ).toBe(true);
@@ -180,6 +189,8 @@ describe('compute telemetry-drain get', () => {
 
     const result = await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
     expect(result.app).toBe('-');
+    expect(result.ownerId).toBeUndefined();
+    expect(result.ownerType).toBeUndefined();
   });
 
   it('labels App with the owner id when the owner app resolves but carries no name', async () => {
@@ -191,6 +202,8 @@ describe('compute telemetry-drain get', () => {
 
     expect(ownerCall(requestStub)).toBeDefined();
     expect(result.app).toBe(OWNER_APP_ID);
+    expect(result.ownerId).toBe(OWNER_APP_ID);
+    expect(result.ownerType).toBe('app');
   });
 
   it('falls back to the positional id for result.id when the drain carries no id', async () => {
@@ -208,10 +221,15 @@ describe('compute telemetry-drain get', () => {
     const {result} = (sfCommandStubs.logJson.firstCall.args[0] as {result: Record<string, unknown>});
     expect(result).toEqual({
       app: OWNER_APP_NAME,
+      ownerId: OWNER_APP_ID,
+      ownerType: 'app',
       id: DRAIN_ID,
       signals: ['traces', 'logs'],
       endpoint: 'https://collector.example.com:4317',
+      exporterType: 'otlp',
       transport: 'gRPC',
+      // --json keeps headers verbatim (machine channel at the caller's trust boundary); only the
+      // human table masks them. The raw wire objects (owner/exporter) are still never surfaced.
       headers: {'x-api-key': 'secret'},
     });
     expect('owner' in result).toBe(false);
@@ -228,6 +246,8 @@ describe('compute telemetry-drain get', () => {
 
     const result = await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
     expect(result.transport).toBe(label);
+    // The raw exporter type rides through so --json can tell otlphttp from splunk (both label "HTTP").
+    expect(result.exporterType).toBe(type);
     const [{data}] = sfCommandStubs.table.firstCall.args as [{data: Array<{key: string; value: string}>}];
     expect(data.find(r => r.key === 'Transport')?.value).toBe(label);
   });

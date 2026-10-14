@@ -28,6 +28,17 @@ const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 // rendering uses so single-drain display reads consistently with the other compute tables.
 const DASH = '-';
 
+// Exporter header values routinely carry credentials (bearer / Splunk-HEC tokens). The human table
+// masks the VALUES (keys stay visible so an operator can still see which headers are set) so a secret
+// can't leak into terminal scrollback, screen-shares, or screenshots. The machine-readable --json
+// result keeps them verbatim -- same trust boundary as the authenticated caller (see telemetry-drain/
+// get.ts). Masks a copy; never mutates the caller's drain object.
+const REDACTED = '<redacted>';
+
+function maskHeaderValues(headers: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.keys(headers).map(key => [key, REDACTED]));
+}
+
 // The three OpenTelemetry signal categories a drain can forward. Order matches the enum in
 // api-specs/heroku-platform-api.yaml (TelemetryDrain.signals); `all` is the shorthand for every one.
 export const TELEMETRY_SIGNALS: readonly TelemetrySignal[] = ['traces', 'metrics', 'logs'];
@@ -95,6 +106,6 @@ export function formatTelemetryDrainRows(
     {key: 'Signals', value: drain.signals && drain.signals.length > 0 ? drain.signals.join(', ') : DASH},
     {key: 'Endpoint', value: drain.exporter?.endpoint ?? DASH},
     {key: 'Transport', value: drain.exporter?.type ? transportLabelForExporterType(drain.exporter.type) : DASH},
-    {key: 'Headers', value: hasHeaders ? JSON.stringify(headers) : DASH},
+    {key: 'Headers', value: hasHeaders ? JSON.stringify(maskHeaderValues(headers)) : DASH},
   ];
 }

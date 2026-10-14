@@ -121,12 +121,13 @@ describe('compute telemetry-drain list', () => {
     expect(result.drains.map(d => d.id)).toEqual(['drain-1', 'drain-2']);
   });
 
-  it('falls back to a dash id for a drain Heroku returned without one', async () => {
+  it('omits id from the result but renders a dash in the table when Heroku returns a drain without one', async () => {
     requestStub.mockResolvedValue([{signals: ['logs'], exporter: {endpoint: 'https://x'}}]);
 
     const result = await TelemetryDrainList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
-    expect(result.drains[0].id).toBe('-');
+    // --json must not leak the display dash into the machine-readable id (it isn't addressable by get).
+    expect(result.drains[0].id).toBeUndefined();
     const [{data}] = sfCommandStubs.table.firstCall.args as [{data: Array<{id: string}>}];
     expect(data[0].id).toBe('-');
   });

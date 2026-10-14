@@ -32,7 +32,7 @@ const DASH = '-';
 // lossy. The table cells join/dash these for display only (see toRow), mirroring the list.ts/display.ts
 // split where the rendered subset never flattens the returned result.
 export type ComputeTelemetryDrainListResult = {
-  drains: Array<{endpoint?: string; id: string; signals: string[]}>;
+  drains: Array<{endpoint?: string; id?: string; signals: string[]}>;
   name: string;
 };
 
@@ -40,7 +40,7 @@ type Row = {endpoint: string; id: string; signals: string};
 
 function toRow(drain: ComputeTelemetryDrainListResult['drains'][number]): Row {
   return {
-    id: drain.id,
+    id: drain.id ?? DASH,
     signals: drain.signals.length > 0 ? drain.signals.join(', ') : DASH,
     endpoint: drain.endpoint ?? DASH,
   };
@@ -74,7 +74,7 @@ export default class TelemetryDrainList extends SfCommand<ComputeTelemetryDrainL
 
     // Heroku returns drains in its own order; preserve it rather than imposing a client-side sort.
     const drains = fetched.map(drain => ({
-      id: drain.id ?? DASH,
+      id: drain.id,
       signals: drain.signals ?? [],
       endpoint: drain.exporter?.endpoint,
     }));

@@ -31,8 +31,21 @@ const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.telemetry-drain.get
 export type ComputeTelemetryDrainGetResult = {
   app: string;
   endpoint?: string;
+  // Raw Heroku exporter type (otlp/otlphttp/splunk), widened to string so the --json contract isn't
+  // welded to the OpenAPI enum (same posture as signals). `transport` is the collapsed display label
+  // -- it maps both otlphttp and splunk to "HTTP", so --json consumers need this to tell them apart.
+  exporterType?: string;
+  // Returned verbatim and may carry credentials (bearer/Splunk-HEC tokens). --json is a machine
+  // channel at the authenticated caller's trust boundary (cf. `sf org display --json`, which returns
+  // a live access token), so values are NOT masked here; the human table masks them for scrollback/
+  // screen-share safety (see formatTelemetryDrainRows).
   headers?: Record<string, string>;
   id: string;
+  // Raw drain owner, surfaced flat so a --json consumer can disambiguate what `app` (a display label)
+  // collapses: a resolved DeveloperName, else the owner id. Compute is app-only, so for a space-owned
+  // drain `app` holds the space UUID -- ownerType lets a consumer detect that case.
+  ownerId?: string;
+  ownerType?: 'app' | 'space';
   signals: string[];
   transport?: string;
 };
@@ -71,9 +84,12 @@ export default class TelemetryDrainGet extends SfCommand<ComputeTelemetryDrainGe
 
     return {
       app,
+      ownerId: drain.owner?.id,
+      ownerType: drain.owner?.type,
       id: drain.id ?? args.id,
       signals: drain.signals ?? [],
       endpoint: drain.exporter?.endpoint,
+      exporterType: drain.exporter?.type,
       transport: drain.exporter?.type ? transportLabelForExporterType(drain.exporter.type) : undefined,
       headers: drain.exporter?.headers,
     };
@@ -96,7 +112,10 @@ export default class TelemetryDrainGet extends SfCommand<ComputeTelemetryDrainGe
     try {
       const summary = await fetchComputeAppViaProxy(connection, {name: owner.id, appId: owner.id});
       return summary?.name ?? owner.id;
-    } catch {
+    } catch (error) {
+      // Best-effort label only -- the drain (the real payload) is already in hand, so a failed owner
+      // lookup must not sink the command. Debug (not warn) keeps it diagnosable without UX noise.
+      this.debug('owner label lookup failed for %s: %s', owner.id, error instanceof Error ? error.message : String(error));
       return owner.id;
     }
   }

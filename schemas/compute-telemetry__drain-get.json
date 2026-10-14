@@ -11,6 +11,9 @@
         "endpoint": {
           "type": "string"
         },
+        "exporterType": {
+          "type": "string"
+        },
         "headers": {
           "type": "object",
           "additionalProperties": {
@@ -19,6 +22,16 @@
         },
         "id": {
           "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "ownerType": {
+          "type": "string",
+          "enum": [
+            "app",
+            "space"
+          ]
         },
         "signals": {
           "type": "array",

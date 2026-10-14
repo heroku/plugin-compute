@@ -26,6 +26,11 @@ const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 
 const HEROKU_API_BASE_URL = 'https://api.heroku.com';
 const HEROKU_ACCEPT_HEADER = 'application/vnd.heroku+json; version=3';
+// Heroku's telemetry-drains endpoints are only exposed under the `3.sdk` Accept variant -- the plain
+// `version=3` media type 406s them. Scoped to the telemetry functions below via a per-call header
+// override (see listTelemetryDrainsViaProxy et al.); promoting it to the module default would wrongly
+// change the Accept for every other (App/Formation/ConfigVars/Release/Build/LogSession) call.
+const HEROKU_ACCEPT_HEADER_SDK = 'application/vnd.heroku+json; version=3.sdk';
 
 // Distinguishes the two error shapes the /services/data/vXX.0/connect/compute/proxy endpoint can return,
 // without forcing every caller to re-derive which one it got:
@@ -111,14 +116,26 @@ async function herokuProxyRequest<T>(connection: Connection, opts: HerokuProxyRe
 
 // notFoundMessage lets a caller override the not_found classification with a more specific error
 // (e.g. scaleComputeFormationViaProxy's "no such process type" instead of "no such app") without
-// duplicating the origin/herokuErrorId checks at each call site.
-function throwHerokuProxyComputeError(err: unknown, name: string, notFoundMessage?: SfError): never {
+// duplicating the origin/herokuErrorId checks at each call site. `name` feeds ONLY the default
+// not_found message; callers that always pass a notFoundMessage override (the drain-id telemetry
+// functions, which have no app name in scope) pass `undefined` for it.
+function throwHerokuProxyComputeError(err: unknown, name: string | undefined, notFoundMessage?: SfError): never {
   if (err instanceof HerokuProxyError && err.origin === 'heroku' && err.herokuErrorId === 'not_found') {
-    throw notFoundMessage ?? messages.createError('error.herokuAppNotFound', [name]);
+    throw notFoundMessage ?? messages.createError('error.herokuAppNotFound', [name ?? '']);
   }
 
   if (err instanceof HerokuProxyError && err.origin === 'proxy') {
     throw messages.createError('error.herokuProxyRequestFailed', [err.message]);
+  }
+
+  // A Heroku-origin error that carries Heroku's own machine-readable id (herokuErrorId defined, e.g.
+  // 'invalid_params' on a 422 -- the most common create/update failure: a bad endpoint URL or a
+  // rejected signal/exporter combination) is a request Heroku *received and rejected*, so surface
+  // Heroku's own message as a rejection. A heroku-origin error WITHOUT an id (herokuErrorId
+  // undefined -- a connectivity/parse failure with no structured Heroku body, e.g. a socket error)
+  // falls through to the connectivity-flavored herokuApiRequestFailed below, which is accurate for it.
+  if (err instanceof HerokuProxyError && err.origin === 'heroku' && err.herokuErrorId !== undefined) {
+    throw messages.createError('error.herokuRequestRejected', [err.message]);
   }
 
   throw messages.createError('error.herokuApiRequestFailed', [err instanceof Error ? err.message : String(err)]);
@@ -317,5 +334,124 @@ export async function fetchLatestBuildOutputStreamUrlViaProxy(
     return builds.at(-1)?.output_stream_url;
   } catch (error) {
     throwHerokuProxyComputeError(error, params.name);
+  }
+}
+
+// One of Heroku's telemetry-drain exporter types: `otlp` (OTLP/gRPC), `otlphttp` (OTLP/HTTP), or
+// `splunk`. Derived from the generated spec so it stays in lockstep with the enum in
+// api-specs/heroku-platform-api.yaml. computeTelemetryDrain.ts maps a user-facing --transport onto
+// one of these (and back, for display).
+export type TelemetryExporterType = components['schemas']['TelemetryDrainCreateRequest']['exporter']['type'];
+
+// One of the three OpenTelemetry signal categories a drain can forward. Also derived from the spec.
+export type TelemetrySignal = components['schemas']['TelemetryDrainCreateRequest']['signals'][number];
+
+// The five telemetry-drain functions below back the follow-up `sf compute telemetry-drain` subcommand
+// WIs; they ship now as the shared foundation. Each returns the raw generated TelemetryDrain wire type
+// (no plugin-side summary) -- presentation lives in computeTelemetryDrain.ts (formatTelemetryDrainRows),
+// mirroring the config-vars split rather than the formation one. All pass HEROKU_ACCEPT_HEADER_SDK.
+//
+// Runtime dependency (not enforceable here): /apps/{id}/telemetry-drains and /telemetry-drains[/{id}]
+// must be on the Salesforce Connect proxy allow-list, or every call below 502s as a HEROKU_PROXY_ERROR.
+export async function listTelemetryDrainsViaProxy(
+  connection: Connection,
+  params: {appId: string; name: string},
+): Promise<Array<components['schemas']['TelemetryDrain']>> {
+  try {
+    return await herokuProxyRequest<Array<components['schemas']['TelemetryDrain']>>(connection, {
+      method: 'GET',
+      path: '/apps/{app_id_or_name}/telemetry-drains',
+      params: {app_id_or_name: params.appId},
+      headers: {Accept: HEROKU_ACCEPT_HEADER_SDK},
+    });
+  } catch (error) {
+    throwHerokuProxyComputeError(error, params.name);
+  }
+}
+
+export async function fetchTelemetryDrainViaProxy(
+  connection: Connection,
+  params: {drainId: string},
+): Promise<components['schemas']['TelemetryDrain']> {
+  try {
+    return await herokuProxyRequest<components['schemas']['TelemetryDrain']>(connection, {
+      method: 'GET',
+      path: '/telemetry-drains/{telemetry_drain_id}',
+      params: {telemetry_drain_id: params.drainId},
+      headers: {Accept: HEROKU_ACCEPT_HEADER_SDK},
+    });
+  } catch (error) {
+    // A 404 on a drain-id path means the drain wasn't found, so always override the default
+    // app-not-found classification with a drain-specific message (no app name is in scope here).
+    throwHerokuProxyComputeError(error, undefined, messages.createError('error.telemetryDrainNotFound', [params.drainId]));
+  }
+}
+
+export async function createTelemetryDrainViaProxy(
+  connection: Connection,
+  params: {
+    appId: string;
+    endpoint: string;
+    exporterType: TelemetryExporterType;
+    headers?: Record<string, string>;
+    name: string;
+    signals: TelemetrySignal[];
+  },
+): Promise<components['schemas']['TelemetryDrain']> {
+  try {
+    return await herokuProxyRequest<components['schemas']['TelemetryDrain']>(connection, {
+      method: 'POST',
+      path: '/telemetry-drains',
+      body: {
+        owner: {id: params.appId, type: 'app'},
+        signals: params.signals,
+        exporter: {type: params.exporterType, endpoint: params.endpoint, headers: params.headers},
+      } satisfies components['schemas']['TelemetryDrainCreateRequest'],
+      headers: {Accept: HEROKU_ACCEPT_HEADER_SDK},
+    });
+  } catch (error) {
+    throwHerokuProxyComputeError(error, params.name);
+  }
+}
+
+export async function updateTelemetryDrainViaProxy(
+  connection: Connection,
+  params: {
+    drainId: string;
+    exporter?: {endpoint?: string; headers?: Record<string, string>; type?: TelemetryExporterType};
+    signals?: TelemetrySignal[];
+  },
+): Promise<components['schemas']['TelemetryDrain']> {
+  try {
+    return await herokuProxyRequest<components['schemas']['TelemetryDrain']>(connection, {
+      method: 'PATCH',
+      path: '/telemetry-drains/{telemetry_drain_id}',
+      params: {telemetry_drain_id: params.drainId},
+      body: {
+        signals: params.signals,
+        exporter: params.exporter,
+      } satisfies components['schemas']['TelemetryDrainUpdateRequest'],
+      headers: {Accept: HEROKU_ACCEPT_HEADER_SDK},
+    });
+  } catch (error) {
+    throwHerokuProxyComputeError(error, undefined, messages.createError('error.telemetryDrainNotFound', [params.drainId]));
+  }
+}
+
+// Heroku's DELETE returns the deleted drain's representation, so this resolves to it (callers can
+// confirm what was removed) rather than void.
+export async function deleteTelemetryDrainViaProxy(
+  connection: Connection,
+  params: {drainId: string},
+): Promise<components['schemas']['TelemetryDrain']> {
+  try {
+    return await herokuProxyRequest<components['schemas']['TelemetryDrain']>(connection, {
+      method: 'DELETE',
+      path: '/telemetry-drains/{telemetry_drain_id}',
+      params: {telemetry_drain_id: params.drainId},
+      headers: {Accept: HEROKU_ACCEPT_HEADER_SDK},
+    });
+  } catch (error) {
+    throwHerokuProxyComputeError(error, undefined, messages.createError('error.telemetryDrainNotFound', [params.drainId]));
   }
 }

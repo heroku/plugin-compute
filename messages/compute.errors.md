@@ -104,6 +104,16 @@ The Salesforce Heroku API proxy rejected the request: %s
 - Confirm the target org supports the Heroku API proxy (API version 68.0 or later).
 - Run the command again; if it still fails, check Setup for outstanding compute app errors.
 
+# error.herokuRequestRejected
+
+Heroku rejected the request: %s
+
+# error.herokuRequestRejected.actions
+
+- Read the detail above for exactly what Heroku reported.
+- If it names an invalid value (for example an endpoint URL or a signal/exporter combination), fix it and run the command again.
+- If it points to a temporary problem or a permissions issue, retry in a moment or confirm you have the required access, then run the command again.
+
 # error.herokuFormationNotFound
 
 Heroku didn't find app %s or its %s process type.
@@ -180,3 +190,27 @@ The %s starter source download is invalid: %s.
 # error.templateSourceMalformed.actions
 
 - Run the command again; if it still fails, this plugin's pinned reference commit may need updating.
+
+# error.invalidSignal
+
+The telemetry signal "%s" isn't valid. Use a comma-separated list drawn from: %s.
+
+# error.invalidSignal.actions
+
+- Pass one or more of traces, metrics, logs (comma-separated), or "all" on its own for every signal.
+
+# error.invalidTransport
+
+The telemetry transport "%s" isn't valid. Use one of: %s.
+
+# error.invalidTransport.actions
+
+- Pass http (OTLP over HTTP), grpc (OTLP over gRPC), or splunk.
+
+# error.telemetryDrainNotFound
+
+Heroku didn't find a telemetry drain with ID %s.
+
+# error.telemetryDrainNotFound.actions
+
+- Confirm the telemetry drain ID is correct; it may have already been removed.

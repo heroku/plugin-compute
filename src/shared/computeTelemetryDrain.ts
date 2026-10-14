@@ -81,8 +81,8 @@ export function transportLabelForExporterType(exporterType: string): string {
 }
 
 // Builds the ordered key/value rows for a single-drain display. App-only: the app name is passed in
-// (already resolved by the command), not re-derived from the drain's owner, since this foundation
-// never looks owners up. A follow-up `telemetry-drain info` command renders these rows.
+// (already resolved by the command from the drain's own owner -- see telemetry-drain/get.ts), not
+// re-derived here, since this foundation never looks owners up. `telemetry-drain get` renders these rows.
 export function formatTelemetryDrainRows(
   drain: components['schemas']['TelemetryDrain'],
   appName: string,

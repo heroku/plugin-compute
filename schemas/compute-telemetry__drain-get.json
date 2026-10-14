@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ComputeTelemetryDrainGetResult",
+  "definitions": {
+    "ComputeTelemetryDrainGetResult": {
+      "type": "object",
+      "properties": {
+        "app": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "id": {
+          "type": "string"
+        },
+        "signals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "transport": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "app",
+        "id",
+        "signals"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

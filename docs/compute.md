@@ -605,15 +605,9 @@ GLOBAL FLAGS
 DESCRIPTION
   Show the full detail of a single compute telemetry drain.
 
-  Fetches one OpenTelemetry drain by its ID and shows the app it belongs to,
-  the signals it forwards, and its exporter endpoint, transport, and headers.
-  Goes through the target org's Salesforce Connect API, which calls Heroku on
-  your behalf. The drain ID globally identifies the drain, so this command
-  takes no --name: the owning app is derived from the drain itself. Use
+  Shows the app a single OpenTelemetry drain belongs to, the signals it
+  forwards, and its exporter endpoint, transport, and headers. Use
   sf compute telemetry-drain list to find a drain's ID.
-
-  This is a read-only, live lookup -- it doesn't read from or require a local
-  Salesforce DX project.
 
 EXAMPLES
   Show the detail of a telemetry drain by its ID:
@@ -647,12 +641,8 @@ DESCRIPTION
   List the telemetry drains configured for a compute app.
 
   Shows every OpenTelemetry drain forwarding the compute app's logs, metrics,
-  and traces, with each drain's ID, signals, and endpoint. Goes through the
-  target org's Salesforce Connect API, which calls Heroku on your behalf. Use
+  and traces, with each drain's ID, signals, and endpoint. Use
   sf compute telemetry-drain get to see the full detail of a single drain.
-
-  This is a read-only, live lookup by --name (the app's DeveloperName) -- it
-  doesn't read from or require a local Salesforce DX project.
 
 EXAMPLES
   List the telemetry drains for a compute app:

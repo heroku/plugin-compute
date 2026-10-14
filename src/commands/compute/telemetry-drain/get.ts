@@ -25,25 +25,16 @@ import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.telemetry-drain.get');
 
-// Mapped, command-owned result (not the raw generated TelemetryDrain wire type): keeps the --json
-// contract from silently tracking OpenAPI spec drift, and keeps bin/dev.js schema generate from
-// pinning a loose all-optional wire shape (see the HerokuFormationUpdate note in herokuProxyApi.ts).
+// Command-owned result shape (not the raw wire type) so --json stays stable across OpenAPI changes.
 export type ComputeTelemetryDrainGetResult = {
   app: string;
   endpoint?: string;
-  // Raw Heroku exporter type (otlp/otlphttp/splunk), widened to string so the --json contract isn't
-  // welded to the OpenAPI enum (same posture as signals). `transport` is the collapsed display label
-  // -- it maps both otlphttp and splunk to "HTTP", so --json consumers need this to tell them apart.
+  // `transport` collapses otlphttp and splunk to "HTTP"; the raw type is kept so --json can tell them apart.
   exporterType?: string;
-  // Returned verbatim and may carry credentials (bearer/Splunk-HEC tokens). --json is a machine
-  // channel at the authenticated caller's trust boundary (cf. `sf org display --json`, which returns
-  // a live access token), so values are NOT masked here; the human table masks them for scrollback/
-  // screen-share safety (see formatTelemetryDrainRows).
+  // Returned verbatim; the human table masks the values, which can carry credentials.
   headers?: Record<string, string>;
   id: string;
-  // Raw drain owner, surfaced flat so a --json consumer can disambiguate what `app` (a display label)
-  // collapses: a resolved DeveloperName, else the owner id. Compute is app-only, so for a space-owned
-  // drain `app` holds the space UUID -- ownerType lets a consumer detect that case.
+  // Raw owner, so a --json consumer can tell what the `app` label collapses to (name, owner id, or space).
   ownerId?: string;
   ownerType?: 'app' | 'space';
   signals: string[];
@@ -51,9 +42,7 @@ export type ComputeTelemetryDrainGetResult = {
 };
 
 export default class TelemetryDrainGet extends SfCommand<ComputeTelemetryDrainGetResult> {
-  // The drain ID globally identifies the drain (fetchTelemetryDrainViaProxy takes only the id), so
-  // this command takes no --name: trusting a caller-passed app name is exactly the mismatch the
-  // PR #35 review flagged. The owning app is derived from the drain's own owner below.
+  // No --name: the drain ID is globally unique and the owning app comes from the drain's own owner.
   public static readonly args = {
     id: Args.string({
       required: true,
@@ -67,7 +56,6 @@ export default class TelemetryDrainGet extends SfCommand<ComputeTelemetryDrainGe
     'target-org': Flags.requiredOrg({char: 'o'}),
   };
 
-  // Pure drain-id lookup -- no local project files are read.
   public static readonly requiresProject = false;
 
   public static readonly summary = messages.getMessage('summary');
@@ -95,11 +83,8 @@ export default class TelemetryDrainGet extends SfCommand<ComputeTelemetryDrainGe
     };
   }
 
-  // Derives the drain's owning app label from the drain's own owner, never from a caller-passed name
-  // (PR #35). Best-effort: fetchComputeAppViaProxy throws on any proxy error, but the drain is the
-  // primary payload and is already in hand, so a failed/absent label lookup falls back to the owner
-  // id rather than failing the whole command (mirrors display.ts's non-fatal Heroku supplements).
-  // Compute is app-only; a space-owned drain is out of scope, so its label is just the owner id.
+  // Best-effort owning-app label from the drain's owner; falls back to the owner id if the lookup
+  // fails or the drain is space-owned (out of app-only scope).
   private async resolveOwnerLabel(
     connection: Connection,
     owner: undefined | {id?: string; type?: 'app' | 'space'},
@@ -113,8 +98,6 @@ export default class TelemetryDrainGet extends SfCommand<ComputeTelemetryDrainGe
       const summary = await fetchComputeAppViaProxy(connection, {name: owner.id, appId: owner.id});
       return summary?.name ?? owner.id;
     } catch (error) {
-      // Best-effort label only -- the drain (the real payload) is already in hand, so a failed owner
-      // lookup must not sink the command. Debug (not warn) keeps it diagnosable without UX noise.
       this.debug('owner label lookup failed for %s: %s', owner.id, error instanceof Error ? error.message : String(error));
       return owner.id;
     }

@@ -5,12 +5,8 @@ List the telemetry drains configured for a compute app.
 # description
 
 Shows every OpenTelemetry drain forwarding the compute app's logs, metrics,
-and traces, with each drain's ID, signals, and endpoint. Goes through the
-target org's Salesforce Connect API, which calls Heroku on your behalf. Use
+and traces, with each drain's ID, signals, and endpoint. Use
 sf compute telemetry-drain get to see the full detail of a single drain.
-
-This is a read-only, live lookup by --name (the app's DeveloperName) -- it
-doesn't read from or require a local Salesforce DX project.
 
 # flags.name.summary
 

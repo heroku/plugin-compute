@@ -4,15 +4,9 @@ Show the full detail of a single compute telemetry drain.
 
 # description
 
-Fetches one OpenTelemetry drain by its ID and shows the app it belongs to,
-the signals it forwards, and its exporter endpoint, transport, and headers.
-Goes through the target org's Salesforce Connect API, which calls Heroku on
-your behalf. The drain ID globally identifies the drain, so this command
-takes no --name: the owning app is derived from the drain itself. Use
+Shows the app a single OpenTelemetry drain belongs to, the signals it
+forwards, and its exporter endpoint, transport, and headers. Use
 sf compute telemetry-drain list to find a drain's ID.
-
-This is a read-only, live lookup -- it doesn't read from or require a local
-Salesforce DX project.
 
 # args.id.summary
 

@@ -19,25 +19,20 @@ import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 
 import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
-import {requireConfigVar} from '../../../shared/computeConfig.js';
+import {formatConfigVarLines, requireConfigVar} from '../../../shared/computeConfig.js';
 import {resolveHerokuAppId} from '../../../shared/computeQuery.js';
-import {
-  fetchComputeConfigVarsViaProxy,
-  fetchLatestReleaseVersionViaProxy,
-  updateComputeConfigVarsViaProxy,
-} from '../../../shared/herokuProxyApi.js';
+import {fetchComputeConfigVarsViaProxy} from '../../../shared/herokuProxyApi.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.config.unset');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.get.config');
 
-export type ComputeConfigUnsetResult = {
+export type ComputeConfigGetResult = {
   name: string;
-  release?: number;
-  unset: string[];
+  values: Record<string, string>;
 };
 
-export default class ConfigUnset extends SfCommand<ComputeConfigUnsetResult> {
+export default class ConfigGet extends SfCommand<ComputeConfigGetResult> {
   public static readonly args = {
     key: Args.string({
       multiple: true,
@@ -45,6 +40,7 @@ export default class ConfigUnset extends SfCommand<ComputeConfigUnsetResult> {
     }),
   };
 
+  public static readonly deprecateAliases = true;
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
@@ -56,62 +52,50 @@ export default class ConfigUnset extends SfCommand<ComputeConfigUnsetResult> {
     'target-org': Flags.requiredOrg({char: 'o'}),
   };
 
+  // Back-compat: the command was `compute config get` before the verb-noun migration (W-24542276).
+  // Kept as a hidden deprecated alias -- deprecateAliases above still prints a one-line warning
+  // steering users to the new id, and the old id stays out of --help and docs/. (It stays tracked
+  // in command-snapshot.json, but as its own `compute:config:get` entry rather than in this
+  // command's alias array -- see the hiddenAliases snapshot gotcha in AGENTS.md.)
+  public static readonly hiddenAliases = ['compute:config:get'];
+
   // Org-mediated lookup by --name -- no local project files are read.
   public static readonly requiresProject = false;
 
   public static readonly summary = messages.getMessage('summary');
 
-  public async run(): Promise<ComputeConfigUnsetResult> {
-    const {args, flags} = await this.parse(ConfigUnset);
+  public async run(): Promise<ComputeConfigGetResult> {
+    const {args, flags} = await this.parse(ConfigGet);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
     // A declarative `required: true`/minimum-count arg would enforce this earlier, during
     // this.parse() -- deliberately not used so the error can carry
-    // error.configUnsetNoKeysSpecified's exact wording instead of oclif's generic missing-arg text.
+    // error.configGetNoKeysSpecified's exact wording instead of oclif's generic missing-arg text.
     const tokens = args.key ?? [];
     if (tokens.length === 0) {
-      throw messages.createError('error.configUnsetNoKeysSpecified');
+      throw messages.createError('error.configGetNoKeysSpecified');
     }
 
     const keys = [...new Set(tokens)];
 
     const connection = flags['target-org'].getConnection();
     const appId = await resolveHerokuAppId(connection, name);
-
-    // Heroku's own PATCH is idempotent about unsetting a key that's already absent -- it
-    // wouldn't error -- but the CLI UX wants a hard error for that case, so it's checked
-    // client-side against a fresh fetch rather than relying on the PATCH to catch it.
     const configVars = await fetchComputeConfigVarsViaProxy(connection, {name, appId});
+
+    const values: Record<string, string> = {};
     for (const key of keys) {
-      requireConfigVar(configVars, name, key);
+      values[key] = requireConfigVar(configVars, name, key);
     }
 
-    const updates: Record<string, null> = {};
-    for (const key of keys) {
-      updates[key] = null;
+    if (keys.length === 1) {
+      this.log(values[keys[0]]);
+    } else {
+      for (const line of formatConfigVarLines(values)) {
+        this.log(line);
+      }
     }
 
-    this.spinner.start(`Unsetting ${keys.join(', ')} and restarting ${name}`);
-    try {
-      await updateComputeConfigVarsViaProxy(connection, {name, appId, updates});
-    } catch (error) {
-      this.spinner.stop('failed');
-      throw error;
-    }
-
-    // Heroku's own PATCH response carries no release number, so this is a second, independent
-    // call -- its failure is a best-effort miss (like display.ts's formation/release fetches),
-    // not fatal to the config-unset operation the spinner already reported as done.
-    let release: number | undefined;
-    try {
-      release = await fetchLatestReleaseVersionViaProxy(connection, {name, appId});
-    } catch {
-      // Best-effort -- the config vars were already updated successfully above.
-    }
-
-    this.spinner.stop(release === undefined ? 'done' : `done, v${release}`);
-
-    return release === undefined ? {name, unset: keys} : {name, unset: keys, release};
+    return {name, values};
   }
 }

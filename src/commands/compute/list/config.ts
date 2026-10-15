@@ -24,7 +24,7 @@ import {fetchComputeConfigVarsViaProxy} from '../../../shared/herokuProxyApi.js'
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.config.list');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.list.config');
 
 export type ComputeConfigResult = {
   configVars: Record<string, string>;
@@ -32,6 +32,7 @@ export type ComputeConfigResult = {
 };
 
 export default class ConfigList extends SfCommand<ComputeConfigResult> {
+  public static readonly deprecateAliases = true;
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
@@ -42,6 +43,13 @@ export default class ConfigList extends SfCommand<ComputeConfigResult> {
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
   };
+
+  // Back-compat: the command was `compute config list` before the verb-noun migration (W-24542276).
+  // Kept as a hidden deprecated alias -- deprecateAliases above still prints a one-line warning
+  // steering users to the new id, and the old id stays out of --help and docs/. (It stays tracked
+  // in command-snapshot.json, but as its own `compute:config:list` entry rather than in this
+  // command's alias array -- see the hiddenAliases snapshot gotcha in AGENTS.md.)
+  public static readonly hiddenAliases = ['compute:config:list'];
 
   // Org-mediated lookup by --name -- no local project files are read.
   public static readonly requiresProject = false;

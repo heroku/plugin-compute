@@ -21,7 +21,7 @@ import {PLUGIN_NAME} from './plugin-name.js';
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 
-// Shared by `config get` and `config unset` -- both validate requested keys against the same
+// Shared by `get config` and `unset config` -- both validate requested keys against the same
 // fetched map and must raise byte-identical text for a missing key, so this is the one source of
 // truth for that check rather than duplicating the message in each command's own .md file.
 export function requireConfigVar(configVars: Record<string, string>, name: string, key: string): string {
@@ -33,7 +33,7 @@ export function requireConfigVar(configVars: Record<string, string>, name: strin
 }
 
 // Right-pads each key to the widest key's width (plus Heroku's own two-space minimum gap) so
-// values line up in a column -- shared by `config` (list) and multi-key `config get` so the two
+// values line up in a column -- shared by `list config` and multi-key `get config` so the two
 // commands agree visually when run back-to-back.
 export function formatConfigVarLines(configVars: Record<string, string>): string[] {
   const keys = Object.keys(configVars);

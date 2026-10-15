@@ -6,9 +6,9 @@ List a compute app's config vars.
 
 Shows every config var (environment variable) currently set for a deployed
 compute app, sorted alphabetically. Goes through the target org's Salesforce
-Connect API, which calls Heroku on your behalf. Use sf compute config get to
-read a single var's value, sf compute config set to add or change vars, or
-sf compute config unset to remove them.
+Connect API, which calls Heroku on your behalf. Use sf compute get config to
+read a single var's value, sf compute set config to add or change vars, or
+sf compute unset config to remove them.
 
 # flags.name.summary
 

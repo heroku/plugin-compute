@@ -19,31 +19,33 @@ import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 
 import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
+import {requireConfigVar} from '../../../shared/computeConfig.js';
 import {resolveHerokuAppId} from '../../../shared/computeQuery.js';
-import {fetchLatestReleaseVersionViaProxy, updateComputeConfigVarsViaProxy} from '../../../shared/herokuProxyApi.js';
+import {
+  fetchComputeConfigVarsViaProxy,
+  fetchLatestReleaseVersionViaProxy,
+  updateComputeConfigVarsViaProxy,
+} from '../../../shared/herokuProxyApi.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.config.set');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.unset.config');
 
-// Splits on the first = only, so a value that itself contains one (e.g. a connection string's
-// query params) isn't truncated. Requires a non-empty key.
-const PAIR_PATTERN = /^([^=]+)=(.*)$/v;
-
-export type ComputeConfigSetResult = {
-  configVars: Record<string, string>;
+export type ComputeConfigUnsetResult = {
   name: string;
   release?: number;
+  unset: string[];
 };
 
-export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
+export default class ConfigUnset extends SfCommand<ComputeConfigUnsetResult> {
   public static readonly args = {
-    pair: Args.string({
+    key: Args.string({
       multiple: true,
-      summary: messages.getMessage('args.pair.summary'),
+      summary: messages.getMessage('args.key.summary'),
     }),
   };
 
+  public static readonly deprecateAliases = true;
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
@@ -55,42 +57,50 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
     'target-org': Flags.requiredOrg({char: 'o'}),
   };
 
+  // Back-compat: the command was `compute config unset` before the verb-noun migration (W-24542276).
+  // Kept as a hidden deprecated alias -- deprecateAliases above still prints a one-line warning
+  // steering users to the new id, and the old id stays out of --help and docs/. (It stays tracked
+  // in command-snapshot.json, but as its own `compute:config:unset` entry rather than in this
+  // command's alias array -- see the hiddenAliases snapshot gotcha in AGENTS.md.)
+  public static readonly hiddenAliases = ['compute:config:unset'];
+
   // Org-mediated lookup by --name -- no local project files are read.
   public static readonly requiresProject = false;
 
   public static readonly summary = messages.getMessage('summary');
 
-  public async run(): Promise<ComputeConfigSetResult> {
-    const {args, flags} = await this.parse(ConfigSet);
+  public async run(): Promise<ComputeConfigUnsetResult> {
+    const {args, flags} = await this.parse(ConfigUnset);
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
     // A declarative `required: true`/minimum-count arg would enforce this earlier, during
     // this.parse() -- deliberately not used so the error can carry
-    // error.configSetNoPairsSpecified's exact wording instead of oclif's generic missing-arg text.
-    const tokens = args.pair ?? [];
+    // error.configUnsetNoKeysSpecified's exact wording instead of oclif's generic missing-arg text.
+    const tokens = args.key ?? [];
     if (tokens.length === 0) {
-      throw messages.createError('error.configSetNoPairsSpecified');
+      throw messages.createError('error.configUnsetNoKeysSpecified');
     }
 
-    // Plain-object insertion order both dedupes a key set twice in one invocation (last value
-    // wins, at its first-occurrence position) and gives the echo below the order the user typed.
-    const updates: Record<string, string> = {};
-    for (const token of tokens) {
-      const match = PAIR_PATTERN.exec(token);
-      if (!match) {
-        throw messages.createError('error.configSetInvalidPair', [token, token]);
-      }
+    const keys = [...new Set(tokens)];
 
-      const [, key, value] = match;
-      updates[key] = value;
-    }
-
-    // No existence check first, unlike get/unset -- set is also how a brand-new config var gets
-    // created, so a nonexistent key here isn't an error, it's the normal creation path.
     const connection = flags['target-org'].getConnection();
     const appId = await resolveHerokuAppId(connection, name);
-    this.spinner.start(`Setting config vars and restarting ${name}`);
+
+    // Heroku's own PATCH is idempotent about unsetting a key that's already absent -- it
+    // wouldn't error -- but the CLI UX wants a hard error for that case, so it's checked
+    // client-side against a fresh fetch rather than relying on the PATCH to catch it.
+    const configVars = await fetchComputeConfigVarsViaProxy(connection, {name, appId});
+    for (const key of keys) {
+      requireConfigVar(configVars, name, key);
+    }
+
+    const updates: Record<string, null> = {};
+    for (const key of keys) {
+      updates[key] = null;
+    }
+
+    this.spinner.start(`Unsetting ${keys.join(', ')} and restarting ${name}`);
     try {
       await updateComputeConfigVarsViaProxy(connection, {name, appId, updates});
     } catch (error) {
@@ -100,7 +110,7 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
 
     // Heroku's own PATCH response carries no release number, so this is a second, independent
     // call -- its failure is a best-effort miss (like display.ts's formation/release fetches),
-    // not fatal to the config-set operation the spinner already reported as done.
+    // not fatal to the config-unset operation the spinner already reported as done.
     let release: number | undefined;
     try {
       release = await fetchLatestReleaseVersionViaProxy(connection, {name, appId});
@@ -110,10 +120,6 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
 
     this.spinner.stop(release === undefined ? 'done' : `done, v${release}`);
 
-    for (const [key, value] of Object.entries(updates)) {
-      this.log(`${key}=${value}`);
-    }
-
-    return release === undefined ? {name, configVars: updates} : {name, configVars: updates, release};
+    return release === undefined ? {name, unset: keys} : {name, unset: keys, release};
   }
 }

@@ -92,6 +92,51 @@ nothing to fix at this layer.
   sub-actions today. get runtime-log/tail runtime-log/get build-log/scale/config/config
   get/config set/config unset were added in a later session — re-audit
   before assuming the same guide compliance for those.
+- **`sf compute` commands follow verb-noun grammar (`<topic> <action>
+  <resource>`), and the resource is the trailing singular noun.** The
+  telemetry-drain commands (`list telemetry-drain`, `display telemetry-drain`,
+  PR #37) and the config commands (`list config`, `get config`, `set config`,
+  `unset config`, W-24542276 / PR #38) were both deliberately migrated from
+  the older noun-verb shape to this grammar. For config, the decision rule the
+  user ratified is: **the discrete unit is the config var** — `get config
+  <key>` addresses individual vars by name — so enumerating every var is
+  `list config` and fetching named vars is `get config`. There is deliberately
+  **no `display config`**: a config var's entire detail is its value (unlike a
+  telemetry drain, a multi-field record that earned `display telemetry-drain`),
+  so single-key retrieval belongs with `get`, the read-only-data family that
+  already hosts `get runtime-log` / `get build-log`. Don't reintroduce
+  `compute config <verb>` as canonical ids or add a `display config` without a
+  fresh explicit ask. The oclif command id is derived from the file path, so a
+  command's id, its `src/commands/compute/<verb>/<resource>.ts` path, its
+  `messages/compute.<verb>.<resource>.md` bundle + `loadMessages` key, and its
+  `schemas/compute-<verb>-<resource>.json` must all move in lockstep.
+- **The pre-migration config ids are kept as `hiddenAliases` (not `aliases`)
+  with `deprecateAliases = true`.** So `compute config list|get|set|unset`
+  still resolves and prints a one-line deprecation warning steering users to
+  the new id, but the old ids are hidden from `--help` and `docs/` (the
+  per-command page and its `ALIASES` block both disappear). The deprecation
+  warning still fires for a hidden alias because `@oclif/core`'s
+  `warnIfCommandDeprecated()` checks `[...aliases, ...hiddenAliases]`. Under
+  `--json` the warning routes into the JSON `warnings` array, so stdout stays
+  valid JSON. **Gotcha — `hiddenAliases` do NOT disappear from
+  `command-snapshot.json`; they change SHAPE.** The snapshot generator
+  (`@oclif/plugin-command-snapshot/lib/snapshot-command.js`) enumerates
+  `config.commands` and filters `!command.aliases.includes(command.id)`, then
+  serializes each surviving command's visible `aliases` into the `alias` field.
+  A *visible* alias is registered as a self-referential loadable (its own id is
+  in its `aliases`), so the filter drops it and the old id shows up only inside
+  the canonical command's `alias` array. A *hidden* alias is NOT in any
+  `command.aliases` (that field is visible-only), so (a) the canonical
+  command's `alias` array goes empty, and (b) the hidden alias's own loadable
+  is not self-referential, survives the filter, and lands as a **standalone
+  snapshot entry** (`compute:config:get` with `"alias": []`, etc.). Net: the
+  old ids stay snapshot-tracked either way — switching visible→hidden just
+  moves them from `alias:[...]` on the canonical command to four standalone
+  `compute:config:*` entries. `snapshot:compare`/`schema:compare` stay clean
+  after a regen; the four standalone entries are expected, not drift. (The
+  telemetry-drain migration dropped its old ids outright with no aliases, since
+  those commands were brand-new; config kept hidden aliases because its
+  commands were already established.)
 
 ## Environment quirk: `NODE_ENV=development` breaks oclif tooling
 

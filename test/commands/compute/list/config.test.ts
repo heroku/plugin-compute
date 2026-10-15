@@ -27,15 +27,15 @@ import {
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-import ConfigGet from '../../../../src/commands/compute/config/get.js';
+import ConfigList from '../../../../src/commands/compute/list/config.js';
 
 // Decode the real Heroku target URL out of the proxy_url query param -- mirrors
-// herokuProxyRequest's proxyUrl construction in herokuProxyApi.ts (see config.test.ts/scale.test.ts).
+// herokuProxyRequest's proxyUrl construction in herokuProxyApi.ts.
 function proxyTarget(url: string): string {
   return new URL(url, 'https://example.com').searchParams.get('proxy_url') ?? '';
 }
 
-// Mirrors config.test.ts's findConfigVarsCall -- Org.create()/getConnection() issues its own
+// Mirrors scale.test.ts's findFormationCall -- Org.create()/getConnection() issues its own
 // request through the same shared requestStub while resolving --target-org.
 function findConfigVarsCall(stub: Mock, method?: string): undefined | unknown[] {
   return stub.mock.calls.find(call => {
@@ -60,7 +60,7 @@ const computeAppRecord = {
   StatusReason: null,
 };
 
-describe('compute config get', () => {
+describe('compute list config', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
@@ -77,7 +77,11 @@ describe('compute config get', () => {
     toolingQueryStub.mockResolvedValue({done: true, records: [computeAppRecord], totalSize: 1});
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
-    requestStub = vi.fn().mockResolvedValue({LOG_LEVEL: 'info', STRIPE_KEY: 'sk_live_abc123'});
+    requestStub = vi.fn().mockResolvedValue({
+      DATABASE_URL: 'postgres://user:pass@host:5432/db',
+      LOG_LEVEL: 'info',
+      STRIPE_KEY: 'sk_live_abc123',
+    });
     $$.fakeConnectionRequest = requestStub;
   });
 
@@ -87,95 +91,51 @@ describe('compute config get', () => {
     vi.restoreAllMocks();
   });
 
-  it('prints the bare value for a single key, with no KEY: prefix', async () => {
-    const result = await ConfigGet.run([
-      'STRIPE_KEY',
-      '--name',
-      'CreditRatingScorer',
-      '--target-org',
-      testOrg.username,
-    ]);
-
-    expect(result).toEqual({name: 'CreditRatingScorer', values: {STRIPE_KEY: 'sk_live_abc123'}});
-    expect(sfCommandStubs.log.args.flat()).toEqual(['sk_live_abc123']);
+  it('keeps the pre-migration id as a hidden deprecated alias', () => {
+    expect(ConfigList.hiddenAliases).toEqual(['compute:config:list']);
+    // Hidden, not visible: a visible alias would resurface the old id in --help/docs/snapshot.
+    expect(ConfigList.aliases).toEqual([]);
+    expect(ConfigList.deprecateAliases).toBe(true);
   });
 
-  it('prints KEY: value pairs, aligned, for more than one key', async () => {
-    const result = await ConfigGet.run([
-      'STRIPE_KEY',
-      'LOG_LEVEL',
-      '--name',
-      'CreditRatingScorer',
-      '--target-org',
-      testOrg.username,
-    ]);
+  it('lists config vars sorted alphabetically, aligned to the widest key', async () => {
+    const result = await ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).toEqual({
+      configVars: {
+        DATABASE_URL: 'postgres://user:pass@host:5432/db',
+        LOG_LEVEL: 'info',
+        STRIPE_KEY: 'sk_live_abc123',
+      },
       name: 'CreditRatingScorer',
-      values: {LOG_LEVEL: 'info', STRIPE_KEY: 'sk_live_abc123'},
     });
-    expect(sfCommandStubs.log.args.flat()).toEqual(['STRIPE_KEY:  sk_live_abc123', 'LOG_LEVEL:   info']);
-  });
-
-  it('prints one line for a key requested twice, deduping the JSON values too', async () => {
-    const result = await ConfigGet.run([
-      'STRIPE_KEY',
-      'STRIPE_KEY',
-      '--name',
-      'CreditRatingScorer',
-      '--target-org',
-      testOrg.username,
+    expect(sfCommandStubs.styledHeader.firstCall.args[0]).toBe('CreditRatingScorer Config Vars');
+    expect(sfCommandStubs.log.args.flat()).toEqual([
+      'DATABASE_URL:  postgres://user:pass@host:5432/db',
+      'LOG_LEVEL:     info',
+      'STRIPE_KEY:    sk_live_abc123',
     ]);
-
-    expect(result).toEqual({name: 'CreditRatingScorer', values: {STRIPE_KEY: 'sk_live_abc123'}});
-    expect(sfCommandStubs.log.args.flat()).toEqual(['sk_live_abc123']);
-  });
-
-  it('errors on the first missing key, in the order the keys were requested', async () => {
-    let error: Error | undefined;
-    try {
-      await ConfigGet.run(['ZEBRA', 'ALPHA', '--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-    } catch (error_) {
-      error = error_ as Error;
-    }
-
-    expect(error).toBeDefined();
-    expect(error?.message).toBe('CreditRatingScorer has no config var named "ZEBRA".');
-  });
-
-  it('surfaces error.herokuAppNotFound when Heroku 404s the app', async () => {
-    requestStub.mockRejectedValue(Object.assign(new Error("Couldn't find that app."), {data: {id: 'not_found'}}));
-
-    await expect(ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('CreditRatingScorer');
-  });
-
-  it('wraps a proxy-rejection failure as error.herokuProxyRequestFailed', async () => {
-    requestStub.mockRejectedValue(Object.assign(new Error('bad proxy_url'), {errorCode: 'HEROKU_PROXY_ERROR'}));
-
-    await expect(ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
-      'The Salesforce Heroku API proxy rejected the request: bad proxy_url',
+    const call = findConfigVarsCall(requestStub, 'GET');
+    expect(call, 'expected a GET proxied to Heroku config-vars').toBeDefined();
+    expect(proxyTarget((call![0] as {url: string}).url)).toBe(
+      'https://api.heroku.com/apps/a1b2c3d4-heroku-app-id/config-vars',
     );
   });
 
-  it('wraps an unrecognized proxy failure as error.herokuApiRequestFailed', async () => {
-    requestStub.mockRejectedValue(new Error('socket hang up'));
+  it('prints only the header when there are no config vars', async () => {
+    requestStub.mockResolvedValue({});
 
-    await expect(ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
-      "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
-    );
+    const result = await ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result).toEqual({configVars: {}, name: 'CreditRatingScorer'});
+    expect(sfCommandStubs.log.called).toBe(false);
   });
 
-  it('rejects when no keys are given, without calling the Heroku proxy', async () => {
-    await expect(ConfigGet.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('Specify at least one config var to get');
-
-    expect(findConfigVarsCall(requestStub)).toBeUndefined();
-  });
-
-  // Now that get.ts always pre-flights a SOQL lookup by DeveloperName before proxying to Heroku,
-  // --name must be a valid DeveloperName -- a hyphenated Heroku-style value is rejected by
-  // validateName rather than passed through, unlike before resolveHerokuAppId existed.
+  // Now that list/config.ts always pre-flights a SOQL lookup by DeveloperName before proxying to
+  // Heroku, --name must be a valid DeveloperName -- a hyphenated Heroku-style value is rejected
+  // by validateName rather than passed through, unlike before resolveHerokuAppId existed.
   it('rejects a hyphenated --name before querying or calling the Heroku proxy', async () => {
-    await expect(ConfigGet.run(['STRIPE_KEY', '--name', 'my-heroku-style-app', '--target-org', testOrg.username])).rejects.toThrow("isn't valid");
+    await expect(ConfigList.run(['--name', 'my-heroku-style-app', '--target-org', testOrg.username])).rejects.toThrow("isn't valid");
 
     expect(toolingQueryStub).not.toHaveBeenCalled();
     expect(findConfigVarsCall(requestStub)).toBeUndefined();
@@ -188,25 +148,51 @@ describe('compute config get', () => {
       totalSize: 1,
     });
 
-    await expect(ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("doesn't have a Heroku app identifier yet");
+    await expect(ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow("doesn't have a Heroku app identifier yet");
 
     expect(findConfigVarsCall(requestStub)).toBeUndefined();
   });
 
+  it('surfaces error.herokuAppNotFound when Heroku 404s the app', async () => {
+    requestStub.mockRejectedValue(Object.assign(new Error("Couldn't find that app."), {data: {id: 'not_found'}}));
+
+    await expect(ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('CreditRatingScorer');
+  });
+
+  it('wraps a proxy-rejection failure as error.herokuProxyRequestFailed', async () => {
+    requestStub.mockRejectedValue(Object.assign(new Error('bad proxy_url'), {errorCode: 'HEROKU_PROXY_ERROR'}));
+
+    await expect(ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
+      'The Salesforce Heroku API proxy rejected the request: bad proxy_url',
+    );
+  });
+
+  it('wraps an unrecognized proxy failure as error.herokuApiRequestFailed', async () => {
+    requestStub.mockRejectedValue(new Error('socket hang up'));
+
+    await expect(ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
+      "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
+    );
+  });
+
   it('returns the flattened result under --json, not the full status envelope', async () => {
-    await ConfigGet.run(['STRIPE_KEY', '--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
+    await ConfigList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--json']);
 
     const jsonOutput = sfCommandStubs.logJson.firstCall.args[0] as {result: unknown};
     expect(jsonOutput.result).toEqual({
+      configVars: {
+        DATABASE_URL: 'postgres://user:pass@host:5432/db',
+        LOG_LEVEL: 'info',
+        STRIPE_KEY: 'sk_live_abc123',
+      },
       name: 'CreditRatingScorer',
-      values: {STRIPE_KEY: 'sk_live_abc123'},
     });
   });
 
   it('resolves --name from COMPUTE_APP_NAME when --name is not passed', async () => {
     process.env.COMPUTE_APP_NAME = 'CreditRatingScorer';
     try {
-      const result = await ConfigGet.run(['STRIPE_KEY', '--target-org', testOrg.username]);
+      const result = await ConfigList.run(['--target-org', testOrg.username]);
       expect(result.name).toBe('CreditRatingScorer');
       const call = findConfigVarsCall(requestStub, 'GET');
       expect(proxyTarget((call![0] as {url: string}).url)).toBe(
@@ -219,13 +205,13 @@ describe('compute config get', () => {
 
   it("resolves --name from the current directory's <name>.compute-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
     const originalCwd = process.cwd();
-    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-config-get-'));
+    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-config-'));
     const appDir = join(tmp, 'CreditRatingScorer');
     await mkdir(appDir);
     await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
     process.chdir(appDir);
     try {
-      const result = await ConfigGet.run(['STRIPE_KEY', '--target-org', testOrg.username]);
+      const result = await ConfigList.run(['--target-org', testOrg.username]);
       expect(result.name).toBe('CreditRatingScorer');
     } finally {
       process.chdir(originalCwd);
@@ -235,11 +221,11 @@ describe('compute config get', () => {
 
   it('throws error.cannotResolveAppName when --name, COMPUTE_APP_NAME, and directory detection all fail', async () => {
     const originalCwd = process.cwd();
-    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-config-get-empty-'));
+    const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-config-empty-'));
     process.chdir(tmp);
     let error: Error | undefined;
     try {
-      await ConfigGet.run(['STRIPE_KEY', '--target-org', testOrg.username]);
+      await ConfigList.run(['--target-org', testOrg.username]);
     } catch (error_) {
       error = error_ as Error;
     } finally {

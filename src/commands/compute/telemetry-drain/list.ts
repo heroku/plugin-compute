@@ -72,7 +72,7 @@ export default class TelemetryDrainList extends SfCommand<ComputeTelemetryDrainL
     const appId = await resolveHerokuAppId(connection, name);
     const fetched = await listTelemetryDrainsViaProxy(connection, {name, appId});
 
-    // Heroku returns drains in its own order; preserve it rather than imposing a client-side sort.
+    // The API returns drains in its own order; preserve it rather than imposing a client-side sort.
     const drains = fetched.map(drain => ({
       id: drain.id,
       signals: drain.signals ?? [],

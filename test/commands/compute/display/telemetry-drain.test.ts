@@ -162,7 +162,7 @@ describe('compute display telemetry-drain', () => {
     expect(result.ownerId).toBe(OWNER_APP_ID);
     expect(result.ownerType).toBe('app');
     expect(ownerCall(requestStub)).toBeDefined();
-    // #7: the swallowed lookup error is debug-logged, never warned -- a failed label is non-fatal.
+    // The swallowed lookup error is debug-logged, never warned -- a failed label is non-fatal.
     expect(sfCommandStubs.warn.called).toBe(false);
     const [{data}] = sfCommandStubs.table.firstCall.args as [{data: Array<{key: string; value: string}>}];
     expect(data.find(r => r.key === 'App')?.value).toBe(OWNER_APP_ID);

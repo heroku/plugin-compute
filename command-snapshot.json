@@ -1,6 +1,70 @@
 [
     {
         "alias": [],
+        "command": "compute:config:get",
+        "flagAliases": [],
+        "flagChars": [
+            "n",
+            "o"
+        ],
+        "flags": [
+            "flags-dir",
+            "json",
+            "name",
+            "target-org"
+        ],
+        "plugin": "@heroku/plugin-compute"
+    },
+    {
+        "alias": [],
+        "command": "compute:config:list",
+        "flagAliases": [],
+        "flagChars": [
+            "n",
+            "o"
+        ],
+        "flags": [
+            "flags-dir",
+            "json",
+            "name",
+            "target-org"
+        ],
+        "plugin": "@heroku/plugin-compute"
+    },
+    {
+        "alias": [],
+        "command": "compute:config:set",
+        "flagAliases": [],
+        "flagChars": [
+            "n",
+            "o"
+        ],
+        "flags": [
+            "flags-dir",
+            "json",
+            "name",
+            "target-org"
+        ],
+        "plugin": "@heroku/plugin-compute"
+    },
+    {
+        "alias": [],
+        "command": "compute:config:unset",
+        "flagAliases": [],
+        "flagChars": [
+            "n",
+            "o"
+        ],
+        "flags": [
+            "flags-dir",
+            "json",
+            "name",
+            "target-org"
+        ],
+        "plugin": "@heroku/plugin-compute"
+    },
+    {
+        "alias": [],
         "command": "compute:deploy",
         "flagAliases": [],
         "flagChars": [
@@ -68,9 +132,7 @@
         "plugin": "@heroku/plugin-compute"
     },
     {
-        "alias": [
-            "compute:config:get"
-        ],
+        "alias": [],
         "command": "compute:get:config",
         "flagAliases": [],
         "flagChars": [
@@ -117,9 +179,7 @@
         "plugin": "@heroku/plugin-compute"
     },
     {
-        "alias": [
-            "compute:config:list"
-        ],
+        "alias": [],
         "command": "compute:list:config",
         "flagAliases": [],
         "flagChars": [
@@ -154,9 +214,7 @@
         "plugin": "@heroku/plugin-compute"
     },
     {
-        "alias": [
-            "compute:config:set"
-        ],
+        "alias": [],
         "command": "compute:set:config",
         "flagAliases": [],
         "flagChars": [
@@ -206,9 +264,7 @@
         "plugin": "@heroku/plugin-compute"
     },
     {
-        "alias": [
-            "compute:config:unset"
-        ],
+        "alias": [],
         "command": "compute:unset:config",
         "flagAliases": [],
         "flagChars": [

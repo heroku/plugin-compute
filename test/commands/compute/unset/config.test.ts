@@ -117,8 +117,10 @@ describe('compute unset config', () => {
     vi.restoreAllMocks();
   });
 
-  it('keeps the pre-migration id as a deprecated alias', () => {
-    expect(ConfigUnset.aliases).toEqual(['compute:config:unset']);
+  it('keeps the pre-migration id as a hidden deprecated alias', () => {
+    expect(ConfigUnset.hiddenAliases).toEqual(['compute:config:unset']);
+    // Hidden, not visible: a visible alias would resurface the old id in --help/docs/snapshot.
+    expect(ConfigUnset.aliases).toEqual([]);
     expect(ConfigUnset.deprecateAliases).toBe(true);
   });
 

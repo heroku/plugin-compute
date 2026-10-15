@@ -87,8 +87,10 @@ describe('compute get config', () => {
     vi.restoreAllMocks();
   });
 
-  it('keeps the pre-migration id as a deprecated alias', () => {
-    expect(ConfigGet.aliases).toEqual(['compute:config:get']);
+  it('keeps the pre-migration id as a hidden deprecated alias', () => {
+    expect(ConfigGet.hiddenAliases).toEqual(['compute:config:get']);
+    // Hidden, not visible: a visible alias would resurface the old id in --help/docs/snapshot.
+    expect(ConfigGet.aliases).toEqual([]);
     expect(ConfigGet.deprecateAliases).toBe(true);
   });
 

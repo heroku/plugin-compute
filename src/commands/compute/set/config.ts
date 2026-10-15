@@ -37,9 +37,6 @@ export type ComputeConfigSetResult = {
 };
 
 export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
-  // Back-compat: the command was `compute config set` before the verb-noun migration (W-24542276).
-  // deprecateAliases prints a one-line deprecation warning steering users to the new id.
-  public static readonly aliases = ['compute:config:set'];
   public static readonly args = {
     pair: Args.string({
       multiple: true,
@@ -58,6 +55,13 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
   };
+
+  // Back-compat: the command was `compute config set` before the verb-noun migration (W-24542276).
+  // Kept as a hidden deprecated alias -- deprecateAliases above still prints a one-line warning
+  // steering users to the new id, and the old id stays out of --help and docs/. (It stays tracked
+  // in command-snapshot.json, but as its own `compute:config:set` entry rather than in this
+  // command's alias array -- see the hiddenAliases snapshot gotcha in AGENTS.md.)
+  public static readonly hiddenAliases = ['compute:config:set'];
 
   // Org-mediated lookup by --name -- no local project files are read.
   public static readonly requiresProject = false;

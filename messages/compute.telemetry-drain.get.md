@@ -4,9 +4,9 @@ Show the full detail of a single compute telemetry drain.
 
 # description
 
-Shows the app a single OpenTelemetry drain belongs to, the signals it
-forwards, and its exporter endpoint, transport, and headers. Use
-sf compute telemetry-drain list to find a drain's ID.
+Shows a single OpenTelemetry drain in full: the compute app it belongs to,
+the signals it forwards, and its exporter endpoint, transport, and headers.
+Use sf compute telemetry-drain list to find a drain's ID.
 
 # args.id.summary
 

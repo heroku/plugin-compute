@@ -116,9 +116,42 @@ describe('compute telemetry-drain list', () => {
     expect(data[1]).toMatchObject({signals: '-', endpoint: '-'});
   });
 
-  it('preserves the API order of the drains in the result', async () => {
+  it('sorts drains alphabetically by endpoint in both the result and the table, regardless of API order', async () => {
+    requestStub.mockResolvedValue([
+      {id: 'z', signals: ['logs'], exporter: {endpoint: 'https://zeta.example.com'}},
+      {id: 'a', signals: ['logs'], exporter: {endpoint: 'https://alpha.example.com'}},
+      {id: 'm', signals: ['logs'], exporter: {endpoint: 'https://mu.example.com'}},
+    ]);
+
     const result = await TelemetryDrainList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-    expect(result.drains.map(d => d.id)).toEqual(['drain-1', 'drain-2']);
+
+    expect(result.drains.map(d => d.id)).toEqual(['a', 'm', 'z']);
+    const [{data}] = sfCommandStubs.table.firstCall.args as [{data: Array<{id: string}>}];
+    expect(data.map(r => r.id)).toEqual(['a', 'm', 'z']);
+  });
+
+  it('sorts drains with no endpoint last, tiebreaking by id', async () => {
+    requestStub.mockResolvedValue([
+      {id: 'no-endpoint-b', signals: ['logs'], exporter: {}},
+      {id: 'has-endpoint', signals: ['logs'], exporter: {endpoint: 'https://alpha.example.com'}},
+      {id: 'no-endpoint-a', signals: ['logs'], exporter: {}},
+    ]);
+
+    const result = await TelemetryDrainList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    // Endpoint-less drains collect at the bottom (matching the dash convention), ordered by id.
+    expect(result.drains.map(d => d.id)).toEqual(['has-endpoint', 'no-endpoint-a', 'no-endpoint-b']);
+  });
+
+  it('tiebreaks drains that share an endpoint by id, deterministically', async () => {
+    requestStub.mockResolvedValue([
+      {id: 'drain-b', signals: ['logs'], exporter: {endpoint: 'https://shared.example.com'}},
+      {id: 'drain-a', signals: ['logs'], exporter: {endpoint: 'https://shared.example.com'}},
+    ]);
+
+    const result = await TelemetryDrainList.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result.drains.map(d => d.id)).toEqual(['drain-a', 'drain-b']);
   });
 
   it('omits id from the result but renders a dash in the table when Heroku returns a drain without one', async () => {

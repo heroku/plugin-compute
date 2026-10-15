@@ -38,6 +38,24 @@ export type ComputeTelemetryDrainListResult = {
 
 type Row = {endpoint: string; id: string; signals: string};
 
+// Alphabetical compare where undefined sorts last, so absent values collect at the bottom of the
+// table (a `-` means "nothing here" and belongs below the real values).
+function compareOptional(a: string | undefined, b: string | undefined): number {
+  if (a === b) return 0;
+  if (a === undefined) return 1;
+  if (b === undefined) return -1;
+  return a.localeCompare(b);
+}
+
+// Orders drains alphabetically by endpoint, tiebreaking by id so the result is a pure function of
+// the data rather than the API's unspecified order. endpoint-less and id-less drains sort last.
+function byEndpointThenId(
+  a: ComputeTelemetryDrainListResult['drains'][number],
+  b: ComputeTelemetryDrainListResult['drains'][number],
+): number {
+  return compareOptional(a.endpoint, b.endpoint) || compareOptional(a.id, b.id);
+}
+
 function toRow(drain: ComputeTelemetryDrainListResult['drains'][number]): Row {
   return {
     id: drain.id ?? DASH,
@@ -72,12 +90,14 @@ export default class TelemetryDrainList extends SfCommand<ComputeTelemetryDrainL
     const appId = await resolveHerokuAppId(connection, name);
     const fetched = await listTelemetryDrainsViaProxy(connection, {name, appId});
 
-    // The API returns drains in its own order; preserve it rather than imposing a client-side sort.
-    const drains = fetched.map(drain => ({
-      id: drain.id,
-      signals: drain.signals ?? [],
-      endpoint: drain.exporter?.endpoint,
-    }));
+    // The API order is unspecified, so sort client-side by endpoint for a stable, scannable table.
+    const drains = fetched
+      .map(drain => ({
+        id: drain.id,
+        signals: drain.signals ?? [],
+        endpoint: drain.exporter?.endpoint,
+      }))
+      .toSorted(byEndpointThenId);
 
     if (drains.length === 0) {
       this.info(messages.getMessage('info.noDrainsFound', [name]));

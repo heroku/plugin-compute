@@ -24,7 +24,7 @@ import {fetchLatestReleaseVersionViaProxy, updateComputeConfigVarsViaProxy} from
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.config.set');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.set.config');
 
 // Splits on the first = only, so a value that itself contains one (e.g. a connection string's
 // query params) isn't truncated. Requires a non-empty key.
@@ -37,6 +37,9 @@ export type ComputeConfigSetResult = {
 };
 
 export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
+  // Back-compat: the command was `compute config set` before the verb-noun migration (W-24542276).
+  // deprecateAliases prints a one-line deprecation warning steering users to the new id.
+  public static readonly aliases = ['compute:config:set'];
   public static readonly args = {
     pair: Args.string({
       multiple: true,
@@ -44,6 +47,7 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
     }),
   };
 
+  public static readonly deprecateAliases = true;
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {

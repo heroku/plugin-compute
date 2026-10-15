@@ -27,7 +27,7 @@ import {
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-import ConfigList from '../../../../src/commands/compute/config/list.js';
+import ConfigList from '../../../../src/commands/compute/list/config.js';
 
 // Decode the real Heroku target URL out of the proxy_url query param -- mirrors
 // herokuProxyRequest's proxyUrl construction in herokuProxyApi.ts.
@@ -60,7 +60,7 @@ const computeAppRecord = {
   StatusReason: null,
 };
 
-describe('compute config list', () => {
+describe('compute list config', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
@@ -89,6 +89,11 @@ describe('compute config list', () => {
     process.exitCode = 0;
     $$.restore();
     vi.restoreAllMocks();
+  });
+
+  it('keeps the pre-migration id as a deprecated alias', () => {
+    expect(ConfigList.aliases).toEqual(['compute:config:list']);
+    expect(ConfigList.deprecateAliases).toBe(true);
   });
 
   it('lists config vars sorted alphabetically, aligned to the widest key', async () => {
@@ -124,7 +129,7 @@ describe('compute config list', () => {
     expect(sfCommandStubs.log.called).toBe(false);
   });
 
-  // Now that config/list.ts always pre-flights a SOQL lookup by DeveloperName before proxying to
+  // Now that list/config.ts always pre-flights a SOQL lookup by DeveloperName before proxying to
   // Heroku, --name must be a valid DeveloperName -- a hyphenated Heroku-style value is rejected
   // by validateName rather than passed through, unlike before resolveHerokuAppId existed.
   it('rejects a hyphenated --name before querying or calling the Heroku proxy', async () => {

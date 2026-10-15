@@ -27,7 +27,7 @@ import {
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-import ConfigGet from '../../../../src/commands/compute/config/get.js';
+import ConfigGet from '../../../../src/commands/compute/get/config.js';
 
 // Decode the real Heroku target URL out of the proxy_url query param -- mirrors
 // herokuProxyRequest's proxyUrl construction in herokuProxyApi.ts (see config.test.ts/scale.test.ts).
@@ -60,7 +60,7 @@ const computeAppRecord = {
   StatusReason: null,
 };
 
-describe('compute config get', () => {
+describe('compute get config', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
@@ -85,6 +85,11 @@ describe('compute config get', () => {
     process.exitCode = 0;
     $$.restore();
     vi.restoreAllMocks();
+  });
+
+  it('keeps the pre-migration id as a deprecated alias', () => {
+    expect(ConfigGet.aliases).toEqual(['compute:config:get']);
+    expect(ConfigGet.deprecateAliases).toBe(true);
   });
 
   it('prints the bare value for a single key, with no KEY: prefix', async () => {
@@ -171,7 +176,7 @@ describe('compute config get', () => {
     expect(findConfigVarsCall(requestStub)).toBeUndefined();
   });
 
-  // Now that get.ts always pre-flights a SOQL lookup by DeveloperName before proxying to Heroku,
+  // Now that get/config.ts always pre-flights a SOQL lookup by DeveloperName before proxying to Heroku,
   // --name must be a valid DeveloperName -- a hyphenated Heroku-style value is rejected by
   // validateName rather than passed through, unlike before resolveHerokuAppId existed.
   it('rejects a hyphenated --name before querying or calling the Heroku proxy', async () => {

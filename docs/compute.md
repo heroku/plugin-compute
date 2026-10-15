@@ -11,11 +11,15 @@ Manage Salesforce Compute apps.
 * [`sf compute display`](#sf-compute-display)
 * [`sf compute generate`](#sf-compute-generate)
 * [`sf compute get build-log`](#sf-compute-get-build-log)
+* [`sf compute get config [KEY]`](#sf-compute-get-config-key)
 * [`sf compute get runtime-log`](#sf-compute-get-runtime-log)
 * [`sf compute list`](#sf-compute-list)
+* [`sf compute list config`](#sf-compute-list-config)
 * [`sf compute scale`](#sf-compute-scale)
+* [`sf compute set config [PAIR]`](#sf-compute-set-config-pair)
 * [`sf compute source retrieve`](#sf-compute-source-retrieve)
 * [`sf compute tail runtime-log`](#sf-compute-tail-runtime-log)
+* [`sf compute unset config [KEY]`](#sf-compute-unset-config-key)
 
 ## `sf compute config get [KEY]`
 
@@ -44,6 +48,9 @@ DESCRIPTION
   your behalf. Pass a single key to print its bare value, or more than one to
   print each as key: value. Fails if any requested key isn't currently set.
 
+ALIASES
+  $ sf compute config get
+
 EXAMPLES
   Print a single config var's value:
 
@@ -53,8 +60,6 @@ EXAMPLES
 
     $ sf compute config get STRIPE_KEY LOG_LEVEL --name CreditRatingScorer --target-org my-org
 ```
-
-_See code: [src/commands/compute/config/get.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/config/get.ts)_
 
 ## `sf compute config list`
 
@@ -81,17 +86,18 @@ DESCRIPTION
 
   Shows every config var (environment variable) currently set for a deployed
   compute app, sorted alphabetically. Goes through the target org's Salesforce
-  Connect API, which calls Heroku on your behalf. Use sf compute config get to
-  read a single var's value, sf compute config set to add or change vars, or
-  sf compute config unset to remove them.
+  Connect API, which calls Heroku on your behalf. Use sf compute get config to
+  read a single var's value, sf compute set config to add or change vars, or
+  sf compute unset config to remove them.
+
+ALIASES
+  $ sf compute config list
 
 EXAMPLES
   List all config vars for a compute app:
 
     $ sf compute config list --name CreditRatingScorer --target-org my-org
 ```
-
-_See code: [src/commands/compute/config/list.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/config/list.ts)_
 
 ## `sf compute config set [PAIR]`
 
@@ -121,6 +127,9 @@ DESCRIPTION
   takes effect. Pass one or more KEY=VALUE pairs; a key that doesn't already
   exist is created.
 
+ALIASES
+  $ sf compute config set
+
 EXAMPLES
   Set a single config var:
 
@@ -130,8 +139,6 @@ EXAMPLES
 
     $ sf compute config set STRIPE_KEY=sk_live_xyz789 LOG_LEVEL=debug --name CreditRatingScorer --target-org my-org
 ```
-
-_See code: [src/commands/compute/config/set.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/config/set.ts)_
 
 ## `sf compute config unset [KEY]`
 
@@ -160,6 +167,9 @@ DESCRIPTION
   your behalf. Unsetting a config var restarts the app's dynos so the removal
   takes effect. Fails if any requested key isn't currently set.
 
+ALIASES
+  $ sf compute config unset
+
 EXAMPLES
   Unset a single config var:
 
@@ -169,8 +179,6 @@ EXAMPLES
 
     $ sf compute config unset LOG_LEVEL DEBUG_MODE --name CreditRatingScorer --target-org my-org
 ```
-
-_See code: [src/commands/compute/config/unset.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/config/unset.ts)_
 
 ## `sf compute deploy`
 
@@ -358,6 +366,48 @@ EXAMPLES
 
 _See code: [src/commands/compute/get/build-log.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/get/build-log.ts)_
 
+## `sf compute get config [KEY]`
+
+Print one or more of a compute app's config var values.
+
+```
+USAGE
+  $ sf compute get config [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to read config from (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Print one or more of a compute app's config var values.
+
+  Goes through the target org's Salesforce Connect API, which calls Heroku on
+  your behalf. Pass a single key to print its bare value, or more than one to
+  print each as key: value. Fails if any requested key isn't currently set.
+
+ALIASES
+  $ sf compute config get
+
+EXAMPLES
+  Print a single config var's value:
+
+    $ sf compute get config STRIPE_KEY --name CreditRatingScorer --target-org my-org
+
+  Print more than one config var:
+
+    $ sf compute get config STRIPE_KEY LOG_LEVEL --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/get/config.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/get/config.ts)_
+
 ## `sf compute get runtime-log`
 
 Print the recent runtime log for a compute app.
@@ -441,6 +491,46 @@ EXAMPLES
 
 _See code: [src/commands/compute/list.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/list.ts)_
 
+## `sf compute list config`
+
+List a compute app's config vars.
+
+```
+USAGE
+  $ sf compute list config -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to list config vars for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  List a compute app's config vars.
+
+  Shows every config var (environment variable) currently set for a deployed
+  compute app, sorted alphabetically. Goes through the target org's Salesforce
+  Connect API, which calls Heroku on your behalf. Use sf compute get config to
+  read a single var's value, sf compute set config to add or change vars, or
+  sf compute unset config to remove them.
+
+ALIASES
+  $ sf compute config list
+
+EXAMPLES
+  List all config vars for a compute app:
+
+    $ sf compute list config --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/list/config.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/list/config.ts)_
+
 ## `sf compute scale`
 
 Resize or rescale a compute app's dyno formation.
@@ -494,6 +584,49 @@ EXAMPLES
 ```
 
 _See code: [src/commands/compute/scale.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/scale.ts)_
+
+## `sf compute set config [PAIR]`
+
+Set one or more of a compute app's config vars.
+
+```
+USAGE
+  $ sf compute set config [PAIR...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to change config for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Set one or more of a compute app's config vars.
+
+  Goes through the target org's Salesforce Connect API, which calls Heroku on
+  your behalf. Setting a config var restarts the app's dynos so the new value
+  takes effect. Pass one or more KEY=VALUE pairs; a key that doesn't already
+  exist is created.
+
+ALIASES
+  $ sf compute config set
+
+EXAMPLES
+  Set a single config var:
+
+    $ sf compute set config STRIPE_KEY=sk_live_xyz789 --name CreditRatingScorer --target-org my-org
+
+  Set more than one config var in one command:
+
+    $ sf compute set config STRIPE_KEY=sk_live_xyz789 LOG_LEVEL=debug --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/set/config.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/set/config.ts)_
 
 ## `sf compute source retrieve`
 
@@ -583,3 +716,45 @@ EXAMPLES
 ```
 
 _See code: [src/commands/compute/tail/runtime-log.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/tail/runtime-log.ts)_
+
+## `sf compute unset config [KEY]`
+
+Unset one or more of a compute app's config vars.
+
+```
+USAGE
+  $ sf compute unset config [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to change config for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Unset one or more of a compute app's config vars.
+
+  Goes through the target org's Salesforce Connect API, which calls Heroku on
+  your behalf. Unsetting a config var restarts the app's dynos so the removal
+  takes effect. Fails if any requested key isn't currently set.
+
+ALIASES
+  $ sf compute config unset
+
+EXAMPLES
+  Unset a single config var:
+
+    $ sf compute unset config LOG_LEVEL --name CreditRatingScorer --target-org my-org
+
+  Unset more than one config var in one command:
+
+    $ sf compute unset config LOG_LEVEL DEBUG_MODE --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/unset/config.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/unset/config.ts)_

@@ -24,7 +24,7 @@ import {fetchComputeConfigVarsViaProxy} from '../../../shared/herokuProxyApi.js'
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.config.list');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.list.config');
 
 export type ComputeConfigResult = {
   configVars: Record<string, string>;
@@ -32,6 +32,10 @@ export type ComputeConfigResult = {
 };
 
 export default class ConfigList extends SfCommand<ComputeConfigResult> {
+  // Back-compat: the command was `compute config list` before the verb-noun migration (W-24542276).
+  // deprecateAliases prints a one-line deprecation warning steering users to the new id.
+  public static readonly aliases = ['compute:config:list'];
+  public static readonly deprecateAliases = true;
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {

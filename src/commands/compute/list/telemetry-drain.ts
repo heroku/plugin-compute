@@ -23,7 +23,7 @@ import {listTelemetryDrainsViaProxy} from '../../../shared/herokuProxyApi.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.telemetry-drain.list');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.list.telemetry-drain');
 
 // Dash placeholder for an empty table cell -- matches the other compute tables (see display.ts).
 const DASH = '-';

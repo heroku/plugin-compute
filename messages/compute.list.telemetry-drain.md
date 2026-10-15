@@ -6,7 +6,7 @@ List the telemetry drains configured for a compute app.
 
 Shows every OpenTelemetry drain forwarding the compute app's logs, metrics,
 and traces, with each drain's ID, signals, and endpoint. Use
-sf compute telemetry-drain get to see the full detail of a single drain.
+sf compute display telemetry-drain to see the full detail of a single drain.
 
 # flags.name.summary
 

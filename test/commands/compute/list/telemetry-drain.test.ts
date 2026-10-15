@@ -27,7 +27,7 @@ import {
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-import TelemetryDrainList from '../../../../src/commands/compute/telemetry-drain/list.js';
+import TelemetryDrainList from '../../../../src/commands/compute/list/telemetry-drain.js';
 
 // Decode the real Heroku target URL out of the proxy_url query param -- mirrors herokuProxyRequest's
 // proxyUrl construction (see config/get.test.ts).
@@ -61,7 +61,7 @@ const drainsFixture = [
   {id: 'drain-2', signals: [], exporter: {}},
 ];
 
-describe('compute telemetry-drain list', () => {
+describe('compute list telemetry-drain', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;

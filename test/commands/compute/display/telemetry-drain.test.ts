@@ -19,7 +19,7 @@ import {stubSfCommandUx} from '@salesforce/sf-plugins-core';
  * limitations under the License.
  */
 
-import TelemetryDrainGet from '../../../../src/commands/compute/telemetry-drain/get.js';
+import TelemetryDrainDisplay from '../../../../src/commands/compute/display/telemetry-drain.js';
 
 // Decode the real Heroku target URL out of the proxy_url query param -- mirrors herokuProxyRequest's
 // proxyUrl construction (see config/get.test.ts).
@@ -73,7 +73,7 @@ const fullDrain: Drain = {
   exporter: {type: 'otlp', endpoint: 'https://collector.example.com:4317', headers: {'x-api-key': 'secret'}},
 };
 
-describe('compute telemetry-drain get', () => {
+describe('compute display telemetry-drain', () => {
   const $$ = new TestContext();
   const testOrg = new MockTestOrgData();
   let sfCommandStubs: ReturnType<typeof stubSfCommandUx>;
@@ -86,7 +86,7 @@ describe('compute telemetry-drain get', () => {
 
     const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
-    // get is purely drain-id driven -- it must never resolve an app through the org (no --name).
+    // display is purely drain-id driven -- it must never resolve an app through the org (no --name).
     toolingQueryStub = vi.spyOn(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
@@ -103,7 +103,7 @@ describe('compute telemetry-drain get', () => {
   it('renders every detail row (App/Signals/Endpoint/Transport/Headers) for the fetched drain', async () => {
     stubProxy(requestStub, {drain: fullDrain, app: {name: OWNER_APP_NAME, region: {name: 'us'}}});
 
-    await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
+    await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
 
     expect(sfCommandStubs.styledHeader.calledWith('Telemetry Drain')).toBe(true);
     const [{columns, data}] = sfCommandStubs.table.firstCall.args as [
@@ -124,7 +124,7 @@ describe('compute telemetry-drain get', () => {
   it('GETs the single-drain path, url-encoding the drain id', async () => {
     stubProxy(requestStub, {drain: fullDrain, app: {name: OWNER_APP_NAME}});
 
-    await TelemetryDrainGet.run(['a/b c', '--target-org', testOrg.username]);
+    await TelemetryDrainDisplay.run(['a/b c', '--target-org', testOrg.username]);
 
     const call = requestStub.mock.calls.find(c => {
       const req = c[0] as {url?: string};
@@ -137,7 +137,7 @@ describe('compute telemetry-drain get', () => {
   it('labels App with the name resolved from the drain owner (not the positional id) via GET /apps/{owner.id}', async () => {
     stubProxy(requestStub, {drain: fullDrain, app: {name: OWNER_APP_NAME}});
 
-    const result = await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
+    const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
 
     expect(ownerCall(requestStub)).toBeDefined();
     expect(result.app).toBe(OWNER_APP_NAME);
@@ -156,7 +156,7 @@ describe('compute telemetry-drain get', () => {
       },
     });
 
-    const result = await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
+    const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
 
     expect(result.app).toBe(OWNER_APP_ID);
     expect(result.ownerId).toBe(OWNER_APP_ID);
@@ -173,7 +173,7 @@ describe('compute telemetry-drain get', () => {
     const spaceDrain: Drain = {...fullDrain, owner: {id: 'space-uuid', type: 'space'}};
     stubProxy(requestStub, {drain: spaceDrain});
 
-    const result = await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
+    const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
 
     expect(result.app).toBe('space-uuid');
     expect(result.ownerId).toBe('space-uuid');
@@ -187,7 +187,7 @@ describe('compute telemetry-drain get', () => {
     const ownerlessDrain: Drain = {...fullDrain, owner: undefined};
     stubProxy(requestStub, {drain: ownerlessDrain});
 
-    const result = await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
+    const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
     expect(result.app).toBe('-');
     expect(result.ownerId).toBeUndefined();
     expect(result.ownerType).toBeUndefined();
@@ -198,7 +198,7 @@ describe('compute telemetry-drain get', () => {
     // `summary?.name ?? owner.id` fallback must still land on the owner id (not undefined/'-').
     stubProxy(requestStub, {drain: fullDrain, app: {}});
 
-    const result = await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
+    const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
 
     expect(ownerCall(requestStub)).toBeDefined();
     expect(result.app).toBe(OWNER_APP_ID);
@@ -209,14 +209,14 @@ describe('compute telemetry-drain get', () => {
   it('falls back to the positional id for result.id when the drain carries no id', async () => {
     stubProxy(requestStub, {drain: {...fullDrain, id: undefined}, app: {name: OWNER_APP_NAME}});
 
-    const result = await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
+    const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
     expect(result.id).toBe(DRAIN_ID);
   });
 
   it('returns the mapped {app,id,signals,endpoint,transport,headers} shape under --json, not the raw wire drain', async () => {
     stubProxy(requestStub, {drain: fullDrain, app: {name: OWNER_APP_NAME}});
 
-    await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username, '--json']);
+    await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username, '--json']);
 
     const {result} = (sfCommandStubs.logJson.firstCall.args[0] as {result: Record<string, unknown>});
     expect(result).toEqual({
@@ -244,7 +244,7 @@ describe('compute telemetry-drain get', () => {
   ])('maps exporter type %s to the %s transport label', async (type, label) => {
     stubProxy(requestStub, {drain: {...fullDrain, exporter: {type, endpoint: 'https://x'}}, app: {name: OWNER_APP_NAME}});
 
-    const result = await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
+    const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
     expect(result.transport).toBe(label);
     // The raw exporter type rides through so --json can tell otlphttp from splunk (both label "HTTP").
     expect(result.exporterType).toBe(type);
@@ -258,7 +258,7 @@ describe('compute telemetry-drain get', () => {
       app: {name: OWNER_APP_NAME},
     });
 
-    const result = await TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username]);
+    const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
     expect(result.headers).toBeUndefined();
     const [{data}] = sfCommandStubs.table.firstCall.args as [{data: Array<{key: string; value: string}>}];
     expect(data.find(r => r.key === 'Headers')?.value).toBe('-');
@@ -267,7 +267,7 @@ describe('compute telemetry-drain get', () => {
   it('surfaces error.telemetryDrainNotFound when Heroku 404s the drain id', async () => {
     requestStub.mockRejectedValue(Object.assign(new Error("Couldn't find that."), {data: {id: 'not_found'}}));
 
-    await expect(TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username])).rejects.toThrow(
+    await expect(TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username])).rejects.toThrow(
       `Heroku didn't find a telemetry drain with ID ${DRAIN_ID}.`,
     );
   });
@@ -275,7 +275,7 @@ describe('compute telemetry-drain get', () => {
   it('wraps a proxy-rejection failure as error.herokuProxyRequestFailed', async () => {
     requestStub.mockRejectedValue(Object.assign(new Error('bad proxy_url'), {errorCode: 'HEROKU_PROXY_ERROR'}));
 
-    await expect(TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username])).rejects.toThrow(
+    await expect(TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username])).rejects.toThrow(
       'The Salesforce Heroku API proxy rejected the request: bad proxy_url',
     );
   });
@@ -283,13 +283,13 @@ describe('compute telemetry-drain get', () => {
   it('wraps an unrecognized failure as error.herokuApiRequestFailed', async () => {
     requestStub.mockRejectedValue(new Error('socket hang up'));
 
-    await expect(TelemetryDrainGet.run([DRAIN_ID, '--target-org', testOrg.username])).rejects.toThrow(
+    await expect(TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username])).rejects.toThrow(
       "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
     );
   });
 
   it('requires the drain-id positional arg, erroring without fetching a drain', async () => {
-    await expect(TelemetryDrainGet.run(['--target-org', testOrg.username])).rejects.toThrow();
+    await expect(TelemetryDrainDisplay.run(['--target-org', testOrg.username])).rejects.toThrow();
 
     const drainFetch = requestStub.mock.calls.find(c => {
       const req = c[0] as {url?: string};

@@ -31,8 +31,8 @@ const DASH = '-';
 // Exporter header values routinely carry credentials (bearer / Splunk-HEC tokens). The human table
 // masks the VALUES (keys stay visible so an operator can still see which headers are set) so a secret
 // can't leak into terminal scrollback, screen-shares, or screenshots. The machine-readable --json
-// result keeps them verbatim -- same trust boundary as the authenticated caller (see telemetry-drain/
-// get.ts). Masks a copy; never mutates the caller's drain object.
+// result keeps them verbatim -- same trust boundary as the authenticated caller (see
+// display/telemetry-drain.ts). Masks a copy; never mutates the caller's drain object.
 const REDACTED = '<redacted>';
 
 function maskHeaderValues(headers: Record<string, string>): Record<string, string> {
@@ -91,8 +91,8 @@ export function transportLabelForExporterType(exporterType: string): string {
 }
 
 // Builds the ordered key/value rows for a single-drain display. App-only: the app name is passed in
-// (already resolved by the command from the drain's own owner -- see telemetry-drain/get.ts), not
-// re-derived here, since this foundation never looks owners up. `telemetry-drain get` renders these rows.
+// (already resolved by the command from the drain's own owner -- see display/telemetry-drain.ts), not
+// re-derived here, since this foundation never looks owners up. `compute display telemetry-drain` renders these rows.
 export function formatTelemetryDrainRows(
   drain: components['schemas']['TelemetryDrain'],
   appName: string,

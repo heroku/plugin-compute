@@ -3,176 +3,21 @@
 
 Manage Salesforce Compute apps.
 
-* [`sf compute config get [KEY]`](#sf-compute-config-get-key)
-* [`sf compute config list`](#sf-compute-config-list)
-* [`sf compute config set [PAIR]`](#sf-compute-config-set-pair)
-* [`sf compute config unset [KEY]`](#sf-compute-config-unset-key)
 * [`sf compute deploy`](#sf-compute-deploy)
 * [`sf compute display`](#sf-compute-display)
+* [`sf compute display telemetry-drain ID`](#sf-compute-display-telemetry-drain-id)
 * [`sf compute generate`](#sf-compute-generate)
 * [`sf compute get build-log`](#sf-compute-get-build-log)
+* [`sf compute get config [KEY]`](#sf-compute-get-config-key)
 * [`sf compute get runtime-log`](#sf-compute-get-runtime-log)
 * [`sf compute list`](#sf-compute-list)
+* [`sf compute list config`](#sf-compute-list-config)
+* [`sf compute list telemetry-drain`](#sf-compute-list-telemetry-drain)
 * [`sf compute scale`](#sf-compute-scale)
+* [`sf compute set config [PAIR]`](#sf-compute-set-config-pair)
 * [`sf compute source retrieve`](#sf-compute-source-retrieve)
 * [`sf compute tail runtime-log`](#sf-compute-tail-runtime-log)
-* [`sf compute telemetry-drain get ID`](#sf-compute-telemetry-drain-get-id)
-* [`sf compute telemetry-drain list`](#sf-compute-telemetry-drain-list)
-
-## `sf compute config get [KEY]`
-
-Print one or more of a compute app's config var values.
-
-```
-USAGE
-  $ sf compute config get [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
-
-FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to read config from (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-
-GLOBAL FLAGS
-  --flags-dir=<value>  Import flag values from a directory.
-  --json               Format output as json.
-
-DESCRIPTION
-  Print one or more of a compute app's config var values.
-
-  Goes through the target org's Salesforce Connect API, which calls Heroku on
-  your behalf. Pass a single key to print its bare value, or more than one to
-  print each as key: value. Fails if any requested key isn't currently set.
-
-EXAMPLES
-  Print a single config var's value:
-
-    $ sf compute config get STRIPE_KEY --name CreditRatingScorer --target-org my-org
-
-  Print more than one config var:
-
-    $ sf compute config get STRIPE_KEY LOG_LEVEL --name CreditRatingScorer --target-org my-org
-```
-
-_See code: [src/commands/compute/config/get.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/config/get.ts)_
-
-## `sf compute config list`
-
-List a compute app's config vars.
-
-```
-USAGE
-  $ sf compute config list -o <value> [--json] [--flags-dir <value>] [-n <value>]
-
-FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to list config vars for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-
-GLOBAL FLAGS
-  --flags-dir=<value>  Import flag values from a directory.
-  --json               Format output as json.
-
-DESCRIPTION
-  List a compute app's config vars.
-
-  Shows every config var (environment variable) currently set for a deployed
-  compute app, sorted alphabetically. Goes through the target org's Salesforce
-  Connect API, which calls Heroku on your behalf. Use sf compute config get to
-  read a single var's value, sf compute config set to add or change vars, or
-  sf compute config unset to remove them.
-
-EXAMPLES
-  List all config vars for a compute app:
-
-    $ sf compute config list --name CreditRatingScorer --target-org my-org
-```
-
-_See code: [src/commands/compute/config/list.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/config/list.ts)_
-
-## `sf compute config set [PAIR]`
-
-Set one or more of a compute app's config vars.
-
-```
-USAGE
-  $ sf compute config set [PAIR...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
-
-FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to change config for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-
-GLOBAL FLAGS
-  --flags-dir=<value>  Import flag values from a directory.
-  --json               Format output as json.
-
-DESCRIPTION
-  Set one or more of a compute app's config vars.
-
-  Goes through the target org's Salesforce Connect API, which calls Heroku on
-  your behalf. Setting a config var restarts the app's dynos so the new value
-  takes effect. Pass one or more KEY=VALUE pairs; a key that doesn't already
-  exist is created.
-
-EXAMPLES
-  Set a single config var:
-
-    $ sf compute config set STRIPE_KEY=sk_live_xyz789 --name CreditRatingScorer --target-org my-org
-
-  Set more than one config var in one command:
-
-    $ sf compute config set STRIPE_KEY=sk_live_xyz789 LOG_LEVEL=debug --name CreditRatingScorer --target-org my-org
-```
-
-_See code: [src/commands/compute/config/set.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/config/set.ts)_
-
-## `sf compute config unset [KEY]`
-
-Unset one or more of a compute app's config vars.
-
-```
-USAGE
-  $ sf compute config unset [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
-
-FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to change config for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-
-GLOBAL FLAGS
-  --flags-dir=<value>  Import flag values from a directory.
-  --json               Format output as json.
-
-DESCRIPTION
-  Unset one or more of a compute app's config vars.
-
-  Goes through the target org's Salesforce Connect API, which calls Heroku on
-  your behalf. Unsetting a config var restarts the app's dynos so the removal
-  takes effect. Fails if any requested key isn't currently set.
-
-EXAMPLES
-  Unset a single config var:
-
-    $ sf compute config unset LOG_LEVEL --name CreditRatingScorer --target-org my-org
-
-  Unset more than one config var in one command:
-
-    $ sf compute config unset LOG_LEVEL DEBUG_MODE --name CreditRatingScorer --target-org my-org
-```
-
-_See code: [src/commands/compute/config/unset.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/config/unset.ts)_
+* [`sf compute unset config [KEY]`](#sf-compute-unset-config-key)
 
 ## `sf compute deploy`
 
@@ -265,6 +110,37 @@ EXAMPLES
 ```
 
 _See code: [src/commands/compute/display.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/display.ts)_
+
+## `sf compute display telemetry-drain ID`
+
+Show the full detail of a single compute telemetry drain.
+
+```
+USAGE
+  $ sf compute display telemetry-drain ID -o <value> [--json] [--flags-dir <value>]
+
+FLAGS
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Show the full detail of a single compute telemetry drain.
+
+  Shows a single OpenTelemetry drain in full: the compute app it belongs to,
+  the signals it forwards, and its exporter endpoint, transport, and headers.
+  Use sf compute list telemetry-drain to find a drain's ID.
+
+EXAMPLES
+  Show the detail of a telemetry drain by its ID:
+
+    $ sf compute display telemetry-drain 01234567-89ab-cdef-0123-456789abcdef --target-org my-org
+```
+
+_See code: [src/commands/compute/display/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/display/telemetry-drain.ts)_
 
 ## `sf compute generate`
 
@@ -360,6 +236,45 @@ EXAMPLES
 
 _See code: [src/commands/compute/get/build-log.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/get/build-log.ts)_
 
+## `sf compute get config [KEY]`
+
+Print one or more of a compute app's config var values.
+
+```
+USAGE
+  $ sf compute get config [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to read config from (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Print one or more of a compute app's config var values.
+
+  Goes through the target org's Salesforce Connect API, which calls Heroku on
+  your behalf. Pass a single key to print its bare value, or more than one to
+  print each as key: value. Fails if any requested key isn't currently set.
+
+EXAMPLES
+  Print a single config var's value:
+
+    $ sf compute get config STRIPE_KEY --name CreditRatingScorer --target-org my-org
+
+  Print more than one config var:
+
+    $ sf compute get config STRIPE_KEY LOG_LEVEL --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/get/config.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/get/config.ts)_
+
 ## `sf compute get runtime-log`
 
 Print the recent runtime log for a compute app.
@@ -443,6 +358,78 @@ EXAMPLES
 
 _See code: [src/commands/compute/list.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/list.ts)_
 
+## `sf compute list config`
+
+List a compute app's config vars.
+
+```
+USAGE
+  $ sf compute list config -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to list config vars for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  List a compute app's config vars.
+
+  Shows every config var (environment variable) currently set for a deployed
+  compute app, sorted alphabetically. Goes through the target org's Salesforce
+  Connect API, which calls Heroku on your behalf. Use sf compute get config to
+  read a single var's value, sf compute set config to add or change vars, or
+  sf compute unset config to remove them.
+
+EXAMPLES
+  List all config vars for a compute app:
+
+    $ sf compute list config --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/list/config.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/list/config.ts)_
+
+## `sf compute list telemetry-drain`
+
+List the telemetry drains configured for a compute app.
+
+```
+USAGE
+  $ sf compute list telemetry-drain -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to list telemetry drains for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  List the telemetry drains configured for a compute app.
+
+  Shows every OpenTelemetry drain forwarding the compute app's logs, metrics,
+  and traces, with each drain's ID, signals, and endpoint. Use
+  sf compute display telemetry-drain to see the full detail of a single drain.
+
+EXAMPLES
+  List the telemetry drains for a compute app:
+
+    $ sf compute list telemetry-drain --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/list/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/list/telemetry-drain.ts)_
+
 ## `sf compute scale`
 
 Resize or rescale a compute app's dyno formation.
@@ -496,6 +483,46 @@ EXAMPLES
 ```
 
 _See code: [src/commands/compute/scale.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/scale.ts)_
+
+## `sf compute set config [PAIR]`
+
+Set one or more of a compute app's config vars.
+
+```
+USAGE
+  $ sf compute set config [PAIR...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to change config for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Set one or more of a compute app's config vars.
+
+  Goes through the target org's Salesforce Connect API, which calls Heroku on
+  your behalf. Setting a config var restarts the app's dynos so the new value
+  takes effect. Pass one or more KEY=VALUE pairs; a key that doesn't already
+  exist is created.
+
+EXAMPLES
+  Set a single config var:
+
+    $ sf compute set config STRIPE_KEY=sk_live_xyz789 --name CreditRatingScorer --target-org my-org
+
+  Set more than one config var in one command:
+
+    $ sf compute set config STRIPE_KEY=sk_live_xyz789 LOG_LEVEL=debug --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/set/config.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/set/config.ts)_
 
 ## `sf compute source retrieve`
 
@@ -586,47 +613,16 @@ EXAMPLES
 
 _See code: [src/commands/compute/tail/runtime-log.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/tail/runtime-log.ts)_
 
-## `sf compute telemetry-drain get ID`
+## `sf compute unset config [KEY]`
 
-Show the full detail of a single compute telemetry drain.
-
-```
-USAGE
-  $ sf compute telemetry-drain get ID -o <value> [--json] [--flags-dir <value>]
-
-FLAGS
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-
-GLOBAL FLAGS
-  --flags-dir=<value>  Import flag values from a directory.
-  --json               Format output as json.
-
-DESCRIPTION
-  Show the full detail of a single compute telemetry drain.
-
-  Shows a single OpenTelemetry drain in full: the compute app it belongs to,
-  the signals it forwards, and its exporter endpoint, transport, and headers.
-  Use sf compute telemetry-drain list to find a drain's ID.
-
-EXAMPLES
-  Show the detail of a telemetry drain by its ID:
-
-    $ sf compute telemetry-drain get 01234567-89ab-cdef-0123-456789abcdef --target-org my-org
-```
-
-_See code: [src/commands/compute/telemetry-drain/get.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/telemetry-drain/get.ts)_
-
-## `sf compute telemetry-drain list`
-
-List the telemetry drains configured for a compute app.
+Unset one or more of a compute app's config vars.
 
 ```
 USAGE
-  $ sf compute telemetry-drain list -o <value> [--json] [--flags-dir <value>] [-n <value>]
+  $ sf compute unset config [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to list telemetry drains for (or
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to change config for (or
                             <namespace>\_\_<developerName> if it was deployed under a namespace).
                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
                             directory's app name if that isn't set either.
@@ -638,16 +634,20 @@ GLOBAL FLAGS
   --json               Format output as json.
 
 DESCRIPTION
-  List the telemetry drains configured for a compute app.
+  Unset one or more of a compute app's config vars.
 
-  Shows every OpenTelemetry drain forwarding the compute app's logs, metrics,
-  and traces, with each drain's ID, signals, and endpoint. Use
-  sf compute telemetry-drain get to see the full detail of a single drain.
+  Goes through the target org's Salesforce Connect API, which calls Heroku on
+  your behalf. Unsetting a config var restarts the app's dynos so the removal
+  takes effect. Fails if any requested key isn't currently set.
 
 EXAMPLES
-  List the telemetry drains for a compute app:
+  Unset a single config var:
 
-    $ sf compute telemetry-drain list --name CreditRatingScorer --target-org my-org
+    $ sf compute unset config LOG_LEVEL --name CreditRatingScorer --target-org my-org
+
+  Unset more than one config var in one command:
+
+    $ sf compute unset config LOG_LEVEL DEBUG_MODE --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/telemetry-drain/list.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/telemetry-drain/list.ts)_
+_See code: [src/commands/compute/unset/config.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/unset/config.ts)_

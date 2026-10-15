@@ -23,10 +23,10 @@ import {fetchComputeAppViaProxy, fetchTelemetryDrainViaProxy} from '../../../sha
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
-const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.telemetry-drain.get');
+const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.display.telemetry-drain');
 
 // Command-owned result shape (not the raw wire type) so --json stays stable across OpenAPI changes.
-export type ComputeTelemetryDrainGetResult = {
+export type ComputeTelemetryDrainDisplayResult = {
   app: string;
   endpoint?: string;
   // `transport` collapses otlphttp and splunk to "HTTP"; the raw type is kept so --json can tell them apart.
@@ -41,7 +41,7 @@ export type ComputeTelemetryDrainGetResult = {
   transport?: string;
 };
 
-export default class TelemetryDrainGet extends SfCommand<ComputeTelemetryDrainGetResult> {
+export default class TelemetryDrainDisplay extends SfCommand<ComputeTelemetryDrainDisplayResult> {
   // No --name: the drain ID is globally unique and the owning app comes from the drain's own owner.
   public static readonly args = {
     id: Args.string({
@@ -60,8 +60,8 @@ export default class TelemetryDrainGet extends SfCommand<ComputeTelemetryDrainGe
 
   public static readonly summary = messages.getMessage('summary');
 
-  public async run(): Promise<ComputeTelemetryDrainGetResult> {
-    const {args, flags} = await this.parse(TelemetryDrainGet);
+  public async run(): Promise<ComputeTelemetryDrainDisplayResult> {
+    const {args, flags} = await this.parse(TelemetryDrainDisplay);
 
     const connection = flags['target-org'].getConnection();
     const drain = await fetchTelemetryDrainViaProxy(connection, {drainId: args.id});

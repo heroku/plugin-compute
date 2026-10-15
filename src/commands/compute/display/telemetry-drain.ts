@@ -18,8 +18,9 @@ import {Args} from '@oclif/core';
 import {type Connection, Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 
+import {findDeveloperNameByHerokuAppId} from '../../../shared/computeQuery.js';
 import {formatTelemetryDrainRows, transportLabelForExporterType} from '../../../shared/computeTelemetryDrain.js';
-import {fetchComputeAppViaProxy, fetchTelemetryDrainViaProxy} from '../../../shared/herokuProxyApi.js';
+import {fetchTelemetryDrainViaProxy} from '../../../shared/herokuProxyApi.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
@@ -65,10 +66,10 @@ export default class TelemetryDrainDisplay extends SfCommand<ComputeTelemetryDra
 
     const connection = flags['target-org'].getConnection();
     const drain = await fetchTelemetryDrainViaProxy(connection, {drainId: args.id});
-    const app = await this.resolveOwnerLabel(connection, drain.owner);
+    const {app, display} = await this.resolveOwnerLabel(connection, drain.owner);
 
     this.styledHeader('Telemetry Drain');
-    this.table({data: formatTelemetryDrainRows(drain, app), columns: ['key', 'value']});
+    this.table({data: formatTelemetryDrainRows(drain, display), columns: ['key', 'value']});
 
     return {
       app,
@@ -83,23 +84,26 @@ export default class TelemetryDrainDisplay extends SfCommand<ComputeTelemetryDra
     };
   }
 
-  // Best-effort owning-app label from the drain's owner; falls back to the owner id if the lookup
-  // fails or the drain is space-owned (out of app-only scope).
+  // Best-effort owning-app label from the drain's owner. For an app-owned drain it maps the Heroku
+  // owner id back to the compute app's DeveloperName (the value --name accepts) through the org.
+  // Returns both the machine-readable `app` -- the resolved DeveloperName, or the raw owner id when
+  // the drain is space-owned, ownerless, or no compute app matches -- and the human `display`,
+  // which qualifies an unresolved Heroku id so a reader can't mistake it for a compute app name.
   private async resolveOwnerLabel(
     connection: Connection,
     owner: undefined | {id?: string; type?: 'app' | 'space'},
-  ): Promise<string> {
+  ): Promise<{app: string; display: string}> {
     const ownerId = owner?.id ?? '-';
     if (owner?.type !== 'app' || !owner.id) {
-      return ownerId;
+      return {app: ownerId, display: ownerId};
     }
 
-    try {
-      const summary = await fetchComputeAppViaProxy(connection, {name: owner.id, appId: owner.id});
-      return summary?.name ?? owner.id;
-    } catch (error) {
-      this.debug('owner label lookup failed for %s: %s', owner.id, error instanceof Error ? error.message : String(error));
-      return owner.id;
+    const developerName = await findDeveloperNameByHerokuAppId(connection, owner.id);
+    if (developerName !== undefined) {
+      return {app: developerName, display: developerName};
     }
+
+    this.debug('no compute app resolved for Heroku app id %s; labelling App with the id', owner.id);
+    return {app: owner.id, display: `${owner.id} (Heroku app id)`};
   }
 }

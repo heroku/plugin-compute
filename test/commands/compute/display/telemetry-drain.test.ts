@@ -28,8 +28,12 @@ function proxyTarget(url: string): string {
 }
 
 const DRAIN_ID = '01234567-89ab-cdef-0123-456789abcdef';
+// The Heroku app id carried in the drain's owner.id -- hyphenated, so --name/NAME_PATTERN rejects it.
 const OWNER_APP_ID = 'a1b2c3d4-heroku-app-id';
-const OWNER_APP_NAME = 'CreditRatingScorer';
+// The owning compute app's Salesforce DeveloperName, as the org reverse-lookup returns it. Name-shaped
+// (--name-valid) and visibly different from OWNER_APP_ID, so a passing App assertion proves the command
+// surfaces the --name-usable identity rather than echoing the Heroku id.
+const OWNER_DEV_NAME = 'CreditRatingScorer';
 
 type Drain = {
   exporter?: {endpoint?: string; headers?: Record<string, string>; type?: string};
@@ -38,31 +42,16 @@ type Drain = {
   signals?: string[];
 };
 
-// Keyed by decoded target so the drain fetch, the owner-app resolve, and anything else return
-// distinct payloads -- the owner-resolve path is the crux of this command (PR #35).
-function stubProxy(requestStub: Mock, opts: {app?: (() => never) | unknown; drain: Drain}): void {
+// Only the drain fetch rides the Heroku proxy now; the App label is resolved org-side (see
+// connection.tooling.query stub below), so the proxy stub just returns the drain for its path.
+function stubDrain(requestStub: Mock, drain: Drain): void {
   requestStub.mockImplementation(async (req: {url?: string}) => {
     const target = proxyTarget(req.url ?? '');
     if (target.includes('/telemetry-drains/')) {
-      return opts.drain;
-    }
-
-    if (target.startsWith('https://api.heroku.com/apps/')) {
-      if (typeof opts.app === 'function') {
-        return (opts.app as () => never)();
-      }
-
-      return opts.app ?? {};
+      return drain;
     }
 
     return {};
-  });
-}
-
-function ownerCall(requestStub: Mock): undefined | unknown[] {
-  return requestStub.mock.calls.find(call => {
-    const req = call[0] as undefined | {url?: string};
-    return req?.url !== undefined && proxyTarget(req.url) === `https://api.heroku.com/apps/${OWNER_APP_ID}`;
   });
 }
 
@@ -86,8 +75,11 @@ describe('compute display telemetry-drain', () => {
 
     const org = await Org.create({aliasOrUsername: testOrg.username});
     const connection = org.getConnection();
-    // display is purely drain-id driven -- it must never resolve an app through the org (no --name).
+    // For an app-owned drain the command maps owner.id -> compute app DeveloperName through the org;
+    // findDeveloperNameByHerokuAppId's singleRecordQuery bottoms out here. Default to a single match;
+    // individual tests override for the no-match / multi-match / query-error fallbacks.
     toolingQueryStub = vi.spyOn(connection.tooling, 'query');
+    toolingQueryStub.mockResolvedValue({done: true, records: [{DeveloperName: OWNER_DEV_NAME}], totalSize: 1});
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
     requestStub = vi.fn().mockResolvedValue({});
@@ -101,7 +93,7 @@ describe('compute display telemetry-drain', () => {
   });
 
   it('renders every detail row (App/Signals/Endpoint/Transport/Headers) for the fetched drain', async () => {
-    stubProxy(requestStub, {drain: fullDrain, app: {name: OWNER_APP_NAME, region: {name: 'us'}}});
+    stubDrain(requestStub, fullDrain);
 
     await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
 
@@ -111,18 +103,18 @@ describe('compute display telemetry-drain', () => {
     ];
     expect(columns).toEqual(['key', 'value']);
     expect(data).toEqual([
-      {key: 'App', value: OWNER_APP_NAME},
+      {key: 'App', value: OWNER_DEV_NAME},
       {key: 'Signals', value: 'traces, logs'},
       {key: 'Endpoint', value: 'https://collector.example.com:4317'},
       {key: 'Transport', value: 'gRPC'},
       // The table masks header VALUES (keys stay) so a secret can't leak into scrollback/screenshots.
       {key: 'Headers', value: '{"x-api-key":"<redacted>"}'},
     ]);
-    expect(toolingQueryStub).not.toHaveBeenCalled();
+    expect(toolingQueryStub).toHaveBeenCalled();
   });
 
   it('GETs the single-drain path, url-encoding the drain id', async () => {
-    stubProxy(requestStub, {drain: fullDrain, app: {name: OWNER_APP_NAME}});
+    stubDrain(requestStub, fullDrain);
 
     await TelemetryDrainDisplay.run(['a/b c', '--target-org', testOrg.username]);
 
@@ -134,13 +126,15 @@ describe('compute display telemetry-drain', () => {
     expect(proxyTarget((call![0] as {url: string}).url)).toBe('https://api.heroku.com/telemetry-drains/a%2Fb%20c');
   });
 
-  it('labels App with the name resolved from the drain owner (not the positional id) via GET /apps/{owner.id}', async () => {
-    stubProxy(requestStub, {drain: fullDrain, app: {name: OWNER_APP_NAME}});
+  it('labels App with the compute app name resolved from the drain owner via the org (not the positional id)', async () => {
+    stubDrain(requestStub, fullDrain);
 
     const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
 
-    expect(ownerCall(requestStub)).toBeDefined();
-    expect(result.app).toBe(OWNER_APP_NAME);
+    // The reverse lookup filters on the drain's own owner id, not the positional drain id.
+    const [soql] = toolingQueryStub.mock.calls[0] as [string];
+    expect(soql).toContain(`WHERE ExternalAppIdentifier = '${OWNER_APP_ID}'`);
+    expect(result.app).toBe(OWNER_DEV_NAME);
     expect(result.app).not.toBe(DRAIN_ID);
     expect(result.app).not.toBe(OWNER_APP_ID);
     // The raw owner rides through flat so --json can disambiguate what the `app` label collapses.
@@ -148,79 +142,90 @@ describe('compute display telemetry-drain', () => {
     expect(result.ownerType).toBe('app');
   });
 
-  it('is best-effort: when the owner-app lookup fails it still succeeds, labelling App with the owner id and not warning', async () => {
-    stubProxy(requestStub, {
-      drain: fullDrain,
-      app() {
-        throw Object.assign(new Error("Couldn't find that app."), {data: {id: 'not_found'}});
-      },
+  it('is best-effort: when no compute app matches the owner id it still succeeds, labelling App with the qualified Heroku id and not warning', async () => {
+    stubDrain(requestStub, fullDrain);
+    toolingQueryStub.mockResolvedValue({done: true, records: [], totalSize: 0});
+
+    const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
+
+    // --json keeps the raw owner id; the human table qualifies it so it can't be mistaken for --name.
+    expect(result.app).toBe(OWNER_APP_ID);
+    expect(result.ownerId).toBe(OWNER_APP_ID);
+    expect(result.ownerType).toBe('app');
+    // A failed label is non-fatal -- debug-logged, never warned.
+    expect(sfCommandStubs.warn.called).toBe(false);
+    const [{data}] = sfCommandStubs.table.firstCall.args as [{data: Array<{key: string; value: string}>}];
+    expect(data.find(r => r.key === 'App')?.value).toBe(`${OWNER_APP_ID} (Heroku app id)`);
+    expect(data.find(r => r.key === 'Signals')?.value).toBe('traces, logs');
+  });
+
+  it('is best-effort: when the org query itself fails it still renders the drain, labelling App with the qualified Heroku id and not warning', async () => {
+    stubDrain(requestStub, fullDrain);
+    toolingQueryStub.mockRejectedValue(new Error('INVALID_SESSION_ID'));
+
+    const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
+
+    expect(result.app).toBe(OWNER_APP_ID);
+    expect(sfCommandStubs.warn.called).toBe(false);
+    const [{data}] = sfCommandStubs.table.firstCall.args as [{data: Array<{key: string; value: string}>}];
+    expect(data.find(r => r.key === 'App')?.value).toBe(`${OWNER_APP_ID} (Heroku app id)`);
+  });
+
+  it('never guesses when more than one compute app matches the owner id -- falls back to the qualified Heroku id', async () => {
+    stubDrain(requestStub, fullDrain);
+    toolingQueryStub.mockResolvedValue({
+      done: true,
+      records: [{DeveloperName: 'FirstMatch'}, {DeveloperName: 'SecondMatch'}],
+      totalSize: 2,
     });
 
     const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
 
     expect(result.app).toBe(OWNER_APP_ID);
-    expect(result.ownerId).toBe(OWNER_APP_ID);
-    expect(result.ownerType).toBe('app');
-    expect(ownerCall(requestStub)).toBeDefined();
-    // The swallowed lookup error is debug-logged, never warned -- a failed label is non-fatal.
     expect(sfCommandStubs.warn.called).toBe(false);
     const [{data}] = sfCommandStubs.table.firstCall.args as [{data: Array<{key: string; value: string}>}];
-    expect(data.find(r => r.key === 'App')?.value).toBe(OWNER_APP_ID);
-    expect(data.find(r => r.key === 'Signals')?.value).toBe('traces, logs');
+    expect(data.find(r => r.key === 'App')?.value).toBe(`${OWNER_APP_ID} (Heroku app id)`);
   });
 
   it('does not resolve an app and labels App with the owner id for a space-owned drain', async () => {
     const spaceDrain: Drain = {...fullDrain, owner: {id: 'space-uuid', type: 'space'}};
-    stubProxy(requestStub, {drain: spaceDrain});
+    stubDrain(requestStub, spaceDrain);
 
     const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
 
     expect(result.app).toBe('space-uuid');
     expect(result.ownerId).toBe('space-uuid');
     expect(result.ownerType).toBe('space');
-    expect(
-      requestStub.mock.calls.every(c => !proxyTarget((c[0] as {url?: string}).url ?? '').startsWith('https://api.heroku.com/apps/')),
-    ).toBe(true);
+    // A space-owned drain has no owning compute app to resolve, so the org is never queried.
+    expect(toolingQueryStub).not.toHaveBeenCalled();
   });
 
   it('falls back to a dash label when the drain has no owner', async () => {
     const ownerlessDrain: Drain = {...fullDrain, owner: undefined};
-    stubProxy(requestStub, {drain: ownerlessDrain});
+    stubDrain(requestStub, ownerlessDrain);
 
     const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
     expect(result.app).toBe('-');
     expect(result.ownerId).toBeUndefined();
     expect(result.ownerType).toBeUndefined();
-  });
-
-  it('labels App with the owner id when the owner app resolves but carries no name', async () => {
-    // fetchComputeAppViaProxy returns undefined when the app has no name/region/generation, so the
-    // `summary?.name ?? owner.id` fallback must still land on the owner id (not undefined/'-').
-    stubProxy(requestStub, {drain: fullDrain, app: {}});
-
-    const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
-
-    expect(ownerCall(requestStub)).toBeDefined();
-    expect(result.app).toBe(OWNER_APP_ID);
-    expect(result.ownerId).toBe(OWNER_APP_ID);
-    expect(result.ownerType).toBe('app');
+    expect(toolingQueryStub).not.toHaveBeenCalled();
   });
 
   it('falls back to the positional id for result.id when the drain carries no id', async () => {
-    stubProxy(requestStub, {drain: {...fullDrain, id: undefined}, app: {name: OWNER_APP_NAME}});
+    stubDrain(requestStub, {...fullDrain, id: undefined});
 
     const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
     expect(result.id).toBe(DRAIN_ID);
   });
 
   it('returns the mapped {app,id,signals,endpoint,transport,headers} shape under --json, not the raw wire drain', async () => {
-    stubProxy(requestStub, {drain: fullDrain, app: {name: OWNER_APP_NAME}});
+    stubDrain(requestStub, fullDrain);
 
     await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username, '--json']);
 
     const {result} = (sfCommandStubs.logJson.firstCall.args[0] as {result: Record<string, unknown>});
     expect(result).toEqual({
-      app: OWNER_APP_NAME,
+      app: OWNER_DEV_NAME,
       ownerId: OWNER_APP_ID,
       ownerType: 'app',
       id: DRAIN_ID,
@@ -242,7 +247,7 @@ describe('compute display telemetry-drain', () => {
     ['otlphttp', 'HTTP'],
     ['splunk', 'HTTP'],
   ])('maps exporter type %s to the %s transport label', async (type, label) => {
-    stubProxy(requestStub, {drain: {...fullDrain, exporter: {type, endpoint: 'https://x'}}, app: {name: OWNER_APP_NAME}});
+    stubDrain(requestStub, {...fullDrain, exporter: {type, endpoint: 'https://x'}});
 
     const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
     expect(result.transport).toBe(label);
@@ -253,10 +258,7 @@ describe('compute display telemetry-drain', () => {
   });
 
   it('renders a dash for Headers and leaves them undefined when the drain has none', async () => {
-    stubProxy(requestStub, {
-      drain: {...fullDrain, exporter: {type: 'splunk', endpoint: 'https://x'}},
-      app: {name: OWNER_APP_NAME},
-    });
+    stubDrain(requestStub, {...fullDrain, exporter: {type: 'splunk', endpoint: 'https://x'}});
 
     const result = await TelemetryDrainDisplay.run([DRAIN_ID, '--target-org', testOrg.username]);
     expect(result.headers).toBeUndefined();

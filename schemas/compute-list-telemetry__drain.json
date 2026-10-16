@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ComputeTelemetryDrainListResult",
+  "definitions": {
+    "ComputeTelemetryDrainListResult": {
+      "type": "object",
+      "properties": {
+        "drains": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "endpoint": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "signals": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "signals"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "drains",
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

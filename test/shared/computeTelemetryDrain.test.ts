@@ -110,8 +110,22 @@ describe('computeTelemetryDrain.formatTelemetryDrainRows', () => {
       {key: 'Signals', value: 'traces, logs'},
       {key: 'Endpoint', value: 'https://collector.example.com:4317'},
       {key: 'Transport', value: 'gRPC'},
-      {key: 'Headers', value: '{"x-api-key":"secret"}'},
+      // Header values are masked in the table (keys stay) so a secret can't leak into scrollback.
+      {key: 'Headers', value: '{"x-api-key":"<redacted>"}'},
     ]);
+  });
+
+  it('masks every header value but keeps the keys, without mutating the drain', () => {
+    const headers = {Authorization: 'Bearer t0ken', 'X-HEC': 'hec-secret'};
+
+    const rows = formatTelemetryDrainRows(
+      {exporter: {type: 'splunk', endpoint: 'https://x', headers}},
+      'CreditRatingScorer',
+    );
+
+    expect(rows.find(r => r.key === 'Headers')?.value).toBe('{"Authorization":"<redacted>","X-HEC":"<redacted>"}');
+    // The headers object feeds both the table and the --json result mapping, so it must be left intact.
+    expect(headers).toEqual({Authorization: 'Bearer t0ken', 'X-HEC': 'hec-secret'});
   });
 
   it('falls back to a dash for every absent/empty field', () => {

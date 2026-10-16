@@ -24,16 +24,27 @@ import {PLUGIN_NAME} from './plugin-name.js';
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 
-// Placeholder for a drain field Heroku left unset -- matches the dash HerokuAppSummary/formation
-// rendering uses so single-drain display reads consistently with the other compute tables.
+// Placeholder for a drain field the platform left unset -- matches the dash the other compute
+// tables use so single-drain display reads consistently.
 const DASH = '-';
 
-// The three OpenTelemetry signal categories a drain can forward. Order matches the enum in
-// api-specs/heroku-platform-api.yaml (TelemetryDrain.signals); `all` is the shorthand for every one.
+// Exporter header values routinely carry credentials (bearer / Splunk-HEC tokens). The human table
+// masks the VALUES (keys stay visible so an operator can still see which headers are set) so a secret
+// can't leak into terminal scrollback, screen-shares, or screenshots. The machine-readable --json
+// result keeps them verbatim -- same trust boundary as the authenticated caller (see
+// display/telemetry-drain.ts). Masks a copy; never mutates the caller's drain object.
+const REDACTED = '<redacted>';
+
+function maskHeaderValues(headers: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.keys(headers).map(key => [key, REDACTED]));
+}
+
+// The three OpenTelemetry signal categories a drain can forward. Order matches the
+// TelemetryDrain.signals enum in the platform API spec; `all` is the shorthand for every one.
 export const TELEMETRY_SIGNALS: readonly TelemetrySignal[] = ['traces', 'metrics', 'logs'];
 
-// User-facing --transport values and the exporter type each maps to on Heroku's side. `grpc`/`http`
-// are the two OTLP wire protocols; `splunk` is its own exporter. Reversed for display by
+// User-facing --transport values and the exporter type each one maps to. `grpc`/`http` are the two
+// OTLP wire protocols; `splunk` is its own exporter. Reversed for display by
 // transportLabelForExporterType below.
 const TRANSPORT_TO_EXPORTER = {
   grpc: 'otlp',
@@ -45,11 +56,10 @@ export const TELEMETRY_TRANSPORTS: readonly string[] = Object.keys(TRANSPORT_TO_
 
 type TelemetryTransport = keyof typeof TRANSPORT_TO_EXPORTER;
 
-// Ported from heroku/cli's `telemetry` command. DELIBERATELY case-sensitive, non-trimming, and
-// treats `all` only as the whole input (never as a comma-separated element) -- preserving behavioral
-// parity with heroku/cli. This is an explicit decision, not an oversight: the plugin is pre-GA and no
-// command consumes this yet, so staying strict now is the safe direction -- leniency (trimming,
-// case-insensitivity) can be loosened in later without breaking anyone, whereas tightening after GA
+// DELIBERATELY case-sensitive, non-trimming, and treats `all` only as the whole input (never as a
+// comma-separated element). This is an explicit decision, not an oversight: the plugin is pre-GA and
+// no command consumes this yet, so staying strict now is the safe direction -- leniency (trimming,
+// case-insensitivity) can be loosened later without breaking anyone, whereas tightening after GA
 // would break users. The companion unit tests lock each quirk (`Traces`/` traces`/`all,logs` all throw).
 export function validateAndFormatSignals(input: string): TelemetrySignal[] {
   if (input === 'all') {
@@ -65,7 +75,7 @@ export function validateAndFormatSignals(input: string): TelemetrySignal[] {
   return requested as TelemetrySignal[];
 }
 
-// Maps a user-facing --transport onto Heroku's exporter type. Same strictness as signals above
+// Maps a user-facing --transport onto its exporter type. Same strictness as signals above
 // (exact-match, no trim/case-fold); an unknown transport throws rather than silently defaulting.
 export function exporterTypeForTransport(transport: string): TelemetryExporterType {
   if (!Object.hasOwn(TRANSPORT_TO_EXPORTER, transport)) {
@@ -81,8 +91,8 @@ export function transportLabelForExporterType(exporterType: string): string {
 }
 
 // Builds the ordered key/value rows for a single-drain display. App-only: the app name is passed in
-// (already resolved by the command), not re-derived from the drain's owner, since this foundation
-// never looks owners up. A follow-up `telemetry-drain info` command renders these rows.
+// (already resolved by the command from the drain's own owner -- see display/telemetry-drain.ts), not
+// re-derived here, since this foundation never looks owners up. `compute display telemetry-drain` renders these rows.
 export function formatTelemetryDrainRows(
   drain: components['schemas']['TelemetryDrain'],
   appName: string,
@@ -95,6 +105,6 @@ export function formatTelemetryDrainRows(
     {key: 'Signals', value: drain.signals && drain.signals.length > 0 ? drain.signals.join(', ') : DASH},
     {key: 'Endpoint', value: drain.exporter?.endpoint ?? DASH},
     {key: 'Transport', value: drain.exporter?.type ? transportLabelForExporterType(drain.exporter.type) : DASH},
-    {key: 'Headers', value: hasHeaders ? JSON.stringify(headers) : DASH},
+    {key: 'Headers', value: hasHeaders ? JSON.stringify(maskHeaderValues(headers)) : DASH},
   ];
 }

@@ -99,6 +99,20 @@
     },
     {
         "alias": [],
+        "command": "compute:display:telemetry-drain",
+        "flagAliases": [],
+        "flagChars": [
+            "o"
+        ],
+        "flags": [
+            "flags-dir",
+            "json",
+            "target-org"
+        ],
+        "plugin": "@heroku/plugin-compute"
+    },
+    {
+        "alias": [],
         "command": "compute:generate",
         "flagAliases": [],
         "flagChars": [
@@ -181,6 +195,22 @@
     {
         "alias": [],
         "command": "compute:list:config",
+        "flagAliases": [],
+        "flagChars": [
+            "n",
+            "o"
+        ],
+        "flags": [
+            "flags-dir",
+            "json",
+            "name",
+            "target-org"
+        ],
+        "plugin": "@heroku/plugin-compute"
+    },
+    {
+        "alias": [],
+        "command": "compute:list:telemetry-drain",
         "flagAliases": [],
         "flagChars": [
             "n",

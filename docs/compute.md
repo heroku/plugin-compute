@@ -5,12 +5,14 @@ Manage Salesforce Compute apps.
 
 * [`sf compute deploy`](#sf-compute-deploy)
 * [`sf compute display`](#sf-compute-display)
+* [`sf compute display telemetry-drain ID`](#sf-compute-display-telemetry-drain-id)
 * [`sf compute generate`](#sf-compute-generate)
 * [`sf compute get build-log`](#sf-compute-get-build-log)
 * [`sf compute get config [KEY]`](#sf-compute-get-config-key)
 * [`sf compute get runtime-log`](#sf-compute-get-runtime-log)
 * [`sf compute list`](#sf-compute-list)
 * [`sf compute list config`](#sf-compute-list-config)
+* [`sf compute list telemetry-drain`](#sf-compute-list-telemetry-drain)
 * [`sf compute scale`](#sf-compute-scale)
 * [`sf compute set config [PAIR]`](#sf-compute-set-config-pair)
 * [`sf compute source retrieve`](#sf-compute-source-retrieve)
@@ -108,6 +110,37 @@ EXAMPLES
 ```
 
 _See code: [src/commands/compute/display.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/display.ts)_
+
+## `sf compute display telemetry-drain ID`
+
+Show the full detail of a single compute telemetry drain.
+
+```
+USAGE
+  $ sf compute display telemetry-drain ID -o <value> [--json] [--flags-dir <value>]
+
+FLAGS
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Show the full detail of a single compute telemetry drain.
+
+  Shows a single OpenTelemetry drain in full: the compute app it belongs to,
+  the signals it forwards, and its exporter endpoint, transport, and headers.
+  Use sf compute list telemetry-drain to find a drain's ID.
+
+EXAMPLES
+  Show the detail of a telemetry drain by its ID:
+
+    $ sf compute display telemetry-drain 01234567-89ab-cdef-0123-456789abcdef --target-org my-org
+```
+
+_See code: [src/commands/compute/display/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/display/telemetry-drain.ts)_
 
 ## `sf compute generate`
 
@@ -361,6 +394,41 @@ EXAMPLES
 ```
 
 _See code: [src/commands/compute/list/config.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/list/config.ts)_
+
+## `sf compute list telemetry-drain`
+
+List the telemetry drains configured for a compute app.
+
+```
+USAGE
+  $ sf compute list telemetry-drain -o <value> [--json] [--flags-dir <value>] [-n <value>]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to list telemetry drains for (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  List the telemetry drains configured for a compute app.
+
+  Shows every OpenTelemetry drain forwarding the compute app's logs, metrics,
+  and traces, with each drain's ID, signals, and endpoint. Use
+  sf compute display telemetry-drain to see the full detail of a single drain.
+
+EXAMPLES
+  List the telemetry drains for a compute app:
+
+    $ sf compute list telemetry-drain --name CreditRatingScorer --target-org my-org
+```
+
+_See code: [src/commands/compute/list/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.1.0/src/commands/compute/list/telemetry-drain.ts)_
 
 ## `sf compute scale`
 

@@ -16,6 +16,7 @@ import {type Connection, SfError} from '@salesforce/core';
  */
 
 import {
+  findDeveloperNameByHerokuAppId,
   listComputeApps,
   pickHerokuAppId,
   queryComputeApp,
@@ -61,28 +62,15 @@ describe('computeQuery.queryComputeApp', () => {
     expect(options).toEqual({tooling: true});
   });
 
-  it('does not query ExternalAppIdentifier or CurrentBuild.ExternalBuildIdentifier by default', async () => {
+  it('queries ExternalAppIdentifier and CurrentBuild.ExternalBuildIdentifier in the default SELECT', async () => {
     const singleRecordQuery = vi.fn().mockResolvedValue(activeRecord);
     const connection = {singleRecordQuery} as unknown as Connection;
 
     await queryComputeApp(connection, 'CreditRatingScorer');
 
     const [soql] = singleRecordQuery.mock.calls[0] as [string];
-    expect(soql).not.toContain('ExternalAppIdentifier');
-    expect(soql).not.toContain('ExternalBuildIdentifier');
-  });
-
-  it('queries ExternalAppIdentifier and CurrentBuild.ExternalBuildIdentifier when SALESFORCE_INTERNAL_QA_CLIENT=true', async () => {
-    const singleRecordQuery = vi.fn().mockResolvedValue(activeRecord);
-    const connection = {singleRecordQuery} as unknown as Connection;
-    process.env.SALESFORCE_INTERNAL_QA_CLIENT = 'true';
-    try {
-      await queryComputeApp(connection, 'CreditRatingScorer');
-    } finally {
-      delete process.env.SALESFORCE_INTERNAL_QA_CLIENT;
-    }
-
-    const [soql] = singleRecordQuery.mock.calls[0] as [string];
+    // The W-24176390 isSfdcInternal restriction on these columns is lifted, so they're always
+    // selected now -- no SALESFORCE_INTERNAL_QA_CLIENT gate and no client-override header.
     expect(soql).toContain('ExternalAppIdentifier');
     expect(soql).toContain('CurrentBuild.ExternalBuildIdentifier');
   });
@@ -394,5 +382,57 @@ describe('computeQuery.resolveHerokuAppId', () => {
 
     expect(error).toBeDefined();
     expect(error?.message).toContain('No compute app named NeverDeployed was found in the org');
+  });
+});
+
+describe('computeQuery.findDeveloperNameByHerokuAppId', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('resolves the DeveloperName for the app whose ExternalAppIdentifier matches the Heroku app id', async () => {
+    const singleRecordQuery = vi.fn().mockResolvedValue({DeveloperName: 'CreditRatingScorer'});
+    const connection = {singleRecordQuery} as unknown as Connection;
+
+    const result = await findDeveloperNameByHerokuAppId(connection, 'a1b2c3d4-heroku-app-id');
+
+    expect(result).toBe('CreditRatingScorer');
+    const [soql, options] = singleRecordQuery.mock.calls[0] as [string, {tooling?: boolean}];
+    expect(soql).toContain('SELECT DeveloperName FROM PlatformComputeApp');
+    expect(soql).toContain("WHERE ExternalAppIdentifier = 'a1b2c3d4-heroku-app-id'");
+    expect(options).toEqual({tooling: true});
+  });
+
+  it('returns undefined (best-effort) when no app matches the Heroku app id', async () => {
+    const singleRecordQuery = vi.fn().mockRejectedValue(new SfError('No records found', 'SingleRecordQuery_NoRecords'));
+    const connection = {singleRecordQuery} as unknown as Connection;
+
+    await expect(findDeveloperNameByHerokuAppId(connection, 'a1b2c3d4-heroku-app-id')).resolves.toBeUndefined();
+  });
+
+  it('returns undefined (never guesses) when more than one app matches', async () => {
+    const singleRecordQuery = vi
+      .fn()
+      .mockRejectedValue(new SfError('Multiple records found', 'SingleRecordQuery_MultipleRecords'));
+    const connection = {singleRecordQuery} as unknown as Connection;
+
+    await expect(findDeveloperNameByHerokuAppId(connection, 'a1b2c3d4-heroku-app-id')).resolves.toBeUndefined();
+  });
+
+  it('returns undefined (non-fatal) when the query itself fails', async () => {
+    const singleRecordQuery = vi.fn().mockRejectedValue(new Error('INVALID_SESSION_ID'));
+    const connection = {singleRecordQuery} as unknown as Connection;
+
+    await expect(findDeveloperNameByHerokuAppId(connection, 'a1b2c3d4-heroku-app-id')).resolves.toBeUndefined();
+  });
+
+  it('rejects a malformed Heroku app id before issuing any query (injection guard)', async () => {
+    const singleRecordQuery = vi.fn().mockResolvedValue({DeveloperName: 'CreditRatingScorer'});
+    const connection = {singleRecordQuery} as unknown as Connection;
+
+    const result = await findDeveloperNameByHerokuAppId(connection, "a1b2' OR '1'='1");
+
+    expect(result).toBeUndefined();
+    expect(singleRecordQuery).not.toHaveBeenCalled();
   });
 });

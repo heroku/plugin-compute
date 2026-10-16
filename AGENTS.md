@@ -3,7 +3,8 @@
 `@heroku/plugin-compute` is a Salesforce CLI (`sf`) plugin, built on the
 oclif plugin framework and `@salesforce/sf-plugins-core`, that adds
 `sf compute deploy|display|generate|list|get runtime-log|tail runtime-log|
-get build-log|scale|config|config get|config set|config unset` — commands
+get build-log|scale|list config|get config|set config|unset config|
+list telemetry-drain|display telemetry-drain` — commands
 for managing "compute apps"
 (Heroku-backed `PlatformComputeApp` metadata invocable from Apex/Flow via
 AppLink External Services).
@@ -40,9 +41,9 @@ This overrides the global git-workflow defaults — treat every session as
 write-file-only unless told otherwise.
 
 For every `sf compute` command — deploy/display/generate/list and every
-command added since (get runtime-log/tail runtime-log/get build-log/scale/config/config
-get/config set/config unset) — consult an Architect-role and QA-role review both
-BEFORE and AFTER implementing changes.
+command added since (get runtime-log/tail runtime-log/get build-log/scale/list config/get
+config/set config/unset config/list telemetry-drain/display telemetry-drain) — consult an
+Architect-role and QA-role review both BEFORE and AFTER implementing changes.
 
 ## Gotcha: `SfCommand.table()` styling is a no-op — don't chase it
 
@@ -75,7 +76,7 @@ nothing to fix at this layer.
   Do not swap that ordering back. `--source-dir` is deploy's own mechanism
   for pointing at an app directory from anywhere — it is not the same as the
   `--name`/`COMPUTE_APP_NAME`/directory-detection fallback chain used by
-  display/get runtime-log/tail runtime-log/get build-log/scale/config/config get/config set/config unset.
+  display/get runtime-log/tail runtime-log/get build-log/scale/list config/get config/set config/unset config.
 - **`sf compute list` has no `--verbose` flag** and always shows exactly 4
   columns (`name`, `masterLabel`, `status`, `statusReason`). Explicit user
   decision: "if the customer wants more details, they should use the display
@@ -89,9 +90,9 @@ nothing to fix at this layer.
   They match the canonical standard verbs in `common-actions.html`
   (list = simple table, display = full detail, deploy = push local source,
   generate = scaffold). None of the four need interactive prompts or
-  sub-actions today. get runtime-log/tail runtime-log/get build-log/scale/config/config
-  get/config set/config unset were added in a later session — re-audit
-  before assuming the same guide compliance for those.
+  sub-actions today. get runtime-log/tail runtime-log/get build-log/scale/list config/get
+  config/set config/unset config/list telemetry-drain/display telemetry-drain were added in
+  later sessions — re-audit before assuming the same guide compliance for those.
 - **`sf compute` commands follow verb-noun grammar (`<topic> <action>
   <resource>`), and the resource is the trailing singular noun.** The
   telemetry-drain commands (`list telemetry-drain`, `display telemetry-drain`,
@@ -111,11 +112,22 @@ nothing to fix at this layer.
   `messages/compute.<verb>.<resource>.md` bundle + `loadMessages` key, and its
   `schemas/compute-<verb>-<resource>.json` must all move in lockstep.
 - **The pre-migration config ids are kept as `hiddenAliases` (not `aliases`)
-  with `deprecateAliases = true`.** So `compute config list|get|set|unset`
-  still resolves and prints a one-line deprecation warning steering users to
-  the new id, but the old ids are hidden from `--help` and `docs/` (the
-  per-command page and its `ALIASES` block both disappear). The deprecation
-  warning still fires for a hidden alias because `@oclif/core`'s
+  with `deprecateAliases = true`.** The alias is NOT what keeps
+  `compute config list|get|set|unset` working: `flexibleTaxonomy: true`
+  (package.json) already makes oclif register every segment permutation of a
+  canonical id — `getCommandIdPermutations('compute:list:config')`
+  (`@oclif/core/lib/config/util.js`) returns all six orderings, including
+  `compute:config:list`, each wired to the canonical command in
+  `@oclif/core/lib/config/config.js`. So the old word order resolves on its
+  own, alias or no alias. What the `hiddenAliases` + `deprecateAliases` pair
+  adds is (a) the one-line deprecation WARNING steering users to the new id and
+  (b) snapshot-tracking (below) — it does not, and cannot, gate resolution.
+  Corollary: deleting the alias would NOT break the old ids (they'd just
+  resolve silently, no warning); truly retiring the old grammar would mean
+  turning OFF flexibleTaxonomy, which we don't want. The old ids are hidden
+  from `--help` and `docs/` (the per-command page and its `ALIASES` block both
+  disappear). The deprecation warning still fires for a hidden alias because
+  `@oclif/core`'s
   `warnIfCommandDeprecated()` checks `[...aliases, ...hiddenAliases]`. Under
   `--json` the warning routes into the JSON `warnings` array, so stdout stays
   valid JSON. **Gotcha — `hiddenAliases` do NOT disappear from

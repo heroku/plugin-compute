@@ -35,6 +35,12 @@ export type ComputeGenerateResult = {
 };
 
 export default class Generate extends SfCommand<ComputeGenerateResult> {
+  // oclif's Command lifecycle prints the warning from state + deprecationOptions; don't also this.warn().
+  public static readonly deprecationOptions = {
+    to: 'template generate project',
+    message: messages.getMessage('deprecation.message'),
+  };
+
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
   // Overridable by tests so generate.test.ts stays offline -- production always uses the real
@@ -62,6 +68,8 @@ export default class Generate extends SfCommand<ComputeGenerateResult> {
   };
 
   public static readonly requiresProject = true;
+
+  public static readonly state = 'deprecated';
 
   public static readonly summary = messages.getMessage('summary');
 

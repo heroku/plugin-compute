@@ -118,6 +118,21 @@ describe('compute generate', () => {
     $$.restore();
   });
 
+  it('is deprecated in favor of sf template generate project', () => {
+    expect(Generate.state).toBe('deprecated');
+    expect(Generate.deprecationOptions?.to).toBe('template generate project');
+    expect(Generate.deprecationOptions?.message).toBe(
+      'This command will be available as sf template generate project --template compute in version 1.0.0 of plugin-compute.',
+    );
+  });
+
+  it('still scaffolds while deprecated', async () => {
+    const result = await Generate.run(['--name', 'StillWorks']);
+
+    expect(result.name).toBe('StillWorks');
+    expect(result.files.length).toBeGreaterThan(0);
+  });
+
   it('scaffolds a node compute app by default', async () => {
     const result = await Generate.run(['--name', 'CreditRatingScorer']);
 

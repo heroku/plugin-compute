@@ -131,7 +131,7 @@ describe('compute generate', () => {
 
     const deprecationWarnings = sfCommandStubs.warn
       .getCalls()
-      .filter(call => String(call.args[0]).includes(Generate.deprecationOptions.message));
+      .filter(call => (call.args as [string])[0].includes(Generate.deprecationOptions.message));
     expect(deprecationWarnings).toHaveLength(1);
   });
 

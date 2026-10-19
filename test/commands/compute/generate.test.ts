@@ -126,11 +126,13 @@ describe('compute generate', () => {
     );
   });
 
-  it('still scaffolds while deprecated', async () => {
-    const result = await Generate.run(['--name', 'StillWorks']);
+  it('emits the deprecation warning exactly once at runtime', async () => {
+    await Generate.run(['--name', 'WarnOnce']);
 
-    expect(result.name).toBe('StillWorks');
-    expect(result.files.length).toBeGreaterThan(0);
+    const deprecationWarnings = sfCommandStubs.warn
+      .getCalls()
+      .filter(call => String(call.args[0]).includes(Generate.deprecationOptions.message));
+    expect(deprecationWarnings).toHaveLength(1);
   });
 
   it('scaffolds a node compute app by default', async () => {

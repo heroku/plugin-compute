@@ -171,6 +171,10 @@ DESCRIPTION
   language from its Heroku AppLink reference app on GitHub, so it requires
   outbound network access.
 
+  This command is deprecated but still works. When you move to sf template generate
+  project --template compute, note that --language no longer defaults to node: the
+  replacement's --compute-language flag makes the language an explicit choice.
+
 EXAMPLES
   Scaffold a Node.js compute app named CreditRatingScorer:
 

@@ -207,6 +207,14 @@ The telemetry transport "%s" isn't valid. Use one of: %s.
 
 - Pass http (OTLP over HTTP), grpc (OTLP over gRPC), or splunk.
 
+# error.invalidHeader
+
+The telemetry header "%s" isn't valid. Headers must be passed as key=value.
+
+# error.invalidHeader.actions
+
+- Pass each header as --header key=value; repeat the flag for more than one header.
+
 # error.telemetryDrainNotFound
 
 Heroku didn't find a telemetry drain with ID %s.

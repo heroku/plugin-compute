@@ -108,3 +108,47 @@ export function formatTelemetryDrainRows(
     {key: 'Headers', value: hasHeaders ? JSON.stringify(maskHeaderValues(headers)) : DASH},
   ];
 }
+
+// Splits on the first = only, so a header value that itself contains one (e.g. a base64 token's
+// padding) isn't truncated. Requires a non-empty key; an empty value is allowed.
+const HEADER_PATTERN = /^([^=]+)=(.*)$/v;
+
+// Turns repeated --header key=value flags into the exporter headers object. A repeated key keeps its
+// last value. Built via fromEntries so a key like `__proto__` becomes an own property rather than
+// touching the prototype.
+export function parseHeaderFlags(inputs: readonly string[]): Record<string, string> {
+  const entries = inputs.map((input): [string, string] => {
+    const match = HEADER_PATTERN.exec(input);
+    if (!match) {
+      throw messages.createError('error.invalidHeader', [input]);
+    }
+
+    return [match[1], match[2]];
+  });
+
+  return Object.fromEntries(entries);
+}
+
+// Command-owned result shape (not the raw wire type) so --json stays stable across OpenAPI changes.
+// Shared by create/update; display keeps its own because it also resolves the owning app.
+export type TelemetryDrainResult = {
+  endpoint?: string;
+  // The raw exporter type, so --json can tell otlphttp and splunk apart (both collapse to "HTTP").
+  exporterType?: string;
+  // Returned verbatim; human output never prints the values, which can carry credentials.
+  headers?: Record<string, string>;
+  id: string;
+  signals: string[];
+  transport?: string;
+};
+
+export function toTelemetryDrainResult(drain: components['schemas']['TelemetryDrain']): TelemetryDrainResult {
+  return {
+    id: drain.id ?? '',
+    signals: drain.signals ?? [],
+    endpoint: drain.exporter?.endpoint,
+    exporterType: drain.exporter?.type,
+    transport: drain.exporter?.type ? transportLabelForExporterType(drain.exporter.type) : undefined,
+    headers: drain.exporter?.headers,
+  };
+}

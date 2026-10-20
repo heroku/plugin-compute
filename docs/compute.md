@@ -74,7 +74,7 @@ FLAG DESCRIPTIONS
     terminal, but are included in --json output.
 ```
 
-_See code: [src/commands/compute/create/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/create/telemetry-drain.ts)_
+_See code: [src/commands/compute/create/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/create/telemetry-drain.ts)_
 
 ## `sf compute delete telemetry-drain ID`
 
@@ -160,7 +160,7 @@ EXAMPLES
       my-org
 ```
 
-_See code: [src/commands/compute/deploy.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/deploy.ts)_
+_See code: [src/commands/compute/deploy.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/deploy.ts)_
 
 ## `sf compute display`
 
@@ -204,7 +204,7 @@ EXAMPLES
     $ sf compute display --name CreditRatingScorer --target-org my-org --verbose
 ```
 
-_See code: [src/commands/compute/display.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/display.ts)_
+_See code: [src/commands/compute/display.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/display.ts)_
 
 ## `sf compute display telemetry-drain ID`
 
@@ -235,7 +235,7 @@ EXAMPLES
     $ sf compute display telemetry-drain 01234567-89ab-cdef-0123-456789abcdef --target-org my-org
 ```
 
-_See code: [src/commands/compute/display/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/display/telemetry-drain.ts)_
+_See code: [src/commands/compute/display/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/display/telemetry-drain.ts)_
 
 ## `sf compute generate`
 
@@ -292,7 +292,7 @@ FLAG DESCRIPTIONS
     scaffolds starters for node and python only.
 ```
 
-_See code: [src/commands/compute/generate.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/generate.ts)_
+_See code: [src/commands/compute/generate.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/generate.ts)_
 
 ## `sf compute get build-log`
 
@@ -333,7 +333,7 @@ EXAMPLES
     $ sf compute get build-log --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/get/build-log.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/get/build-log.ts)_
+_See code: [src/commands/compute/get/build-log.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/get/build-log.ts)_
 
 ## `sf compute get config [KEY]`
 
@@ -372,7 +372,7 @@ EXAMPLES
     $ sf compute get config STRIPE_KEY LOG_LEVEL --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/get/config.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/get/config.ts)_
+_See code: [src/commands/compute/get/config.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/get/config.ts)_
 
 ## `sf compute get runtime-log`
 
@@ -420,7 +420,7 @@ EXAMPLES
     $ sf compute get runtime-log --name CreditRatingScorer --num 500 --target-org my-org
 ```
 
-_See code: [src/commands/compute/get/runtime-log.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/get/runtime-log.ts)_
+_See code: [src/commands/compute/get/runtime-log.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/get/runtime-log.ts)_
 
 ## `sf compute list`
 
@@ -455,7 +455,7 @@ EXAMPLES
     $ sf compute list --target-org my-org
 ```
 
-_See code: [src/commands/compute/list.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/list.ts)_
+_See code: [src/commands/compute/list.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/list.ts)_
 
 ## `sf compute list config`
 
@@ -492,7 +492,7 @@ EXAMPLES
     $ sf compute list config --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/list/config.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/list/config.ts)_
+_See code: [src/commands/compute/list/config.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/list/config.ts)_
 
 ## `sf compute list telemetry-drain`
 
@@ -527,7 +527,7 @@ EXAMPLES
     $ sf compute list telemetry-drain --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/list/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/list/telemetry-drain.ts)_
+_See code: [src/commands/compute/list/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/list/telemetry-drain.ts)_
 
 ## `sf compute scale`
 
@@ -581,7 +581,7 @@ EXAMPLES
     $ sf compute scale --process-type worker --quantity 0 --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/scale.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/scale.ts)_
+_See code: [src/commands/compute/scale.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/scale.ts)_
 
 ## `sf compute set config [PAIR]`
 
@@ -621,7 +621,7 @@ EXAMPLES
     $ sf compute set config STRIPE_KEY=sk_live_xyz789 LOG_LEVEL=debug --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/set/config.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/set/config.ts)_
+_See code: [src/commands/compute/set/config.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/set/config.ts)_
 
 ## `sf compute source retrieve`
 
@@ -662,7 +662,7 @@ FLAG DESCRIPTIONS
     subdirectory named after --name.
 ```
 
-_See code: [src/commands/compute/source/retrieve.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/source/retrieve.ts)_
+_See code: [src/commands/compute/source/retrieve.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/source/retrieve.ts)_
 
 ## `sf compute tail runtime-log`
 
@@ -710,7 +710,7 @@ EXAMPLES
     $ sf compute tail runtime-log --name CreditRatingScorer --num 500 --target-org my-org
 ```
 
-_See code: [src/commands/compute/tail/runtime-log.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/tail/runtime-log.ts)_
+_See code: [src/commands/compute/tail/runtime-log.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/tail/runtime-log.ts)_
 
 ## `sf compute unset config [KEY]`
 
@@ -749,7 +749,7 @@ EXAMPLES
     $ sf compute unset config LOG_LEVEL DEBUG_MODE --name CreditRatingScorer --target-org my-org
 ```
 
-_See code: [src/commands/compute/unset/config.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/unset/config.ts)_
+_See code: [src/commands/compute/unset/config.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/unset/config.ts)_
 
 ## `sf compute update telemetry-drain ID`
 
@@ -799,4 +799,4 @@ FLAG DESCRIPTIONS
     never printed to the terminal, but are included in --json output.
 ```
 
-_See code: [src/commands/compute/update/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/update/telemetry-drain.ts)_
+_See code: [src/commands/compute/update/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/update/telemetry-drain.ts)_

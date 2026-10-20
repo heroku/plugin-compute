@@ -2,6 +2,19 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.3.1](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.3.0...plugin-compute-v0.3.1) (2026-10-20)
+
+
+### Features
+
+* add sf compute create and update telemetry-drain commands ([#46](https://github.com/heroku/plugin-compute/issues/46)) ([109d123](https://github.com/heroku/plugin-compute/commit/109d123b7f388b3f050105dd6d1d7aef3843b965))
+* deprecate sf compute generate in favor of template generate project ([#44](https://github.com/heroku/plugin-compute/issues/44)) ([7550ebf](https://github.com/heroku/plugin-compute/commit/7550ebf6dae4f15d526b2445fa6253f06a6308e4))
+
+
+### Bug Fixes
+
+* send a Range header Heroku accepts when fetching the latest release ([#47](https://github.com/heroku/plugin-compute/issues/47)) ([a6e4f26](https://github.com/heroku/plugin-compute/commit/a6e4f26c1d7287f1e9b003e4ef0925bdc7cb4c73))
+
 ## [0.3.0](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.2.0...plugin-compute-v0.3.0) (2026-10-16)
 
 

@@ -1,7 +1,7 @@
 {
   "name": "@heroku/plugin-compute",
   "description": "CLI for Compute",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": "Heroku",
   "bugs": "https://github.com/heroku/plugin-compute/issues",
   "dependencies": {

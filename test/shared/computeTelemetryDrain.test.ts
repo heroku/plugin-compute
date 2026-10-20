@@ -18,6 +18,7 @@ import {
   exporterTypeForTransport,
   formatTelemetryDrainRows,
   parseHeaderFlags,
+  PUBLIC_TRANSPORTS,
   TELEMETRY_SIGNALS,
   TELEMETRY_TRANSPORTS,
   toTelemetryDrainResult,
@@ -75,7 +76,22 @@ describe('computeTelemetryDrain.exporterTypeForTransport', () => {
 
   it('throws on an unknown transport, naming the valid set', () => {
     expect(() => exporterTypeForTransport('kafka')).toThrow('"kafka"');
-    expect(() => exporterTypeForTransport('kafka')).toThrow('grpc, http, splunk');
+    expect(() => exporterTypeForTransport('kafka')).toThrow('http, grpc');
+  });
+
+  it('keeps the hidden splunk transport out of the error text and hint but still accepts it', () => {
+    expect([...PUBLIC_TRANSPORTS]).toEqual(['http', 'grpc']);
+    let error: (Error & {actions?: string[]}) | undefined;
+    try {
+      exporterTypeForTransport('kafka');
+    } catch (error_) {
+      error = error_ as Error & {actions?: string[]};
+    }
+
+    expect(error?.message).not.toMatch(/splunk/iv);
+    expect(error?.actions?.join(' ')).not.toMatch(/splunk/iv);
+    expect(error?.actions?.join(' ')).toContain('http, grpc');
+    expect(exporterTypeForTransport('splunk')).toBe('splunk');
   });
 
   it('is case-sensitive and does not trim', () => {

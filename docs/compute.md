@@ -737,8 +737,8 @@ DESCRIPTION
   Change the configuration of a compute telemetry drain.
 
   Updates only the attributes you pass and leaves the rest of the drain as it
-  is. Passing --header replaces the drain's existing headers with the ones you
-  give. Use sf compute list telemetry-drain to find a drain's ID.
+  is. Passing --header adds or overwrites the headers you give and keeps the
+  drain's other headers. Use sf compute list telemetry-drain to find a drain's ID.
 
 EXAMPLES
   Point a drain at a new endpoint:
@@ -754,8 +754,9 @@ EXAMPLES
 FLAG DESCRIPTIONS
   --header=<value>...  Header to send with each export, as key=value.
 
-    Repeat the flag to send more than one header. The headers you pass replace
-    the drain's existing ones. Header values often carry credentials; they are
+    Repeat the flag to send more than one header. A header you pass adds
+    or overwrites the one with the same name; the drain's other headers are kept. Header values often carry credentials;
+    they are
     never printed to the terminal, but are included in --json output.
 ```
 

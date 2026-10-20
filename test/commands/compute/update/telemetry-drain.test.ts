@@ -109,6 +109,26 @@ describe('compute update telemetry-drain', () => {
     expect(findPatchCall(requestStub)).toBeUndefined();
   });
 
+  it('rejects an invalid transport before calling Heroku', async () => {
+    await expect(
+      TelemetryDrainUpdate.run([DRAIN_ID, '--transport', 'kafka', '--target-org', testOrg.username]),
+    ).rejects.toThrow(/kafka/v);
+    expect(findPatchCall(requestStub)).toBeUndefined();
+  });
+
+  it('accepts the hidden splunk transport', async () => {
+    await TelemetryDrainUpdate.run([DRAIN_ID, '--transport', 'splunk', '--target-org', testOrg.username]);
+
+    expect(JSON.parse(findPatchCall(requestStub)!.body)).toEqual({exporter: {type: 'splunk'}});
+  });
+
+  it('rejects a malformed header before calling Heroku', async () => {
+    await expect(
+      TelemetryDrainUpdate.run([DRAIN_ID, '--header', 'no-equals-sign', '--target-org', testOrg.username]),
+    ).rejects.toThrow(/no-equals-sign/v);
+    expect(findPatchCall(requestStub)).toBeUndefined();
+  });
+
   it('requires the drain ID', async () => {
     await expect(TelemetryDrainUpdate.run(['--url', 'https://x.example.com', '--target-org', testOrg.username])).rejects.toThrow();
   });
@@ -131,5 +151,20 @@ describe('compute update telemetry-drain', () => {
       transport: 'HTTP',
       headers: undefined,
     });
+  });
+
+  it('falls back to the requested drain ID when the response omits it', async () => {
+    requestStub.mockResolvedValue({signals: ['logs'], exporter: {type: 'otlphttp', endpoint: 'https://new.example.com'}});
+
+    const result = await TelemetryDrainUpdate.run([
+      DRAIN_ID,
+      '--url',
+      'https://new.example.com',
+      '--target-org',
+      testOrg.username,
+    ]);
+
+    expect(result.id).toBe(DRAIN_ID);
+    expect(sfCommandStubs.logSuccess.firstCall.args[0]).toContain(DRAIN_ID);
   });
 });

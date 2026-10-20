@@ -79,8 +79,10 @@ export default class TelemetryDrainUpdate extends SfCommand<ComputeTelemetryDrai
     const connection = flags['target-org'].getConnection();
     const drain = await updateTelemetryDrainViaProxy(connection, {drainId: args.id, signals, exporter});
 
-    const result = toTelemetryDrainResult(drain);
-    this.logSuccess(messages.getMessage('info.updated', [result.id || args.id]));
+    // Fall back to the requested ID if the response omits it, so --json never reports an empty id.
+    const drainResult = toTelemetryDrainResult(drain);
+    const result = {...drainResult, id: drainResult.id === '' ? args.id : drainResult.id};
+    this.logSuccess(messages.getMessage('info.updated', [result.id]));
     return result;
   }
 }

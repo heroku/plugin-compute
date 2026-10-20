@@ -205,7 +205,7 @@ The telemetry transport "%s" isn't valid. Use one of: %s.
 
 # error.invalidTransport.actions
 
-- Pass http (OTLP over HTTP), grpc (OTLP over gRPC), or splunk.
+- Pass one of: %s. http is OTLP over HTTP; grpc is OTLP over gRPC.
 
 # error.invalidHeader
 

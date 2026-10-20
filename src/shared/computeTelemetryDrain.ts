@@ -54,6 +54,9 @@ const TRANSPORT_TO_EXPORTER = {
 
 export const TELEMETRY_TRANSPORTS: readonly string[] = Object.keys(TRANSPORT_TO_EXPORTER);
 
+// The transports advertised to users (error text, hints). `splunk` is still accepted but stays hidden.
+export const PUBLIC_TRANSPORTS: readonly string[] = ['http', 'grpc'];
+
 type TelemetryTransport = keyof typeof TRANSPORT_TO_EXPORTER;
 
 // DELIBERATELY case-sensitive, non-trimming, and treats `all` only as the whole input (never as a
@@ -79,7 +82,8 @@ export function validateAndFormatSignals(input: string): TelemetrySignal[] {
 // (exact-match, no trim/case-fold); an unknown transport throws rather than silently defaulting.
 export function exporterTypeForTransport(transport: string): TelemetryExporterType {
   if (!Object.hasOwn(TRANSPORT_TO_EXPORTER, transport)) {
-    throw messages.createError('error.invalidTransport', [transport, TELEMETRY_TRANSPORTS.join(', ')]);
+    const publicList = PUBLIC_TRANSPORTS.join(', ');
+    throw messages.createError('error.invalidTransport', [transport, publicList], [publicList]);
   }
 
   return TRANSPORT_TO_EXPORTER[transport as TelemetryTransport];

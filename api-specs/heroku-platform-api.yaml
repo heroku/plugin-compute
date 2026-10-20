@@ -662,11 +662,11 @@ components:
       required: false
       description: >-
         Heroku's Range-header-based pagination/ordering syntax, e.g.
-        `version ..; max=1; order=desc` to fetch only the single
+        `version ..; max=1, order=desc` to fetch only the single
         highest-version release.
       schema:
         type: string
-      example: 'version ..; max=1; order=desc'
+      example: 'version ..; max=1, order=desc'
     TelemetryDrainId:
       name: telemetry_drain_id
       in: path

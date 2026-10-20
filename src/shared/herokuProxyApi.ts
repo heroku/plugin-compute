@@ -259,7 +259,7 @@ export async function updateComputeConfigVarsViaProxy(
 
 // Shared by display.ts (formation display) and config/set.ts + config/unset.ts (post-update
 // release number) -- the one place that owns "list releases, take the highest version number."
-// Range: version ..; max=1; order=desc asks Heroku for just the single highest-version release,
+// Range: version ..; max=1, order=desc asks Heroku for just the single highest-version release,
 // but Math.max is still applied defensively rather than trusting max=1 to always return exactly
 // one element. Returns undefined (not an error) for a brand-new app with no releases yet.
 export async function fetchLatestReleaseVersionViaProxy(
@@ -272,7 +272,7 @@ export async function fetchLatestReleaseVersionViaProxy(
       path: '/apps/{app_id_or_name}/releases',
 
       params: {app_id_or_name: params.appId},
-      headers: {Range: 'version ..; max=1; order=desc'},
+      headers: {Range: 'version ..; max=1, order=desc'},
     });
     const versions = releases.map(r => r.version).filter((v): v is number => v !== undefined);
     return versions.length === 0 ? undefined : Math.max(...versions);

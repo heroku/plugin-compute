@@ -17,8 +17,11 @@
 import {
   exporterTypeForTransport,
   formatTelemetryDrainRows,
+  parseHeaderFlags,
+  PUBLIC_TRANSPORTS,
   TELEMETRY_SIGNALS,
   TELEMETRY_TRANSPORTS,
+  toTelemetryDrainResult,
   transportLabelForExporterType,
   validateAndFormatSignals,
 } from '../../src/shared/computeTelemetryDrain.js';
@@ -73,7 +76,22 @@ describe('computeTelemetryDrain.exporterTypeForTransport', () => {
 
   it('throws on an unknown transport, naming the valid set', () => {
     expect(() => exporterTypeForTransport('kafka')).toThrow('"kafka"');
-    expect(() => exporterTypeForTransport('kafka')).toThrow('grpc, http, splunk');
+    expect(() => exporterTypeForTransport('kafka')).toThrow('http, grpc');
+  });
+
+  it('keeps the hidden splunk transport out of the error text and hint but still accepts it', () => {
+    expect([...PUBLIC_TRANSPORTS]).toEqual(['http', 'grpc']);
+    let error: (Error & {actions?: string[]}) | undefined;
+    try {
+      exporterTypeForTransport('kafka');
+    } catch (error_) {
+      error = error_ as Error & {actions?: string[]};
+    }
+
+    expect(error?.message).not.toMatch(/splunk/iv);
+    expect(error?.actions?.join(' ')).not.toMatch(/splunk/iv);
+    expect(error?.actions?.join(' ')).toContain('http, grpc');
+    expect(exporterTypeForTransport('splunk')).toBe('splunk');
   });
 
   it('is case-sensitive and does not trim', () => {
@@ -149,5 +167,65 @@ describe('computeTelemetryDrain.formatTelemetryDrainRows', () => {
     expect(rows.find(r => r.key === 'Signals')?.value).toBe('-');
     expect(rows.find(r => r.key === 'Headers')?.value).toBe('-');
     expect(rows.find(r => r.key === 'Transport')?.value).toBe('HTTP');
+  });
+});
+
+describe('computeTelemetryDrain.parseHeaderFlags', () => {
+  it('parses key=value pairs into a headers object', () => {
+    expect(parseHeaderFlags(['x-api-key=secret', 'x-team=compute'])).toEqual({
+      'x-api-key': 'secret',
+      'x-team': 'compute',
+    });
+  });
+
+  it('splits on the first = only, so values may contain =', () => {
+    expect(parseHeaderFlags(['authorization=Bearer abc=='])).toEqual({authorization: 'Bearer abc=='});
+  });
+
+  it('allows an empty value but not an empty key', () => {
+    expect(parseHeaderFlags(['x-empty='])).toEqual({'x-empty': ''});
+    expect(() => parseHeaderFlags(['=value'])).toThrow(/key=value/v);
+  });
+
+  it('throws on a token with no =', () => {
+    expect(() => parseHeaderFlags(['no-equals'])).toThrow(/no-equals/v);
+  });
+
+  it('lets a repeated key win with its last value', () => {
+    expect(parseHeaderFlags(['k=1', 'k=2'])).toEqual({k: '2'});
+  });
+
+  it('returns an empty object for no inputs', () => {
+    expect(parseHeaderFlags([])).toEqual({});
+  });
+});
+
+describe('computeTelemetryDrain.toTelemetryDrainResult', () => {
+  it('flattens a drain, deriving the transport label and keeping headers verbatim', () => {
+    expect(
+      toTelemetryDrainResult({
+        id: 'drain-1',
+        signals: ['traces'],
+        exporter: {type: 'otlp', endpoint: 'https://c.example.com:4317', headers: {k: 'v'}},
+      }),
+    ).toEqual({
+      id: 'drain-1',
+      signals: ['traces'],
+      endpoint: 'https://c.example.com:4317',
+      exporterType: 'otlp',
+      transport: 'gRPC',
+      headers: {k: 'v'},
+    });
+  });
+
+  it('defaults absent fields (signals to [], the rest undefined)', () => {
+    expect(toTelemetryDrainResult({id: 'drain-2'})).toEqual({
+      id: 'drain-2',
+      signals: [],
+      endpoint: undefined,
+      exporterType: undefined,
+      transport: undefined,
+      headers: undefined,
+    });
   });
 });

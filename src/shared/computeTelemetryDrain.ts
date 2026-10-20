@@ -54,6 +54,9 @@ const TRANSPORT_TO_EXPORTER = {
 
 export const TELEMETRY_TRANSPORTS: readonly string[] = Object.keys(TRANSPORT_TO_EXPORTER);
 
+// The transports advertised to users (error text, hints). `splunk` is still accepted but stays hidden.
+export const PUBLIC_TRANSPORTS: readonly string[] = ['http', 'grpc'];
+
 type TelemetryTransport = keyof typeof TRANSPORT_TO_EXPORTER;
 
 // DELIBERATELY case-sensitive, non-trimming, and treats `all` only as the whole input (never as a
@@ -79,7 +82,8 @@ export function validateAndFormatSignals(input: string): TelemetrySignal[] {
 // (exact-match, no trim/case-fold); an unknown transport throws rather than silently defaulting.
 export function exporterTypeForTransport(transport: string): TelemetryExporterType {
   if (!Object.hasOwn(TRANSPORT_TO_EXPORTER, transport)) {
-    throw messages.createError('error.invalidTransport', [transport, TELEMETRY_TRANSPORTS.join(', ')]);
+    const publicList = PUBLIC_TRANSPORTS.join(', ');
+    throw messages.createError('error.invalidTransport', [transport, publicList], [publicList]);
   }
 
   return TRANSPORT_TO_EXPORTER[transport as TelemetryTransport];
@@ -107,4 +111,48 @@ export function formatTelemetryDrainRows(
     {key: 'Transport', value: drain.exporter?.type ? transportLabelForExporterType(drain.exporter.type) : DASH},
     {key: 'Headers', value: hasHeaders ? JSON.stringify(maskHeaderValues(headers)) : DASH},
   ];
+}
+
+// Splits on the first = only, so a header value that itself contains one (e.g. a base64 token's
+// padding) isn't truncated. Requires a non-empty key; an empty value is allowed.
+const HEADER_PATTERN = /^([^=]+)=(.*)$/v;
+
+// Turns repeated --header key=value flags into the exporter headers object. A repeated key keeps its
+// last value. Built via fromEntries so a key like `__proto__` becomes an own property rather than
+// touching the prototype.
+export function parseHeaderFlags(inputs: readonly string[]): Record<string, string> {
+  const entries = inputs.map((input): [string, string] => {
+    const match = HEADER_PATTERN.exec(input);
+    if (!match) {
+      throw messages.createError('error.invalidHeader', [input]);
+    }
+
+    return [match[1], match[2]];
+  });
+
+  return Object.fromEntries(entries);
+}
+
+// Command-owned result shape (not the raw wire type) so --json stays stable across OpenAPI changes.
+// Shared by create/update; display keeps its own because it also resolves the owning app.
+export type TelemetryDrainResult = {
+  endpoint?: string;
+  // The raw exporter type, so --json can tell otlphttp and splunk apart (both collapse to "HTTP").
+  exporterType?: string;
+  // Returned verbatim; human output never prints the values, which can carry credentials.
+  headers?: Record<string, string>;
+  id: string;
+  signals: string[];
+  transport?: string;
+};
+
+export function toTelemetryDrainResult(drain: components['schemas']['TelemetryDrain']): TelemetryDrainResult {
+  return {
+    id: drain.id ?? '',
+    signals: drain.signals ?? [],
+    endpoint: drain.exporter?.endpoint,
+    exporterType: drain.exporter?.type,
+    transport: drain.exporter?.type ? transportLabelForExporterType(drain.exporter.type) : undefined,
+    headers: drain.exporter?.headers,
+  };
 }

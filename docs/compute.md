@@ -3,6 +3,7 @@
 
 Manage Salesforce Compute apps.
 
+* [`sf compute create telemetry-drain`](#sf-compute-create-telemetry-drain)
 * [`sf compute deploy`](#sf-compute-deploy)
 * [`sf compute display`](#sf-compute-display)
 * [`sf compute display telemetry-drain ID`](#sf-compute-display-telemetry-drain-id)
@@ -18,6 +19,61 @@ Manage Salesforce Compute apps.
 * [`sf compute source retrieve`](#sf-compute-source-retrieve)
 * [`sf compute tail runtime-log`](#sf-compute-tail-runtime-log)
 * [`sf compute unset config [KEY]`](#sf-compute-unset-config-key)
+* [`sf compute update telemetry-drain ID`](#sf-compute-update-telemetry-drain-id)
+
+## `sf compute create telemetry-drain`
+
+Add a telemetry drain to a compute app.
+
+```
+USAGE
+  $ sf compute create telemetry-drain --url <value> -o <value> [--json] [--flags-dir <value>] [-n <value>] [--signals <value>]
+    [--transport <value>] [--header <value>...]
+
+FLAGS
+  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to add the drain to (or
+                            <namespace>\_\_<developerName> if it was deployed under a namespace).
+                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                            directory's app name if that isn't set either.
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+      --header=<value>...   Header to send with each export, as key=value.
+      --signals=<value>     [default: all] Comma-separated signals to forward: traces, metrics, logs, or all.
+      --transport=<value>   [default: http] Wire protocol to use: http (OTLP over HTTP) or grpc (OTLP over gRPC).
+      --url=<value>         (required) Endpoint to forward telemetry to.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Add a telemetry drain to a compute app.
+
+  Creates an OpenTelemetry drain that forwards the compute app's logs, metrics,
+  and traces to the endpoint you give with --url. Choose which signals to
+  forward with --signals and the wire protocol with --transport. Use
+  sf compute update telemetry-drain to change a drain later.
+
+EXAMPLES
+  Forward all signals from a compute app to an OTLP/HTTP collector:
+
+    $ sf compute create telemetry-drain --name CreditRatingScorer --url https://collector.example.com:4318 \
+      --target-org my-org
+
+  Forward only traces and logs over gRPC, with an auth header:
+
+    $ sf compute create telemetry-drain --name CreditRatingScorer --url https://collector.example.com:4317 \
+      --transport grpc --signals traces,logs --header "x-api-key=my-key" --target-org my-org
+
+FLAG DESCRIPTIONS
+  --header=<value>...  Header to send with each export, as key=value.
+
+    Repeat the flag to send more than one header. Header values often carry
+    credentials; they are sent to the endpoint and are never printed to the
+    terminal, but are included in --json output.
+```
+
+_See code: [src/commands/compute/create/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/create/telemetry-drain.ts)_
 
 ## `sf compute deploy`
 
@@ -655,3 +711,53 @@ EXAMPLES
 ```
 
 _See code: [src/commands/compute/unset/config.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/unset/config.ts)_
+
+## `sf compute update telemetry-drain ID`
+
+Change the configuration of a compute telemetry drain.
+
+```
+USAGE
+  $ sf compute update telemetry-drain ID -o <value> [--json] [--flags-dir <value>] [--url <value>] [--signals <value>] [--transport
+    <value>] [--header <value>...]
+
+FLAGS
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+      --header=<value>...   Header to send with each export, as key=value.
+      --signals=<value>     New comma-separated signals to forward: traces, metrics, logs, or all.
+      --transport=<value>   New wire protocol: http (OTLP over HTTP) or grpc (OTLP over gRPC).
+      --url=<value>         New endpoint to forward telemetry to.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Change the configuration of a compute telemetry drain.
+
+  Updates only the attributes you pass and leaves the rest of the drain as it
+  is. Passing --header adds or overwrites the headers you give and keeps the
+  drain's other headers. Use sf compute list telemetry-drain to find a drain's ID.
+
+EXAMPLES
+  Point a drain at a new endpoint:
+
+    $ sf compute update telemetry-drain 01234567-89ab-cdef-0123-456789abcdef --url \
+      https://collector.example.com:4318 --target-org my-org
+
+  Forward only logs over gRPC:
+
+    $ sf compute update telemetry-drain 01234567-89ab-cdef-0123-456789abcdef --signals logs --transport grpc \
+      --target-org my-org
+
+FLAG DESCRIPTIONS
+  --header=<value>...  Header to send with each export, as key=value.
+
+    Repeat the flag to send more than one header. A header you pass adds
+    or overwrites the one with the same name; the drain's other headers are kept. Header values often carry credentials;
+    they are
+    never printed to the terminal, but are included in --json output.
+```
+
+_See code: [src/commands/compute/update/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/update/telemetry-drain.ts)_

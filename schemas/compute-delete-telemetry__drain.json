@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ComputeTelemetryDrainDeleteResult",
+  "definitions": {
+    "ComputeTelemetryDrainDeleteResult": {
+      "type": "object",
+      "properties": {
+        "deleted": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "deleted",
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

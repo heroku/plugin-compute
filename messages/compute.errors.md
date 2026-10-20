@@ -205,7 +205,15 @@ The telemetry transport "%s" isn't valid. Use one of: %s.
 
 # error.invalidTransport.actions
 
-- Pass http (OTLP over HTTP), grpc (OTLP over gRPC), or splunk.
+- Pass one of: %s. http is OTLP over HTTP; grpc is OTLP over gRPC.
+
+# error.invalidHeader
+
+The telemetry header "%s" isn't valid. Headers must be passed as key=value.
+
+# error.invalidHeader.actions
+
+- Pass each header as --header key=value; repeat the flag for more than one header.
 
 # error.telemetryDrainNotFound
 

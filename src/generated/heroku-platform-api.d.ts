@@ -994,8 +994,8 @@ export interface components {
          */
         HerokuSdkAcceptHeader: "application/vnd.heroku+json; version=3.sdk";
         /**
-         * @description Heroku's Range-header-based pagination/ordering syntax, e.g. `version ..; max=1; order=desc` to fetch only the single highest-version release.
-         * @example version ..; max=1; order=desc
+         * @description Heroku's Range-header-based pagination/ordering syntax, e.g. `version ..; max=1, order=desc` to fetch only the single highest-version release.
+         * @example version ..; max=1, order=desc
          */
         HerokuRangeHeader: string;
         /**
@@ -1478,8 +1478,8 @@ export interface operations {
                  */
                 Accept: components["parameters"]["HerokuAcceptHeader"];
                 /**
-                 * @description Heroku's Range-header-based pagination/ordering syntax, e.g. `version ..; max=1; order=desc` to fetch only the single highest-version release.
-                 * @example version ..; max=1; order=desc
+                 * @description Heroku's Range-header-based pagination/ordering syntax, e.g. `version ..; max=1, order=desc` to fetch only the single highest-version release.
+                 * @example version ..; max=1, order=desc
                  */
                 Range?: components["parameters"]["HerokuRangeHeader"];
             };

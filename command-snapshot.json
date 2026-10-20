@@ -85,6 +85,22 @@
     },
     {
         "alias": [],
+        "command": "compute:delete:telemetry-drain",
+        "flagAliases": [],
+        "flagChars": [
+            "o",
+            "p"
+        ],
+        "flags": [
+            "flags-dir",
+            "json",
+            "no-prompt",
+            "target-org"
+        ],
+        "plugin": "@heroku/plugin-compute"
+    },
+    {
+        "alias": [],
         "command": "compute:deploy",
         "flagAliases": [],
         "flagChars": [

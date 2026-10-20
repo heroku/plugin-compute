@@ -4,6 +4,7 @@
 Manage Salesforce Compute apps.
 
 * [`sf compute create telemetry-drain`](#sf-compute-create-telemetry-drain)
+* [`sf compute delete telemetry-drain ID`](#sf-compute-delete-telemetry-drain-id)
 * [`sf compute deploy`](#sf-compute-deploy)
 * [`sf compute display`](#sf-compute-display)
 * [`sf compute display telemetry-drain ID`](#sf-compute-display-telemetry-drain-id)
@@ -74,6 +75,44 @@ FLAG DESCRIPTIONS
 ```
 
 _See code: [src/commands/compute/create/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/create/telemetry-drain.ts)_
+
+## `sf compute delete telemetry-drain ID`
+
+Delete a compute telemetry drain.
+
+```
+USAGE
+  $ sf compute delete telemetry-drain ID -o <value> [--json] [--flags-dir <value>] [-p]
+
+FLAGS
+  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
+                            configuration variable is already set.
+  -p, --no-prompt           Don't ask for confirmation before deleting.
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Delete a compute telemetry drain.
+
+  Removes a single OpenTelemetry drain by its ID, so its compute app stops
+  forwarding logs, metrics, and traces to the drain's endpoint. This can't be
+  undone; to forward telemetry again, create a new drain. You're asked to
+  confirm first unless you pass --no-prompt. Use sf compute list telemetry-drain
+  to find a drain's ID.
+
+EXAMPLES
+  Delete a telemetry drain, confirming first:
+
+    $ sf compute delete telemetry-drain 01234567-89ab-cdef-0123-456789abcdef --target-org my-org
+
+  Delete a telemetry drain without the confirmation prompt, for scripts:
+
+    $ sf compute delete telemetry-drain 01234567-89ab-cdef-0123-456789abcdef --target-org my-org --no-prompt
+```
+
+_See code: [src/commands/compute/delete/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/delete/telemetry-drain.ts)_
 
 ## `sf compute deploy`
 

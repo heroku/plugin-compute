@@ -82,12 +82,12 @@ Delete a compute telemetry drain.
 
 ```
 USAGE
-  $ sf compute delete telemetry-drain ID -o <value> [--json] [--flags-dir <value>] [--no-prompt]
+  $ sf compute delete telemetry-drain ID -o <value> [--json] [--flags-dir <value>] [-p]
 
 FLAGS
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
-      --no-prompt           Don't ask for confirmation before deleting.
+  -p, --no-prompt           Don't ask for confirmation before deleting.
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -112,7 +112,7 @@ EXAMPLES
     $ sf compute delete telemetry-drain 01234567-89ab-cdef-0123-456789abcdef --target-org my-org --no-prompt
 ```
 
-_See code: [src/commands/compute/delete/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.0/src/commands/compute/delete/telemetry-drain.ts)_
+_See code: [src/commands/compute/delete/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/delete/telemetry-drain.ts)_
 
 ## `sf compute deploy`
 

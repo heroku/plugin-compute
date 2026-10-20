@@ -110,6 +110,40 @@ describe('compute delete telemetry-drain', () => {
     expect(proxyTarget(findDeleteCall(requestStub)!.url)).toBe('https://api.heroku.com/telemetry-drains/a%2Fb%20c');
   });
 
+  it('surfaces error.telemetryDrainNotFound and never reports success when Heroku 404s the drain id', async () => {
+    requestStub.mockRejectedValue(Object.assign(new Error("Couldn't find that."), {data: {id: 'not_found'}}));
+
+    await expect(TelemetryDrainDelete.run([DRAIN_ID, '--no-prompt', '--target-org', testOrg.username])).rejects.toThrow(
+      `Heroku didn't find a telemetry drain with ID ${DRAIN_ID}.`,
+    );
+    expect(sfCommandStubs.logSuccess.called).toBe(false);
+  });
+
+  it('wraps a proxy-rejection failure as error.herokuProxyRequestFailed', async () => {
+    requestStub.mockRejectedValue(Object.assign(new Error('bad proxy_url'), {errorCode: 'HEROKU_PROXY_ERROR'}));
+
+    await expect(TelemetryDrainDelete.run([DRAIN_ID, '--no-prompt', '--target-org', testOrg.username])).rejects.toThrow(
+      'The Salesforce Heroku API proxy rejected the request: bad proxy_url',
+    );
+    expect(sfCommandStubs.logSuccess.called).toBe(false);
+  });
+
+  it('wraps an unrecognized failure as error.herokuApiRequestFailed', async () => {
+    requestStub.mockRejectedValue(new Error('socket hang up'));
+
+    await expect(TelemetryDrainDelete.run([DRAIN_ID, '--no-prompt', '--target-org', testOrg.username])).rejects.toThrow(
+      "Couldn't reach the Heroku Platform API through Salesforce: socket hang up",
+    );
+    expect(sfCommandStubs.logSuccess.called).toBe(false);
+  });
+
+  it('accepts -p as the short form of --no-prompt', async () => {
+    const result = await TelemetryDrainDelete.run([DRAIN_ID, '-p', '--target-org', testOrg.username]);
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(result).toEqual({id: DRAIN_ID, deleted: true});
+  });
+
   it('requires the drain id', async () => {
     await expect(TelemetryDrainDelete.run(['--target-org', testOrg.username])).rejects.toThrow(/id/iv);
   });

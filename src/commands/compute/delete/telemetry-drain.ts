@@ -24,7 +24,7 @@ import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.delete.telemetry-drain');
 
-// `deleted` is false when the user declines the confirmation, so a --json consumer can tell.
+// `deleted` is false only when the user declines the interactive confirmation; under --json the prompt is skipped.
 export type ComputeTelemetryDrainDeleteResult = {
   deleted: boolean;
   id: string;
@@ -43,6 +43,7 @@ export default class TelemetryDrainDelete extends SfCommand<ComputeTelemetryDrai
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
     'no-prompt': Flags.boolean({
+      char: 'p',
       summary: messages.getMessage('flags.no-prompt.summary'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),

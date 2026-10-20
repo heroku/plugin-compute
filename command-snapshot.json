@@ -88,7 +88,8 @@
         "command": "compute:delete:telemetry-drain",
         "flagAliases": [],
         "flagChars": [
-            "o"
+            "o",
+            "p"
         ],
         "flags": [
             "flags-dir",

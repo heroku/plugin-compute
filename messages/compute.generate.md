@@ -11,6 +11,14 @@ contacted, but this command does fetch the starter source for the chosen
 language from its Heroku AppLink reference app on GitHub, so it requires
 outbound network access.
 
+This command is deprecated but still works. When you move to sf template generate
+project --template compute, note that --language no longer defaults to node: the
+replacement's --compute-language flag makes the language an explicit choice.
+
+# deprecation.message
+
+This command will be available as sf template generate project --template compute in version 1.0.0 of plugin-compute.
+
 # flags.name.summary
 
 Name for the new compute app. Use <namespace>\_\_<developerName> to scaffold

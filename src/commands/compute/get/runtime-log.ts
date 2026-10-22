@@ -20,7 +20,7 @@ import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
 import {fetchLogplexOutput} from '../../../shared/computeLogStream.js';
 import {queryComputeApp, requireHerokuAppId, toComputeAppSummary} from '../../../shared/computeQuery.js';
-import {createComputeLogSessionViaProxy} from '../../../shared/herokuProxyApi.js';
+import {createComputeLogSessionViaProxy, fetchComputeAppViaProxy} from '../../../shared/herokuProxyApi.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
@@ -79,6 +79,13 @@ export default class RuntimeLog extends SfCommand<ComputeGetRuntimeLogResult> {
     }
 
     const appId = requireHerokuAppId(record, name);
+    // Fir apps keep no log history -- their session URL is a live stream that never closes -- so
+    // fail fast before creating a session. An unknown generation falls through to the Cedar path.
+    const herokuApp = await fetchComputeAppViaProxy(connection, {appId, name});
+    if (herokuApp?.generation === 'fir') {
+      throw messages.createError('error.firNoLogHistory', [name]);
+    }
+
     const session = await createComputeLogSessionViaProxy(connection, {
       name, appId, lines: num, tail: false,
     });

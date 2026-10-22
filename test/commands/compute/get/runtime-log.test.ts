@@ -120,7 +120,34 @@ describe('compute get runtime-log', () => {
     );
     const body = JSON.parse((call![0] as {body: string}).body) as {lines: number; tail: boolean};
     expect(body).toEqual({lines: 100, tail: false});
-    expect(fetchStub).toHaveBeenCalledWith('https://logplex.heroku.com/sessions/abc?srv=1');
+    expect(fetchStub).toHaveBeenCalledWith('https://logplex.heroku.com/sessions/abc?srv=1', {
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
+  });
+
+  it('fails fast on a Fir app, pointing at tail runtime-log, without creating a log session or fetching', async () => {
+    resolveWith([deployedRecord]);
+    requestStub.mockResolvedValue({generation: {name: 'fir'}, name: 'credit-rating-scorer'});
+
+    await expect(RuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
+      'Fir apps keep no log history',
+    );
+
+    expect(findLogSessionCall(requestStub)).toBeUndefined();
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Cedar path unchanged when the app reports generation cedar', async () => {
+    resolveWith([deployedRecord]);
+    requestStub.mockImplementation(async (req: {url?: string}) =>
+      req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')
+        ? {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'}
+        : {generation: {name: 'cedar'}, name: 'credit-rating-scorer'},
+    );
+
+    const result = await RuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result).toStrictEqual({lines: ['line one', 'line two'], name: 'CreditRatingScorer'});
   });
 
   it('reports no builds yet and returns just the name when CurrentBuild is null, without calling the proxy or fetch', async () => {

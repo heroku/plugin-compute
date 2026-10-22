@@ -51,6 +51,35 @@ describe('computeLogStream.fetchLogplexOutput', () => {
     expect(result).toBe('line one\nline two\n');
   });
 
+  it('passes an abort signal to fetch', async () => {
+    const fetchStub = stubFetchResponse(new Response('ok', {status: 200}));
+
+    await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc');
+
+    expect(fetchStub).toHaveBeenCalledWith('https://logplex.heroku.com/sessions/abc', {
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
+  });
+
+  it('times out with a clear error when the server never closes the stream', async () => {
+    const encoder = new TextEncoder();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('line one\n'));
+          init?.signal?.addEventListener('abort', () => {
+            controller.error(init.signal?.reason);
+          });
+        },
+      });
+      return new Response(body, {status: 200});
+    });
+
+    await expect(fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 50)).rejects.toThrow(
+      'Timed out waiting for the log output',
+    );
+  });
+
   it('wraps a non-2xx response as a hard error', async () => {
     stubFetchResponse(new Response('gone', {status: 410}));
 

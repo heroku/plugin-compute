@@ -26,15 +26,26 @@ const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 // us, not connection.request() (wrong host, no Salesforce bearer token applies) and not a
 // Heroku-token-bearing client (wrong host, no Heroku bearer token held client-side).
 
-export async function fetchLogplexOutput(logplexUrl: string): Promise<string> {
+// Fir apps keep no log history, so their session URL streams and never closes; the timeout also
+// covers a Cedar logplex that stalls, so the one-shot fetch can never wait indefinitely.
+export const LOGPLEX_FETCH_TIMEOUT_MS = 30_000;
+
+export async function fetchLogplexOutput(
+  logplexUrl: string,
+  timeoutMs: number = LOGPLEX_FETCH_TIMEOUT_MS,
+): Promise<string> {
   try {
-    const response = await fetch(logplexUrl);
+    const response = await fetch(logplexUrl, {signal: AbortSignal.timeout(timeoutMs)});
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
 
     return await response.text();
   } catch (error) {
+    if ((error as Error).name === 'TimeoutError') {
+      throw messages.createError('error.logFetchTimedOut', [String(Math.round(timeoutMs / 1000))]);
+    }
+
     throw messages.createError('error.logStreamFailed', [(error as Error).message]);
   }
 }

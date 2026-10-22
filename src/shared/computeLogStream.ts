@@ -30,19 +30,50 @@ const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 // covers a Cedar logplex that stalls, so the one-shot fetch can never wait indefinitely.
 export const LOGPLEX_FETCH_TIMEOUT_MS = 30_000;
 
+export type LogplexSnapshot = {
+  output: string;
+  // True when the deadline fired after some output had arrived, so `output` is what was received so far.
+  timedOut: boolean;
+};
+
+// On timeout, returns the partial output if any arrived rather than discarding it; throws only
+// when nothing arrived before the deadline.
 export async function fetchLogplexOutput(
   logplexUrl: string,
   timeoutMs: number = LOGPLEX_FETCH_TIMEOUT_MS,
-): Promise<string> {
+): Promise<LogplexSnapshot> {
+  const signal = AbortSignal.timeout(timeoutMs);
+  let output = '';
   try {
-    const response = await fetch(logplexUrl, {signal: AbortSignal.timeout(timeoutMs)});
+    const response = await fetch(logplexUrl, {signal});
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
 
-    return await response.text();
+    if (!response.body) {
+      return {output: await response.text(), timedOut: false};
+    }
+
+    const reader = response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
+    const decoder = new TextDecoder();
+    while (true) {
+      // Sequential reads of one ordered stream -- there's nothing to parallelize.
+      // eslint-disable-next-line no-await-in-loop
+      const {done, value} = await reader.read();
+      if (done) {
+        break;
+      }
+
+      output += decoder.decode(value, {stream: true});
+    }
+
+    return {output: output + decoder.decode(), timedOut: false};
   } catch (error) {
-    if ((error as Error).name === 'TimeoutError') {
+    if (signal.aborted) {
+      if (output.length > 0) {
+        return {output, timedOut: true};
+      }
+
       throw messages.createError('error.logFetchTimedOut', [String(Math.round(timeoutMs / 1000))]);
     }
 

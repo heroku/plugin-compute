@@ -389,8 +389,7 @@ FLAGS
                             directory's app name if that isn't set either.
   -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
                             configuration variable is already set.
-      --num=<value>         [default: 100] Number of recent log lines to print, served from the Cedar log buffer. Not
-                            supported for Fir apps.
+      --num=<value>         [default: 100] Number of recent log lines to print.
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -409,7 +408,8 @@ DESCRIPTION
   The recent lines come from the Cedar log buffer (about 1500 lines at most), so
   --num can't return more than that. Fir apps keep no log history, so this
   command isn't supported for them; use compute tail runtime-log instead. The
-  command gives up if the log output doesn't arrive within 30 seconds.
+  command stops waiting after 30 seconds and prints whatever log lines it has
+  received by then; if none arrived, it fails with a timeout error.
 
   This is an org-mediated operation by --name (the app's DeveloperName) -- the
   org creates a log session with Heroku on your behalf and hands back a

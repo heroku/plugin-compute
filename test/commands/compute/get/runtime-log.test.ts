@@ -150,6 +150,47 @@ describe('compute get runtime-log', () => {
     expect(result).toStrictEqual({lines: ['line one', 'line two'], name: 'CreditRatingScorer'});
   });
 
+  it('falls through to the Cedar path when the generation lookup fails', async () => {
+    resolveWith([deployedRecord]);
+    requestStub.mockImplementation(async (req: {url?: string}) => {
+      if (req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')) {
+        return {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'};
+      }
+
+      throw new Error('proxy unavailable');
+    });
+
+    const result = await RuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result).toStrictEqual({lines: ['line one', 'line two'], name: 'CreditRatingScorer'});
+  });
+
+  it('prints the partial output and warns when the log fetch times out after some lines arrived', async () => {
+    resolveWith([deployedRecord]);
+    const encoder = new TextEncoder();
+    fetchStub.mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('line one\n'));
+          init?.signal?.addEventListener('abort', () => {
+            controller.error(init.signal?.reason);
+          });
+        },
+      });
+      return new Response(body, {status: 200});
+    });
+    const deadline = new AbortController();
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal);
+    setTimeout(() => {
+      deadline.abort(new DOMException('timed out', 'TimeoutError'));
+    }, 20);
+
+    const result = await RuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result.lines).toStrictEqual(['line one']);
+    expect(sfCommandStubs.warn.firstCall.args[0]).toContain("didn't finish arriving in time");
+  });
+
   it('reports no builds yet and returns just the name when CurrentBuild is null, without calling the proxy or fetch', async () => {
     resolveWith([{...deployedRecord, CurrentBuild: null}]);
 

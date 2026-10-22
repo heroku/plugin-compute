@@ -80,8 +80,10 @@ export default class RuntimeLog extends SfCommand<ComputeGetRuntimeLogResult> {
 
     const appId = requireHerokuAppId(record, name);
     // Fir apps keep no log history -- their session URL is a live stream that never closes -- so
-    // fail fast before creating a session. An unknown generation falls through to the Cedar path.
-    const herokuApp = await fetchComputeAppViaProxy(connection, {appId, name});
+    // fail fast before creating a session. The lookup is only a guard: if it fails, or the
+    // generation is unknown, fall through to the Cedar path (the fetch timeout still bounds it) and
+    // let session creation surface any real proxy failure.
+    const herokuApp = await fetchComputeAppViaProxy(connection, {appId, name}).catch(() => undefined);
     if (herokuApp?.generation === 'fir') {
       throw messages.createError('error.firNoLogHistory', [name]);
     }
@@ -90,7 +92,7 @@ export default class RuntimeLog extends SfCommand<ComputeGetRuntimeLogResult> {
       name, appId, lines: num, tail: false,
     });
 
-    const output = await fetchLogplexOutput(session.logplexUrl);
+    const {output, timedOut} = await fetchLogplexOutput(session.logplexUrl);
     const lines = splitLines(output);
     if (lines.length === 0) {
       this.info(messages.getMessage('info.noLogLines', [name]));
@@ -98,6 +100,7 @@ export default class RuntimeLog extends SfCommand<ComputeGetRuntimeLogResult> {
     }
 
     for (const line of lines) this.log(line);
+    if (timedOut) this.warn(messages.getMessage('warning.logFetchPartial'));
     return {name, lines};
   }
 }

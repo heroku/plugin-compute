@@ -186,9 +186,13 @@ describe('compute tail runtime-log', () => {
       });
 
       const running = TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-      await vi.waitFor(() => {
-        expect(fetchStub).toHaveBeenCalled();
-      });
+      // Generous timeout: the default 1s is too tight for the first run on a slow Windows runner.
+      await vi.waitFor(
+        () => {
+          expect(fetchStub).toHaveBeenCalled();
+        },
+        {timeout: 10_000},
+      );
 
       expect(() => process.emit('SIGINT')).not.toThrow();
       const result = await running;

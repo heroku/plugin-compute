@@ -109,10 +109,15 @@
         "alias": [],
         "command": "compute:deploy",
         "flagAliases": [],
-        "flagChars": [],
+        "flagChars": [
+            "d",
+            "o"
+        ],
         "flags": [
             "flags-dir",
-            "json"
+            "json",
+            "source-dir",
+            "target-org"
         ],
         "plugin": "@heroku/plugin-compute"
     },

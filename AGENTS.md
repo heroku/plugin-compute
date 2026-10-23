@@ -63,9 +63,11 @@ nothing to fix at this layer.
 
 ## Design decisions already made (don't re-litigate without new user input)
 
-- **`sf compute deploy` is a migration-only warning.** It performs no project,
-  source, org, Connect API, or Metadata API work. It directs users to install
-  `@salesforce/plugin-deploy-retrieve@compute` and use `sf project deploy start`.
+- **`sf compute deploy` is a migration-only error.** It performs no project,
+  source, org, Connect API, or Metadata API work. It accepts the former
+  `--target-org` and `--source-dir` flags without resolving them, then directs
+  users to install `@salesforce/plugin-deploy-retrieve@compute` and use a
+  scoped `sf project deploy start` command.
 - **`sf compute list` has no `--verbose` flag** and always shows exactly 4
   columns (`name`, `masterLabel`, `status`, `statusReason`). Explicit user
   decision: "if the customer wants more details, they should use the display

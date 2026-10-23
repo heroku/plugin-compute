@@ -39,7 +39,8 @@ No compute app named %s was found in the org. It may not have been deployed yet,
 
 # error.appNotFoundInOrg.actions
 
-- Deploy the compute app with project deploy start --target-org <org>.
+- Run sf plugins install @salesforce/plugin-deploy-retrieve@compute.
+- From your Salesforce DX project, run sf project deploy start --metadata PlatformComputeApp:%s --target-org <org>.
 - Check that the app's directory name matches the DeveloperName used when it was deployed.
 
 # error.ambiguousName

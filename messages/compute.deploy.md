@@ -5,7 +5,8 @@ Show how to deploy a compute app.
 # description
 
 This command no longer deploys compute apps. Install the Compute variant of
-the deploy-retrieve plugin and use project deploy start instead.
+the deploy-retrieve plugin and use project deploy start from your Salesforce
+DX project instead.
 
 # examples
 
@@ -13,8 +14,13 @@ the deploy-retrieve plugin and use project deploy start instead.
 
   <%= config.bin %> plugins install @salesforce/plugin-deploy-retrieve@compute
 
-  <%= config.bin %> project deploy start --target-org my-org
+  <%= config.bin %> project deploy start --metadata PlatformComputeApp:my_app --target-org my-org
 
-# warning.migrate
+# error.migrate
 
-To deploy a compute app, run sf plugins install @salesforce/plugin-deploy-retrieve@compute, then use project deploy start.
+This command no longer deploys compute apps.
+
+# error.migrate.actions
+
+- Run sf plugins install @salesforce/plugin-deploy-retrieve@compute.
+- From your Salesforce DX project, run sf project deploy start --metadata PlatformComputeApp:<app-name> --target-org <org>.

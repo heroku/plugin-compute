@@ -132,13 +132,14 @@ DESCRIPTION
   Show how to deploy a compute app.
 
   This command no longer deploys compute apps. Install the Compute variant of
-  the deploy-retrieve plugin and use project deploy start instead.
+  the deploy-retrieve plugin and use project deploy start from your Salesforce
+  DX project instead.
 
 EXAMPLES
   Install the plugin and deploy a compute app:
 
     $ sf plugins install @salesforce/plugin-deploy-retrieve@compute
-    $ sf project deploy start --target-org my-org
+    $ sf project deploy start --metadata PlatformComputeApp:my_app --target-org my-org
 ```
 
 _See code: [src/commands/compute/deploy.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/deploy.ts)_

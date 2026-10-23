@@ -23,26 +23,35 @@ describe('compute deploy', () => {
   const $$ = new TestContext();
 
   afterEach(() => {
+    process.exitCode = 0;
     $$.restore();
   });
 
-  it('warns users to install plugin-deploy-retrieve and use project deploy start', async () => {
+  it.each([
+    {args: []},
+    {args: ['--target-org', 'missing-org']},
+    {args: ['--source-dir', '/does/not/exist']},
+    {args: ['-o', 'missing-org', '-d', '/does/not/exist']},
+  ])('rejects legacy arguments with migration guidance', async ({args}) => {
     const sfCommandStubs = stubSfCommandUx($$.SANDBOX);
 
-    await Deploy.run([]);
+    await expect(Deploy.run(args)).rejects.toThrow('This command no longer deploys compute apps.');
 
-    expect(sfCommandStubs.warn.calledOnce).toBe(true);
-    expect(sfCommandStubs.warn.firstCall.args[0]).toContain('sf plugins install @salesforce/plugin-deploy-retrieve@compute');
-    expect(sfCommandStubs.warn.firstCall.args[0]).toContain('project deploy start');
+    expect(sfCommandStubs.logToStderr.calledOnce).toBe(true);
+    expect(sfCommandStubs.logToStderr.firstCall.args[0]).toContain('sf plugins install @salesforce/plugin-deploy-retrieve@compute');
+    expect(sfCommandStubs.logToStderr.firstCall.args[0]).toContain('PlatformComputeApp:<app-name>');
   });
 
-  it('returns the migration message with --json', async () => {
+  it('returns a nonzero migration error with --json', async () => {
     const sfCommandStubs = stubSfCommandUx($$.SANDBOX);
 
-    await Deploy.run(['--json']);
+    await expect(Deploy.run(['--json', '--target-org=missing-org', '--source-dir=/does/not/exist'])).rejects.toThrow(
+      'This command no longer deploys compute apps.',
+    );
 
-    const output = sfCommandStubs.logJson.firstCall.args[0] as {result: {message: string}};
-    expect(output.result.message).toContain('project deploy start');
-    expect(output.result.message).toContain('@salesforce/plugin-deploy-retrieve@compute');
+    const output = sfCommandStubs.logJson.firstCall.args[0] as {message: string; result?: unknown; status: number};
+    expect(output.status).toBe(1);
+    expect(output.message).toContain('This command no longer deploys compute apps.');
+    expect(output.result).toBeUndefined();
   });
 });

@@ -77,6 +77,15 @@ Couldn't read the log stream: %s
 - Run the command again; the log session may have expired.
 - If the problem persists, check your network connection to logplex.heroku.com.
 
+# error.logFetchTimedOut
+
+Timed out waiting for the log output after %s seconds.
+
+# error.logFetchTimedOut.actions
+
+- Run the command again.
+- To watch the live log instead of a snapshot, use sf compute tail runtime-log.
+
 # error.herokuAppNotFound
 
 Heroku didn't find an app named %s.

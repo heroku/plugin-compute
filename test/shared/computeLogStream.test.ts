@@ -48,7 +48,52 @@ describe('computeLogStream.fetchLogplexOutput', () => {
 
     const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc');
 
-    expect(result).toBe('line one\nline two\n');
+    expect(result).toStrictEqual({output: 'line one\nline two\n', timedOut: false});
+  });
+
+  it('passes an abort signal to fetch', async () => {
+    const fetchStub = stubFetchResponse(new Response('ok', {status: 200}));
+
+    await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc');
+
+    expect(fetchStub).toHaveBeenCalledWith('https://logplex.heroku.com/sessions/abc', {
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
+  });
+
+  // A stream that optionally sends `chunks` and then stays open until the caller's signal aborts it.
+  function stubNeverClosingStream(chunks: string[]): void {
+    const encoder = new TextEncoder();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const chunk of chunks) {
+            controller.enqueue(encoder.encode(chunk));
+          }
+
+          init?.signal?.addEventListener('abort', () => {
+            controller.error(init.signal?.reason);
+          });
+        },
+      });
+      return new Response(body, {status: 200});
+    });
+  }
+
+  it('returns the partial output, flagged as timed out, when a never-closing stream sent some lines', async () => {
+    stubNeverClosingStream(['line one\n', 'line two\n']);
+
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 50);
+
+    expect(result).toStrictEqual({output: 'line one\nline two\n', timedOut: true});
+  });
+
+  it('throws a clear timeout error when nothing arrived before the deadline', async () => {
+    stubNeverClosingStream([]);
+
+    await expect(fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 50)).rejects.toThrow(
+      'Timed out waiting for the log output',
+    );
   });
 
   it('wraps a non-2xx response as a hard error', async () => {

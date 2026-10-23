@@ -120,7 +120,77 @@ describe('compute get runtime-log', () => {
     );
     const body = JSON.parse((call![0] as {body: string}).body) as {lines: number; tail: boolean};
     expect(body).toEqual({lines: 100, tail: false});
-    expect(fetchStub).toHaveBeenCalledWith('https://logplex.heroku.com/sessions/abc?srv=1');
+    expect(fetchStub).toHaveBeenCalledWith('https://logplex.heroku.com/sessions/abc?srv=1', {
+      signal: expect.any(AbortSignal) as AbortSignal,
+    });
+  });
+
+  it('fails fast on a Fir app, pointing at tail runtime-log, without creating a log session or fetching', async () => {
+    resolveWith([deployedRecord]);
+    requestStub.mockResolvedValue({generation: {name: 'fir'}, name: 'credit-rating-scorer'});
+
+    await expect(RuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
+      'Fir apps keep no log history',
+    );
+
+    expect(findLogSessionCall(requestStub)).toBeUndefined();
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Cedar path unchanged when the app reports generation cedar', async () => {
+    resolveWith([deployedRecord]);
+    requestStub.mockImplementation(async (req: {url?: string}) =>
+      req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')
+        ? {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'}
+        : {generation: {name: 'cedar'}, name: 'credit-rating-scorer'},
+    );
+
+    const result = await RuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result).toStrictEqual({lines: ['line one', 'line two'], name: 'CreditRatingScorer'});
+  });
+
+  it('falls through to the Cedar path when the generation lookup fails', async () => {
+    resolveWith([deployedRecord]);
+    requestStub.mockImplementation(async (req: {url?: string}) => {
+      if (req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')) {
+        return {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'};
+      }
+
+      throw new Error('proxy unavailable');
+    });
+
+    const result = await RuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result).toStrictEqual({lines: ['line one', 'line two'], name: 'CreditRatingScorer'});
+  });
+
+  it('prints the partial output and warns when the log fetch times out after some lines arrived', async () => {
+    resolveWith([deployedRecord]);
+    const encoder = new TextEncoder();
+    fetchStub.mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('line one\n'));
+          init?.signal?.addEventListener('abort', () => {
+            controller.error(init.signal?.reason);
+          });
+        },
+      });
+      // Fire the deadline only once the stream exists, so a slow runner can't abort before fetch is called
+      // (an already-aborted signal never emits 'abort', which would leave the stream open forever).
+      setTimeout(() => {
+        deadline.abort(new DOMException('timed out', 'TimeoutError'));
+      }, 20);
+      return new Response(body, {status: 200});
+    });
+    const deadline = new AbortController();
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal);
+
+    const result = await RuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result.lines).toStrictEqual(['line one']);
+    expect(sfCommandStubs.warn.firstCall.args[0]).toContain("didn't finish arriving in time");
   });
 
   it('reports no builds yet and returns just the name when CurrentBuild is null, without calling the proxy or fetch', async () => {

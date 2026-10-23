@@ -42,6 +42,7 @@ export default class ConfigList extends SfCommand<ComputeConfigResult> {
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
   };
 
   // Back-compat: the command was `compute config list` before the verb-noun migration (W-24542276).
@@ -61,7 +62,7 @@ export default class ConfigList extends SfCommand<ComputeConfigResult> {
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const appId = await resolveHerokuAppId(connection, name);
     const fetched = await fetchComputeConfigVarsViaProxy(connection, {name, appId});
 

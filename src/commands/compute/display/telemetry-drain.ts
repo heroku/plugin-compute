@@ -19,7 +19,7 @@ import {type Connection, Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 
 import {findDeveloperNameByHerokuAppId} from '../../../shared/computeQuery.js';
-import {formatTelemetryDrainRows, transportLabelForExporterType} from '../../../shared/computeTelemetryDrain.js';
+import {formatTelemetryDrainRows, maskHeaderValues, transportLabelForExporterType} from '../../../shared/computeTelemetryDrain.js';
 import {fetchTelemetryDrainViaProxy} from '../../../shared/herokuProxyApi.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
@@ -32,7 +32,6 @@ export type ComputeTelemetryDrainDisplayResult = {
   endpoint?: string;
   // `transport` collapses otlphttp and splunk to "HTTP"; the raw type is kept so --json can tell them apart.
   exporterType?: string;
-  // Returned verbatim; the human table masks the values, which can carry credentials.
   headers?: Record<string, string>;
   id: string;
   // Raw owner, so a --json consumer can tell what the `app` label collapses to (name, owner id, or space).
@@ -55,6 +54,7 @@ export default class TelemetryDrainDisplay extends SfCommand<ComputeTelemetryDra
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
   };
 
   public static readonly requiresProject = false;
@@ -64,7 +64,7 @@ export default class TelemetryDrainDisplay extends SfCommand<ComputeTelemetryDra
   public async run(): Promise<ComputeTelemetryDrainDisplayResult> {
     const {args, flags} = await this.parse(TelemetryDrainDisplay);
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const drain = await fetchTelemetryDrainViaProxy(connection, {drainId: args.id});
     const {app, display} = await this.resolveOwnerLabel(connection, drain.owner);
 
@@ -80,7 +80,7 @@ export default class TelemetryDrainDisplay extends SfCommand<ComputeTelemetryDra
       endpoint: drain.exporter?.endpoint,
       exporterType: drain.exporter?.type,
       transport: drain.exporter?.type ? transportLabelForExporterType(drain.exporter.type) : undefined,
-      headers: drain.exporter?.headers,
+      headers: drain.exporter?.headers === undefined ? undefined : maskHeaderValues(drain.exporter.headers),
     };
   }
 

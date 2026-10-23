@@ -42,6 +42,7 @@ export default class BuildLog extends SfCommand<ComputeGetBuildLogResult> {
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
   };
 
   // Org-mediated lookup by --name -- no local project files are read.
@@ -54,7 +55,7 @@ export default class BuildLog extends SfCommand<ComputeGetBuildLogResult> {
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const record = await queryComputeApp(connection, name);
     const {currentBuild} = toComputeAppSummary(record);
 

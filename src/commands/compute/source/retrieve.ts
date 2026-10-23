@@ -43,6 +43,7 @@ export default class Retrieve extends SfCommand<ComputeSourceRetrieveResult> {
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
     'output-dir': Flags.directory({
       char: 'd',
       summary: messages.getMessage('flags.output-dir.summary'),
@@ -65,7 +66,7 @@ export default class Retrieve extends SfCommand<ComputeSourceRetrieveResult> {
       throw messages.createError('error.appAlreadyExists', [name, appDir]);
     }
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const username = connection.getUsername() ?? flags['target-org'].getUsername() ?? '<org>';
     this.log(messages.getMessage('info.retrieving', [name, username]));
 

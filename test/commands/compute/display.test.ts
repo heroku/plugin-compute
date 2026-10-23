@@ -252,7 +252,7 @@ describe('compute display', () => {
     expect(error).toBeDefined();
     expect(error?.message).toContain('No compute app named NeverDeployed was found in the org');
     const actions = (error as SfError).actions ?? [];
-    expect(actions.join('\n')).toContain('compute deploy');
+    expect(actions.join('\n')).toContain('project deploy start');
     expect(actions.join('\n')).not.toContain('%s');
   });
 

@@ -8,6 +8,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -24,6 +25,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -40,6 +42,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -56,6 +59,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -72,6 +76,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "header",
             "json",
@@ -92,6 +97,7 @@
             "p"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "no-prompt",
@@ -125,6 +131,7 @@
             "v"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -141,6 +148,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "target-org"
@@ -174,6 +182,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -190,6 +199,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -206,6 +216,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -222,6 +233,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "target-org"
@@ -237,6 +249,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -253,6 +266,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -269,6 +283,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -288,6 +303,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -305,6 +321,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -322,6 +339,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "name",
             "num",
@@ -338,6 +356,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "json",
             "name",
@@ -353,6 +372,7 @@
             "o"
         ],
         "flags": [
+            "api-version",
             "flags-dir",
             "header",
             "json",

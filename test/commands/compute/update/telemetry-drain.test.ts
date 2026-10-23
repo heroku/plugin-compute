@@ -80,6 +80,12 @@ describe('compute update telemetry-drain', () => {
   });
 
   it('maps --transport and --header onto the exporter', async () => {
+    const drain = {
+      id: DRAIN_ID,
+      signals: ['logs'],
+      exporter: {type: 'otlp', headers: {'x-api-key': 'secret', 'x-team': 'compute'}},
+    };
+    requestStub.mockResolvedValue(drain);
     await TelemetryDrainUpdate.run([
       DRAIN_ID,
       '--transport',
@@ -88,11 +94,15 @@ describe('compute update telemetry-drain', () => {
       'x-api-key=secret',
       '--target-org',
       testOrg.username,
+      '--json',
     ]);
 
     expect(JSON.parse(findPatchCall(requestStub)!.body)).toEqual({
       exporter: {type: 'otlp', headers: {'x-api-key': 'secret'}},
     });
+    const {result} = sfCommandStubs.logJson.firstCall.args[0] as {result: {headers: Record<string, string>}};
+    expect(result.headers).toEqual({'x-api-key': '<redacted>', 'x-team': '<redacted>'});
+    expect(drain.exporter.headers).toEqual({'x-api-key': 'secret', 'x-team': 'compute'});
   });
 
   it('errors without calling Heroku when no attribute to change is given', async () => {
@@ -125,7 +135,26 @@ describe('compute update telemetry-drain', () => {
   it('rejects a malformed header before calling Heroku', async () => {
     await expect(
       TelemetryDrainUpdate.run([DRAIN_ID, '--header', 'no-equals-sign', '--target-org', testOrg.username]),
-    ).rejects.toThrow(/no-equals-sign/v);
+    ).rejects.toThrow(/key=value/v);
+    expect(findPatchCall(requestStub)).toBeUndefined();
+  });
+
+  it.each([false, true])('does not expose malformed header credentials (json=%s)', async json => {
+    const args = [
+      DRAIN_ID,
+      '--header',
+      'Authorization=Bearer secret\n',
+      '--target-org',
+      testOrg.username,
+      ...(json ? ['--json'] : []),
+    ];
+    const command = TelemetryDrainUpdate.run(args);
+
+    await expect(command).rejects.toThrow("A telemetry header isn't valid. Headers must be passed as key=value.");
+    await expect(command).rejects.not.toThrow('secret');
+    expect(sfCommandStubs.logJson.called).toBe(json);
+    expect(JSON.stringify(sfCommandStubs.logJson.getCalls().map(call => call.args))).not.toContain('secret');
+
     expect(findPatchCall(requestStub)).toBeUndefined();
   });
 

@@ -70,6 +70,7 @@ export default class Scale extends SfCommand<ComputeScaleResult> {
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
     'process-type': Flags.string({
       required: true,
       summary: messages.getMessage('flags.process-type.summary'),
@@ -111,7 +112,7 @@ export default class Scale extends SfCommand<ComputeScaleResult> {
       }
     }
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const appId = await resolveHerokuAppId(connection, name);
 
     this.spinner.start('Scaling dynos');

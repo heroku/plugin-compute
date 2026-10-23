@@ -177,6 +177,13 @@ describe('compute generate', () => {
     );
     expect(packageLockJson).toContain('"lockfileVersion"');
 
+    const readme = await readFile(
+      join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer/README.md'),
+      'utf8',
+    );
+    expect(readme).toContain('sf plugins install @salesforce/plugin-deploy-retrieve@compute');
+    expect(readme).toContain('sf project deploy start --metadata PlatformComputeApp:CreditRatingScorer --target-org <org>');
+
     const output = sfCommandStubs.log
       .getCalls()
       .flatMap(c => c.args)
@@ -211,6 +218,13 @@ describe('compute generate', () => {
     expect(projectToml).toContain('id = "heroku/python"');
     expect(projectToml).toContain('id = "heroku/heroku-applink"');
     expect(projectToml).toContain('id = "heroku/procfile"');
+
+    const readme = await readFile(
+      join(projectDir, 'force-app/main/default/platformComputeApps/ReceiptOcr/README.md'),
+      'utf8',
+    );
+    expect(readme).toContain('sf plugins install @salesforce/plugin-deploy-retrieve@compute');
+    expect(readme).toContain('sf project deploy start --metadata PlatformComputeApp:ReceiptOcr --target-org <org>');
   });
 
   it('scaffolds into a custom --output-dir', async () => {

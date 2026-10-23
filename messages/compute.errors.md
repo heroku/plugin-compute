@@ -39,7 +39,8 @@ No compute app named %s was found in the org. It may not have been deployed yet,
 
 # error.appNotFoundInOrg.actions
 
-- cd into the compute app's directory and run sf compute deploy --target-org <org> to deploy it.
+- Run sf plugins install @salesforce/plugin-deploy-retrieve@compute.
+- From your Salesforce DX project, run sf project deploy start --metadata PlatformComputeApp:%s --target-org <org>.
 - Check that the app's directory name matches the DeveloperName used when it was deployed.
 
 # error.ambiguousName
@@ -139,7 +140,7 @@ Compute app %s doesn't have a Heroku app identifier yet.
 # error.herokuAppIdentifierUnavailable.actions
 
 - Wait for the app's current build to finish, then run the command again.
-- If the app has never had a successful build, run sf compute deploy first.
+- If the app has never had a successful build, deploy it first with project deploy start.
 
 # error.configVarNotFound
 
@@ -155,7 +156,7 @@ Couldn't retrieve metadata for compute app %s: %s
 
 # error.metadataRetrieveFailed.actions
 
-- Confirm the app has been deployed to this org (run sf compute deploy first).
+- Confirm the app has been deployed to this org (run project deploy start first).
 - Check that --name matches the DeveloperName used when it was deployed.
 
 # error.sourceDownloadFailed
@@ -165,7 +166,7 @@ Couldn't download the compute app's source: %s
 # error.sourceDownloadFailed.actions
 
 - Confirm the target org has compute apps enabled and that you have the DeployCompute or ManageCompute permission.
-- Confirm the app has been deployed to this org (run sf compute deploy first).
+- Confirm the app has been deployed to this org (run project deploy start first).
 
 # error.sourceBundleMalformed
 
@@ -218,7 +219,7 @@ The telemetry transport "%s" isn't valid. Use one of: %s.
 
 # error.invalidHeader
 
-The telemetry header "%s" isn't valid. Headers must be passed as key=value.
+A telemetry header isn't valid. Headers must be passed as key=value.
 
 # error.invalidHeader.actions
 

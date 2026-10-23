@@ -54,6 +54,7 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
   };
 
   // Back-compat: the command was `compute config set` before the verb-noun migration (W-24542276).
@@ -96,7 +97,7 @@ export default class ConfigSet extends SfCommand<ComputeConfigSetResult> {
 
     // No existence check first, unlike get/unset -- set is also how a brand-new config var gets
     // created, so a nonexistent key here isn't an error, it's the normal creation path.
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const appId = await resolveHerokuAppId(connection, name);
     this.spinner.start(`Setting config vars and restarting ${name}`);
     try {

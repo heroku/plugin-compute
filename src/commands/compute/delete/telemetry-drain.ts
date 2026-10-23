@@ -47,6 +47,7 @@ export default class TelemetryDrainDelete extends SfCommand<ComputeTelemetryDrai
       summary: messages.getMessage('flags.no-prompt.summary'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
   };
 
   public static readonly requiresProject = false;
@@ -66,7 +67,7 @@ export default class TelemetryDrainDelete extends SfCommand<ComputeTelemetryDrai
       }
     }
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     await deleteTelemetryDrainViaProxy(connection, {drainId});
 
     this.logSuccess(messages.getMessage('info.deleted', [drainId]));

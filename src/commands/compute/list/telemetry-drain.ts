@@ -74,6 +74,7 @@ export default class TelemetryDrainList extends SfCommand<ComputeTelemetryDrainL
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
   };
 
   // Org-mediated lookup by --name -- no local project files are read.
@@ -86,7 +87,7 @@ export default class TelemetryDrainList extends SfCommand<ComputeTelemetryDrainL
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const appId = await resolveHerokuAppId(connection, name);
     const fetched = await listTelemetryDrainsViaProxy(connection, {name, appId});
 

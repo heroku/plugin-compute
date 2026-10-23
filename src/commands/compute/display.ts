@@ -81,6 +81,7 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
     verbose: Flags.boolean({
       char: 'v',
       summary: messages.getMessage('flags.verbose.summary'),
@@ -97,7 +98,7 @@ export default class Display extends SfCommand<ComputeDisplayResult> {
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const record = await queryComputeApp(connection, name);
     const result = toComputeAppSummary(record);
     const orgId = flags['target-org'].getOrgId();

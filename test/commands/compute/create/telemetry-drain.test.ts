@@ -128,14 +128,16 @@ describe('compute create telemetry-drain', () => {
     expect(sfCommandStubs.logSuccess.firstCall.args[0]).toContain('CreditRatingScorer');
   });
 
-  it('returns the full drain in the result, headers verbatim for --json', async () => {
-    requestStub.mockResolvedValue({
+  it('redacts every header value in JSON without mutating the response', async () => {
+    const drain = {
       id: 'drain-new',
       signals: ['logs'],
-      exporter: {type: 'otlp', endpoint: URL_FLAG, headers: {k: 'v'}},
-    });
+      exporter: {type: 'otlp', endpoint: URL_FLAG, headers: {k: 'v', empty: ''}},
+    };
+    requestStub.mockResolvedValue(drain);
 
-    const result = await TelemetryDrainCreate.run(baseArgs());
+    await TelemetryDrainCreate.run([...baseArgs(), '--json']);
+    const {result} = sfCommandStubs.logJson.firstCall.args[0] as {result: unknown};
 
     expect(result).toEqual({
       app: 'CreditRatingScorer',
@@ -144,8 +146,9 @@ describe('compute create telemetry-drain', () => {
       endpoint: URL_FLAG,
       exporterType: 'otlp',
       transport: 'gRPC',
-      headers: {k: 'v'},
+      headers: {k: '<redacted>', empty: '<redacted>'},
     });
+    expect(drain.exporter.headers).toEqual({k: 'v', empty: ''});
   });
 
   it('rejects an invalid signal before calling Heroku', async () => {
@@ -161,7 +164,19 @@ describe('compute create telemetry-drain', () => {
   });
 
   it('rejects a malformed --header before calling Heroku', async () => {
-    await expect(TelemetryDrainCreate.run([...baseArgs(), '--header', 'no-equals'])).rejects.toThrow(/no-equals/v);
+    await expect(TelemetryDrainCreate.run([...baseArgs(), '--header', 'no-equals'])).rejects.toThrow(/key=value/v);
+    expect(findPostCall(requestStub)).toBeUndefined();
+  });
+
+  it.each([false, true])('does not expose malformed header credentials (json=%s)', async json => {
+    const args = [...baseArgs(), '--header', 'Authorization=Bearer secret\n', ...(json ? ['--json'] : [])];
+    const command = TelemetryDrainCreate.run(args);
+
+    await expect(command).rejects.toThrow("A telemetry header isn't valid. Headers must be passed as key=value.");
+    await expect(command).rejects.not.toThrow('secret');
+    expect(sfCommandStubs.logJson.called).toBe(json);
+    expect(JSON.stringify(sfCommandStubs.logJson.getCalls().map(call => call.args))).not.toContain('secret');
+
     expect(findPostCall(requestStub)).toBeUndefined();
   });
 

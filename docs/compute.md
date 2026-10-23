@@ -405,6 +405,12 @@ DESCRIPTION
   This prints the most recent log lines and exits. To keep the session open and
   stream new lines as they arrive, use compute tail runtime-log.
 
+  The recent lines come from the Cedar log buffer (about 1500 lines at most), so
+  --num can't return more than that. Fir apps keep no log history, so this
+  command isn't supported for them; use compute tail runtime-log instead. The
+  command stops waiting after 30 seconds and prints whatever log lines it has
+  received by then; if none arrived, it fails with a timeout error.
+
   This is an org-mediated operation by --name (the app's DeveloperName) -- the
   org creates a log session with Heroku on your behalf and hands back a
   short-lived, pre-authorized URL that the CLI reads from directly. It doesn't

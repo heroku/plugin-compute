@@ -140,6 +140,79 @@ describe('compute tail runtime-log', () => {
     expect(fetchStub.mock.calls[0][0]).toBe('https://logplex.heroku.com/sessions/abc?srv=1');
   });
 
+  describe('SIGINT', () => {
+    const frameworkListener = (): void => {
+      throw new Error('framework SIGINT listener ran');
+    };
+
+    let listenersBefore: NodeJS.SignalsListener[];
+    let originalListeners: NodeJS.SignalsListener[];
+
+    beforeEach(() => {
+      originalListeners = process.listeners('SIGINT');
+      // Mirrors SfCommand._run(), which registers a throwing exit listener before run().
+      process.on('SIGINT', frameworkListener);
+      listenersBefore = process.listeners('SIGINT');
+    });
+
+    // SfCommand._run() itself adds one SIGINT listener on every run and never removes it, so the
+    // restored set is the prior listeners plus that one -- and nothing of ours.
+    function expectInheritedRestored(): void {
+      const after = process.listeners('SIGINT');
+      expect(after).toEqual(expect.arrayContaining(listenersBefore));
+      expect(after).toHaveLength(listenersBefore.length + 1);
+    }
+
+    afterEach(() => {
+      process.removeAllListeners('SIGINT');
+      for (const listener of originalListeners) {
+        process.on('SIGINT', listener);
+      }
+
+      process.exitCode = undefined;
+    });
+
+    it('stops quietly with exit code 130 on SIGINT, bypassing the inherited framework listener', async () => {
+      resolveWith([deployedRecord]);
+      fetchStub.mockImplementation(async (_url: unknown, init?: RequestInit) => {
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            init?.signal?.addEventListener('abort', () => {
+              controller.error(new Error('aborted'));
+            });
+          },
+        });
+        return new Response(body, {status: 200});
+      });
+
+      const running = TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      // Generous timeout: the default 1s is too tight for the first run on a slow Windows runner.
+      await vi.waitFor(
+        () => {
+          expect(fetchStub).toHaveBeenCalled();
+        },
+        {timeout: 10_000},
+      );
+
+      expect(() => process.emit('SIGINT')).not.toThrow();
+      const result = await running;
+
+      expect(result).toStrictEqual({name: 'CreditRatingScorer'});
+      expect(sfCommandStubs.info.lastCall.args[0]).toContain('Stopped tailing');
+      expect(process.exitCode).toBe(130);
+      expectInheritedRestored();
+    });
+
+    it('restores the inherited SIGINT listeners and leaves exitCode alone when the stream ends naturally', async () => {
+      resolveWith([deployedRecord]);
+
+      await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+      expect(process.exitCode).toBeUndefined();
+      expectInheritedRestored();
+    });
+  });
+
   it('passes --num through as the backfill line count before streaming', async () => {
     resolveWith([deployedRecord]);
 

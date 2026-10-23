@@ -78,22 +78,39 @@ export default class TailRuntimeLog extends SfCommand<ComputeTailRuntimeLogResul
 
     this.info(messages.getMessage('info.tailStarting', [name]));
     const controller = new AbortController();
-    const onSigint = (): void => {
-      controller.abort();
-    };
 
-    process.once('SIGINT', onSigint);
+    // SfCommand._run() registers SIGINT listeners that throw ExitError from inside the signal
+    // event, ahead of any listener added here, so they would kill the process (exit 1, stack
+    // trace) before ours could abort the stream. Take over SIGINT for the stream's duration,
+    // deliberately displacing every inherited listener (under sf that is SfCommand's own) and
+    // restoring them afterwards.
+    const inherited = process.listeners('SIGINT');
+    process.removeAllListeners('SIGINT');
+    process.once('SIGINT', () => {
+      controller.abort();
+    });
+
+    let wasAborted: boolean;
     try {
       const reason = await streamLogplexOutput(session.logplexUrl, line => {
         this.log(line);
       }, controller.signal);
+      wasAborted = reason === 'aborted';
       this.info(
-        reason === 'aborted'
+        wasAborted
           ? messages.getMessage('info.tailStopped', [name])
           : messages.getMessage('info.tailStreamEnded', [name]),
       );
     } finally {
-      process.off('SIGINT', onSigint);
+      process.removeAllListeners('SIGINT');
+      for (const listener of inherited) {
+        process.on('SIGINT', listener);
+      }
+    }
+
+    // 130 = 128 + SIGINT. Set rather than thrown so the quiet stop still exits like an interrupt.
+    if (wasAborted) {
+      process.exitCode = 130;
     }
 
     return {name};

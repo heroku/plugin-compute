@@ -36,7 +36,7 @@ Header to send with each export, as key=value.
 
 Repeat the flag to send more than one header. Header values often carry
 credentials; they are sent to the endpoint and are never printed to the
-terminal, but are included in --json output.
+terminal or --json output; header keys are preserved with redacted values.
 
 # info.created
 

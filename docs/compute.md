@@ -29,19 +29,20 @@ Add a telemetry drain to a compute app.
 ```
 USAGE
   $ sf compute create telemetry-drain --url <value> -o <value> [--json] [--flags-dir <value>] [-n <value>] [--signals <value>]
-    [--transport <value>] [--header <value>...]
+    [--transport <value>] [--header <value>...] [--api-version <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to add the drain to (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-      --header=<value>...   Header to send with each export, as key=value.
-      --signals=<value>     [default: all] Comma-separated signals to forward: traces, metrics, logs, or all.
-      --transport=<value>   [default: http] Wire protocol to use: http (OTLP over HTTP) or grpc (OTLP over gRPC).
-      --url=<value>         (required) Endpoint to forward telemetry to.
+  -n, --name=<value>         [env: COMPUTE_APP_NAME] DeveloperName of the compute app to add the drain to (or
+                             <namespace>\_\_<developerName> if it was deployed under a namespace).
+                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                             directory's app name if that isn't set either.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
+      --header=<value>...    Header to send with each export, as key=value.
+      --signals=<value>      [default: all] Comma-separated signals to forward: traces, metrics, logs, or all.
+      --transport=<value>    [default: http] Wire protocol to use: http (OTLP over HTTP) or grpc (OTLP over gRPC).
+      --url=<value>          (required) Endpoint to forward telemetry to.
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -71,7 +72,7 @@ FLAG DESCRIPTIONS
 
     Repeat the flag to send more than one header. Header values often carry
     credentials; they are sent to the endpoint and are never printed to the
-    terminal, but are included in --json output.
+    terminal or --json output; header keys are preserved with redacted values.
 ```
 
 _See code: [src/commands/compute/create/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/create/telemetry-drain.ts)_
@@ -82,12 +83,13 @@ Delete a compute telemetry drain.
 
 ```
 USAGE
-  $ sf compute delete telemetry-drain ID -o <value> [--json] [--flags-dir <value>] [-p]
+  $ sf compute delete telemetry-drain ID -o <value> [--json] [--flags-dir <value>] [-p] [--api-version <value>]
 
 FLAGS
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-  -p, --no-prompt           Don't ask for confirmation before deleting.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+  -p, --no-prompt            Don't ask for confirmation before deleting.
+      --api-version=<value>  Override the api version used for api requests made by this command
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -116,48 +118,27 @@ _See code: [src/commands/compute/delete/telemetry-drain.ts](https://github.com/h
 
 ## `sf compute deploy`
 
-Deploy a compute app's source and metadata to an org.
+Show how to deploy a compute app.
 
 ```
 USAGE
-  $ sf compute deploy -o <value> [--json] [--flags-dir <value>] [-d <value>]
-
-FLAGS
-  -d, --source-dir=<value>  [default: current directory] Directory containing the compute app to deploy. Defaults to the
-                            current directory.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
+  $ sf compute deploy [--json] [--flags-dir <value>]
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
   --json               Format output as json.
 
 DESCRIPTION
-  Deploy a compute app's source and metadata to an org.
+  Show how to deploy a compute app.
 
-  Packages the compute app's source (everything under its directory except the
-  compute metadata file and .forceignore) together with its api-spec.yaml into
-  a deployment bundle, uploads it to the org through the Connect API, then
-  deploys the app's <name>.compute-meta.xml through the
-  Metadata API to trigger the build. The metadata deploy itself returns a job
-  ID that can be checked independently with "sf project deploy report
-  --job-id <id>". Deploy is asynchronous: this command returns once the build
-  has been enqueued, it doesn't wait for the build to finish.
-
-  Files matching patterns in a .forceignore are excluded from the source
-  bundle. Both the compute app's own .forceignore and the one at the project
-  root (next to sfdx-project.json) are applied, if present. api-spec.yaml and
-  project.toml are always included, since the build can't succeed without them.
+  This command no longer deploys compute apps. Install the Compute variant of
+  the deploy-retrieve plugin and use project deploy start instead.
 
 EXAMPLES
-  Deploy a compute app to an org, from inside the app's own directory:
-  cd force-app/main/default/platformComputeApps/CreditRatingScorer
-  $ sf compute deploy --target-org my-org
+  Install the plugin and deploy a compute app:
 
-  Deploy a compute app to an org, from anywhere, by pointing --source-dir at it:
-
-    $ sf compute deploy --source-dir force-app/main/default/platformComputeApps/CreditRatingScorer --target-org \
-      my-org
+    $ sf plugins install @salesforce/plugin-deploy-retrieve@compute
+    $ sf project deploy start --target-org my-org
 ```
 
 _See code: [src/commands/compute/deploy.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/deploy.ts)_
@@ -168,16 +149,17 @@ Show the current org-side status of a deployed compute app.
 
 ```
 USAGE
-  $ sf compute display -o <value> [--json] [--flags-dir <value>] [-n <value>] [-v]
+  $ sf compute display -o <value> [--json] [--flags-dir <value>] [-n <value>] [--api-version <value>] [-v]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to show status for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-  -v, --verbose             Also show external service registration and current build detail.
+  -n, --name=<value>         [env: COMPUTE_APP_NAME] DeveloperName of the compute app to show status for (or
+                             <namespace>\_\_<developerName> if it was deployed under a namespace).
+                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                             directory's app name if that isn't set either.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+  -v, --verbose              Also show external service registration and current build detail.
+      --api-version=<value>  Override the api version used for api requests made by this command
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -212,11 +194,12 @@ Show the full detail of a single compute telemetry drain.
 
 ```
 USAGE
-  $ sf compute display telemetry-drain ID -o <value> [--json] [--flags-dir <value>]
+  $ sf compute display telemetry-drain ID -o <value> [--json] [--flags-dir <value>] [--api-version <value>]
 
 FLAGS
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -228,6 +211,7 @@ DESCRIPTION
   Shows a single OpenTelemetry drain in full: the compute app it belongs to,
   the signals it forwards, and its exporter endpoint, transport, and headers.
   Use sf compute list telemetry-drain to find a drain's ID.
+  Header values are redacted in both human-readable and --json output; header keys are preserved.
 
 EXAMPLES
   Show the detail of a telemetry drain by its ID:
@@ -300,15 +284,16 @@ Print the build/compile log for a compute app's latest build.
 
 ```
 USAGE
-  $ sf compute get build-log -o <value> [--json] [--flags-dir <value>] [-n <value>]
+  $ sf compute get build-log -o <value> [--json] [--flags-dir <value>] [-n <value>] [--api-version <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to fetch build output for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
+  -n, --name=<value>         [env: COMPUTE_APP_NAME] DeveloperName of the compute app to fetch build output for (or
+                             <namespace>\_\_<developerName> if it was deployed under a namespace).
+                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                             directory's app name if that isn't set either.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -341,15 +326,16 @@ Print one or more of a compute app's config var values.
 
 ```
 USAGE
-  $ sf compute get config [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
+  $ sf compute get config [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>] [--api-version <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to read config from (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
+  -n, --name=<value>         [env: COMPUTE_APP_NAME] DeveloperName of the compute app to read config from (or
+                             <namespace>\_\_<developerName> if it was deployed under a namespace).
+                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                             directory's app name if that isn't set either.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -380,16 +366,18 @@ Print the recent runtime log for a compute app.
 
 ```
 USAGE
-  $ sf compute get runtime-log -o <value> [--json] [--flags-dir <value>] [-n <value>] [--num <value>]
+  $ sf compute get runtime-log -o <value> [--json] [--flags-dir <value>] [-n <value>] [--api-version <value>] [--num
+  <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to fetch logs for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-      --num=<value>         [default: 100] Number of recent log lines to print.
+  -n, --name=<value>         [env: COMPUTE_APP_NAME] DeveloperName of the compute app to fetch logs for (or
+                             <namespace>\_\_<developerName> if it was deployed under a namespace).
+                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                             directory's app name if that isn't set either.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
+      --num=<value>          [default: 100] Number of recent log lines to print.
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -428,11 +416,12 @@ List the compute apps deployed in an org.
 
 ```
 USAGE
-  $ sf compute list -o <value> [--json] [--flags-dir <value>]
+  $ sf compute list -o <value> [--json] [--flags-dir <value>] [--api-version <value>]
 
 FLAGS
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -463,15 +452,16 @@ List a compute app's config vars.
 
 ```
 USAGE
-  $ sf compute list config -o <value> [--json] [--flags-dir <value>] [-n <value>]
+  $ sf compute list config -o <value> [--json] [--flags-dir <value>] [-n <value>] [--api-version <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to list config vars for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
+  -n, --name=<value>         [env: COMPUTE_APP_NAME] DeveloperName of the compute app to list config vars for (or
+                             <namespace>\_\_<developerName> if it was deployed under a namespace).
+                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                             directory's app name if that isn't set either.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -500,15 +490,16 @@ List the telemetry drains configured for a compute app.
 
 ```
 USAGE
-  $ sf compute list telemetry-drain -o <value> [--json] [--flags-dir <value>] [-n <value>]
+  $ sf compute list telemetry-drain -o <value> [--json] [--flags-dir <value>] [-n <value>] [--api-version <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to list telemetry drains for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
+  -n, --name=<value>         [env: COMPUTE_APP_NAME] DeveloperName of the compute app to list telemetry drains for (or
+                             <namespace>\_\_<developerName> if it was deployed under a namespace).
+                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                             directory's app name if that isn't set either.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -535,8 +526,8 @@ Resize or rescale a compute app's dyno formation.
 
 ```
 USAGE
-  $ sf compute scale -o <value> --process-type <value> [--json] [--flags-dir <value>] [-n <value>] [--quantity
-    <value>] [--size <value>]
+  $ sf compute scale -o <value> --process-type <value> [--json] [--flags-dir <value>] [-n <value>] [--api-version
+    <value>] [--quantity <value>] [--size <value>]
 
 FLAGS
   -n, --name=<value>          [env: COMPUTE_APP_NAME] DeveloperName of the compute app to scale (or
@@ -546,6 +537,7 @@ FLAGS
                               either.
   -o, --target-org=<value>    (required) Username or alias of the target org. Not required if the `target-org`
                               configuration variable is already set.
+      --api-version=<value>   Override the api version used for api requests made by this command
       --process-type=<value>  (required) Process type to scale, for example web or worker.
       --quantity=<value>      Number of dynos to run for the process type (0 stops all dynos of that type).
       --size=<value>          Dyno size to run the process type on, for example dyno-1c-4gb.
@@ -589,15 +581,16 @@ Set one or more of a compute app's config vars.
 
 ```
 USAGE
-  $ sf compute set config [PAIR...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
+  $ sf compute set config [PAIR...] -o <value> [--json] [--flags-dir <value>] [-n <value>] [--api-version <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to change config for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
+  -n, --name=<value>         [env: COMPUTE_APP_NAME] DeveloperName of the compute app to change config for (or
+                             <namespace>\_\_<developerName> if it was deployed under a namespace).
+                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                             directory's app name if that isn't set either.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -629,14 +622,15 @@ Retrieve a compute app's source and metadata from an org into your local Salesfo
 
 ```
 USAGE
-  $ sf compute source retrieve -n <value> -o <value> [--json] [--flags-dir <value>] [-d <value>]
+  $ sf compute source retrieve -n <value> -o <value> [--json] [--flags-dir <value>] [--api-version <value>] [-d <value>]
 
 FLAGS
-  -d, --output-dir=<value>  [default: force-app/main/default/platformComputeApps] Directory to create the app in.
-  -n, --name=<value>        (required) DeveloperName of the compute app to retrieve (or <namespace>\_\_<developerName>
-                            if it was deployed under a namespace).
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
+  -d, --output-dir=<value>   [default: force-app/main/default/platformComputeApps] Directory to create the app in.
+  -n, --name=<value>         (required) DeveloperName of the compute app to retrieve (or <namespace>\_\_<developerName>
+                             if it was deployed under a namespace).
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -648,7 +642,7 @@ DESCRIPTION
   Creates the compute app's directory under force-app/main/default/platformComputeApps/<name>/
   (or --output-dir), retrieves its <name>.compute-meta.xml through the Metadata
   API, then downloads its source code through the Connect API and extracts it
-  into that same directory. This is the inverse of sf compute deploy.
+  into that same directory. Deploy it with project deploy start.
 
 EXAMPLES
   Retrieve a compute app's source and metadata from an org:
@@ -670,16 +664,17 @@ Stream the live runtime log for a compute app.
 
 ```
 USAGE
-  $ sf compute tail runtime-log -o <value> [--flags-dir <value>] [-n <value>] [--num <value>]
+  $ sf compute tail runtime-log -o <value> [--flags-dir <value>] [-n <value>] [--api-version <value>] [--num <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to tail logs for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-      --num=<value>         [default: 100] Number of recent log lines to print before streaming new output.
+  -n, --name=<value>         [env: COMPUTE_APP_NAME] DeveloperName of the compute app to tail logs for (or
+                             <namespace>\_\_<developerName> if it was deployed under a namespace).
+                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                             directory's app name if that isn't set either.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
+      --num=<value>          [default: 100] Number of recent log lines to print before streaming new output.
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -718,15 +713,16 @@ Unset one or more of a compute app's config vars.
 
 ```
 USAGE
-  $ sf compute unset config [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>]
+  $ sf compute unset config [KEY...] -o <value> [--json] [--flags-dir <value>] [-n <value>] [--api-version <value>]
 
 FLAGS
-  -n, --name=<value>        [env: COMPUTE_APP_NAME] DeveloperName of the compute app to change config for (or
-                            <namespace>\_\_<developerName> if it was deployed under a namespace).
-                            Defaults to the COMPUTE_APP_NAME environment variable, or the current
-                            directory's app name if that isn't set either.
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
+  -n, --name=<value>         [env: COMPUTE_APP_NAME] DeveloperName of the compute app to change config for (or
+                             <namespace>\_\_<developerName> if it was deployed under a namespace).
+                             Defaults to the COMPUTE_APP_NAME environment variable, or the current
+                             directory's app name if that isn't set either.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -758,15 +754,16 @@ Change the configuration of a compute telemetry drain.
 ```
 USAGE
   $ sf compute update telemetry-drain ID -o <value> [--json] [--flags-dir <value>] [--url <value>] [--signals <value>] [--transport
-    <value>] [--header <value>...]
+    <value>] [--header <value>...] [--api-version <value>]
 
 FLAGS
-  -o, --target-org=<value>  (required) Username or alias of the target org. Not required if the `target-org`
-                            configuration variable is already set.
-      --header=<value>...   Header to send with each export, as key=value.
-      --signals=<value>     New comma-separated signals to forward: traces, metrics, logs, or all.
-      --transport=<value>   New wire protocol: http (OTLP over HTTP) or grpc (OTLP over gRPC).
-      --url=<value>         New endpoint to forward telemetry to.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+      --api-version=<value>  Override the api version used for api requests made by this command
+      --header=<value>...    Header to send with each export, as key=value.
+      --signals=<value>      New comma-separated signals to forward: traces, metrics, logs, or all.
+      --transport=<value>    New wire protocol: http (OTLP over HTTP) or grpc (OTLP over gRPC).
+      --url=<value>          New endpoint to forward telemetry to.
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
@@ -796,7 +793,7 @@ FLAG DESCRIPTIONS
     Repeat the flag to send more than one header. A header you pass adds
     or overwrites the one with the same name; the drain's other headers are kept. Header values often carry credentials;
     they are
-    never printed to the terminal, but are included in --json output.
+    never printed to the terminal or --json output; header keys are preserved with redacted values.
 ```
 
 _See code: [src/commands/compute/update/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.3.1/src/commands/compute/update/telemetry-drain.ts)_

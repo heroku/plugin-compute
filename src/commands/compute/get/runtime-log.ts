@@ -52,6 +52,7 @@ export default class RuntimeLog extends SfCommand<ComputeGetRuntimeLogResult> {
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
     num: Flags.integer({
       default: 100,
       summary: messages.getMessage('flags.num.summary'),
@@ -69,7 +70,7 @@ export default class RuntimeLog extends SfCommand<ComputeGetRuntimeLogResult> {
     const name = requireAppName(flags.name ?? (await resolveComputeAppNameFromDir(process.cwd())));
     validateName(name);
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const record = await queryComputeApp(connection, name);
     const {currentBuild} = toComputeAppSummary(record);
 

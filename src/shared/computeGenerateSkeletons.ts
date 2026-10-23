@@ -118,7 +118,7 @@ npm run dev
 ## Deploy
 
 \`\`\`
-sf compute deploy --target-org <org>
+sf project deploy start --target-org <org>
 \`\`\`
 `,
   },
@@ -257,7 +257,7 @@ uvicorn app.main:app --reload
 ## Deploy
 
 \`\`\`
-sf compute deploy --target-org <org>
+sf project deploy start --target-org <org>
 \`\`\`
 `,
   },

@@ -63,20 +63,9 @@ nothing to fix at this layer.
 
 ## Design decisions already made (don't re-litigate without new user input)
 
-- **`sf compute deploy` has no `--name` flag.** It derives the app name from
-  `basename()` of the target directory — by default the cwd, or the
-  directory passed via `--source-dir` (default: `process.cwd()`, char `-d`).
-  Either way it must resolve to the compute app's own directory (the one
-  `sf compute generate` created). It validates by checking
-  `<name>.compute-meta.xml` exists in that directory
-  (`src/commands/compute/deploy.ts`, error key `error.notAppDir` in
-  `messages/compute.deploy.md`). **This check runs BEFORE `validateName(name)`
-  intentionally** — resolving to the wrong directory must produce "cd into
-  the app's directory" guidance, not a confusing "name isn't valid" error.
-  Do not swap that ordering back. `--source-dir` is deploy's own mechanism
-  for pointing at an app directory from anywhere — it is not the same as the
-  `--name`/`COMPUTE_APP_NAME`/directory-detection fallback chain used by
-  display/get runtime-log/tail runtime-log/get build-log/scale/list config/get config/set config/unset config.
+- **`sf compute deploy` is a migration-only warning.** It performs no project,
+  source, org, Connect API, or Metadata API work. It directs users to install
+  `@salesforce/plugin-deploy-retrieve@compute` and use `sf project deploy start`.
 - **`sf compute list` has no `--verbose` flag** and always shows exactly 4
   columns (`name`, `masterLabel`, `status`, `statusReason`). Explicit user
   decision: "if the customer wants more details, they should use the display

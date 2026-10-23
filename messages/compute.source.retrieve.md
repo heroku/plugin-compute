@@ -7,7 +7,7 @@ Retrieve a compute app's source and metadata from an org into your local Salesfo
 Creates the compute app's directory under force-app/main/default/platformComputeApps/<name>/
 (or --output-dir), retrieves its <name>.compute-meta.xml through the Metadata
 API, then downloads its source code through the Connect API and extracts it
-into that same directory. This is the inverse of sf compute deploy.
+into that same directory. Deploy it with project deploy start.
 
 # flags.name.summary
 

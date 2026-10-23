@@ -50,6 +50,7 @@ export default class ConfigGet extends SfCommand<ComputeConfigGetResult> {
       summary: messages.getMessage('flags.name.summary'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
   };
 
   // Back-compat: the command was `compute config get` before the verb-noun migration (W-24542276).
@@ -79,7 +80,7 @@ export default class ConfigGet extends SfCommand<ComputeConfigGetResult> {
 
     const keys = [...new Set(tokens)];
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const appId = await resolveHerokuAppId(connection, name);
     const configVars = await fetchComputeConfigVarsViaProxy(connection, {name, appId});
 

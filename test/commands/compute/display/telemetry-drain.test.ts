@@ -233,10 +233,9 @@ describe('compute display telemetry-drain', () => {
       endpoint: 'https://collector.example.com:4317',
       exporterType: 'otlp',
       transport: 'gRPC',
-      // --json keeps headers verbatim (machine channel at the caller's trust boundary); only the
-      // human table masks them. The raw wire objects (owner/exporter) are still never surfaced.
-      headers: {'x-api-key': 'secret'},
+      headers: {'x-api-key': '<redacted>'},
     });
+    expect(fullDrain.exporter?.headers).toEqual({'x-api-key': 'secret'});
     expect('owner' in result).toBe(false);
     expect('exporter' in result).toBe(false);
     expect('created_at' in result).toBe(false);

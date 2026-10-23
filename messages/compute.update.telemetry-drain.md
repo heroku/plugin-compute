@@ -32,7 +32,7 @@ Header to send with each export, as key=value.
 
 Repeat the flag to send more than one header. A header you pass adds
 or overwrites the one with the same name; the drain's other headers are kept. Header values often carry credentials; they are
-never printed to the terminal, but are included in --json output.
+never printed to the terminal or --json output; header keys are preserved with redacted values.
 
 # error.nothingToUpdate
 

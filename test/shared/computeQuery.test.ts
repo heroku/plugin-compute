@@ -128,7 +128,7 @@ describe('computeQuery.queryComputeApp', () => {
     const e = error!;
     expect(e.message).toContain('No compute app named NeverDeployed was found in the org');
     const actions = e.actions ?? [];
-    expect(actions.join('\n')).toContain('compute deploy');
+    expect(actions.join('\n')).toContain('project deploy start');
     expect(actions.join('\n')).not.toContain('%s');
   });
 

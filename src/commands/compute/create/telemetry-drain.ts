@@ -63,6 +63,7 @@ export default class TelemetryDrainCreate extends SfCommand<ComputeTelemetryDrai
       description: messages.getMessage('flags.header.description'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
   };
 
   // Org-mediated lookup by --name -- no local project files are read.
@@ -80,7 +81,7 @@ export default class TelemetryDrainCreate extends SfCommand<ComputeTelemetryDrai
     const exporterType = exporterTypeForTransport(flags.transport);
     const headers = flags.header ? parseHeaderFlags(flags.header) : undefined;
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const appId = await resolveHerokuAppId(connection, name);
     const drain = await createTelemetryDrainViaProxy(connection, {
       appId,

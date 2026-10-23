@@ -188,7 +188,12 @@ describe('computeTelemetryDrain.parseHeaderFlags', () => {
   });
 
   it('throws on a token with no =', () => {
-    expect(() => parseHeaderFlags(['no-equals'])).toThrow(/no-equals/v);
+    expect(() => parseHeaderFlags(['no-equals'])).toThrow(/key=value/v);
+  });
+
+  it('does not expose credentials when a malformed header is rejected', () => {
+    expect(() => parseHeaderFlags(['Authorization=Bearer secret\n'])).toThrow(/key=value/v);
+    expect(() => parseHeaderFlags(['Authorization=Bearer secret\n'])).not.toThrow('secret');
   });
 
   it('lets a repeated key win with its last value', () => {
@@ -201,7 +206,7 @@ describe('computeTelemetryDrain.parseHeaderFlags', () => {
 });
 
 describe('computeTelemetryDrain.toTelemetryDrainResult', () => {
-  it('flattens a drain, deriving the transport label and keeping headers verbatim', () => {
+  it('flattens a drain, deriving the transport label and redacting header values', () => {
     expect(
       toTelemetryDrainResult({
         id: 'drain-1',
@@ -214,7 +219,7 @@ describe('computeTelemetryDrain.toTelemetryDrainResult', () => {
       endpoint: 'https://c.example.com:4317',
       exporterType: 'otlp',
       transport: 'gRPC',
-      headers: {k: 'v'},
+      headers: {k: '<redacted>'},
     });
   });
 

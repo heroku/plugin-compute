@@ -104,6 +104,7 @@ describe('compute source retrieve', () => {
   let requestStub: Mock;
   let metadataRetrieveStub: MockInstance;
   let completeStub: Mock;
+  let connectionSpy: MockInstance;
 
   beforeEach(async () => {
     sfCommandStubs = stubSfCommandUx($$.SANDBOX);
@@ -124,7 +125,7 @@ describe('compute source retrieve', () => {
     metadataRetrieveStub.mockReturnValue({
       complete: completeStub,
     });
-    $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
+    connectionSpy = vi.spyOn(Org.prototype, 'getConnection').mockReturnValue(connection);
 
     originalCwd = process.cwd();
     projectDir = await mkdtemp(join(tmpdir(), 'plugin-compute-retrieve-'));
@@ -145,7 +146,8 @@ describe('compute source retrieve', () => {
   });
 
   it('creates the app directory, retrieves metadata, then downloads and extracts source', async () => {
-    const result = await Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+    const result = await Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--api-version', '70.0']);
+    expect(connectionSpy).toHaveBeenCalledWith('70.0');
 
     const relativeAppDir = join('force-app/main/default/platformComputeApps', 'CreditRatingScorer');
     const appDir = join(projectDir, relativeAppDir);

@@ -46,6 +46,7 @@ export default class List extends SfCommand<ComputeListResult> {
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
   };
 
   // Pure org-side lookup -- no local project files are read.
@@ -56,7 +57,7 @@ export default class List extends SfCommand<ComputeListResult> {
   public async run(): Promise<ComputeListResult> {
     const {flags} = await this.parse(List);
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const records = await listComputeApps(connection);
     const results = records.map(record => toComputeAppSummary(record));
 

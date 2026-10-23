@@ -28,14 +28,11 @@ const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.errors');
 // tables use so single-drain display reads consistently.
 const DASH = '-';
 
-// Exporter header values routinely carry credentials (bearer / Splunk-HEC tokens). The human table
-// masks the VALUES (keys stay visible so an operator can still see which headers are set) so a secret
-// can't leak into terminal scrollback, screen-shares, or screenshots. The machine-readable --json
-// result keeps them verbatim -- same trust boundary as the authenticated caller (see
-// display/telemetry-drain.ts). Masks a copy; never mutates the caller's drain object.
+// Exporter headers routinely carry credentials, so both human and JSON output mask every value.
+// Mask a copy to preserve credentials in API requests and the caller's drain object.
 const REDACTED = '<redacted>';
 
-function maskHeaderValues(headers: Record<string, string>): Record<string, string> {
+export function maskHeaderValues(headers: Record<string, string>): Record<string, string> {
   return Object.fromEntries(Object.keys(headers).map(key => [key, REDACTED]));
 }
 
@@ -124,7 +121,7 @@ export function parseHeaderFlags(inputs: readonly string[]): Record<string, stri
   const entries = inputs.map((input): [string, string] => {
     const match = HEADER_PATTERN.exec(input);
     if (!match) {
-      throw messages.createError('error.invalidHeader', [input]);
+      throw messages.createError('error.invalidHeader');
     }
 
     return [match[1], match[2]];
@@ -139,7 +136,6 @@ export type TelemetryDrainResult = {
   endpoint?: string;
   // The raw exporter type, so --json can tell otlphttp and splunk apart (both collapse to "HTTP").
   exporterType?: string;
-  // Returned verbatim; human output never prints the values, which can carry credentials.
   headers?: Record<string, string>;
   id: string;
   signals: string[];
@@ -153,6 +149,6 @@ export function toTelemetryDrainResult(drain: components['schemas']['TelemetryDr
     endpoint: drain.exporter?.endpoint,
     exporterType: drain.exporter?.type,
     transport: drain.exporter?.type ? transportLabelForExporterType(drain.exporter.type) : undefined,
-    headers: drain.exporter?.headers,
+    headers: drain.exporter?.headers === undefined ? undefined : maskHeaderValues(drain.exporter.headers),
   };
 }

@@ -5,24 +5,12 @@
     "ComputeDeployResult": {
       "type": "object",
       "properties": {
-        "buildId": {
-          "type": "string"
-        },
-        "deployId": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "platformComputeId": {
+        "message": {
           "type": "string"
         }
       },
       "required": [
-        "buildId",
-        "deployId",
-        "name",
-        "platformComputeId"
+        "message"
       ],
       "additionalProperties": false
     }

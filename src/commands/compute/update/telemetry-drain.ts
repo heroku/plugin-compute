@@ -55,6 +55,7 @@ export default class TelemetryDrainUpdate extends SfCommand<ComputeTelemetryDrai
       description: messages.getMessage('flags.header.description'),
     }),
     'target-org': Flags.requiredOrg({char: 'o'}),
+    'api-version': Flags.orgApiVersion(),
   };
 
   public static readonly requiresProject = false;
@@ -76,7 +77,7 @@ export default class TelemetryDrainUpdate extends SfCommand<ComputeTelemetryDrai
     const hasExporterChange = endpoint !== undefined || type !== undefined || headers !== undefined;
     const exporter = hasExporterChange ? {endpoint, type, headers} : undefined;
 
-    const connection = flags['target-org'].getConnection();
+    const connection = flags['target-org'].getConnection(flags['api-version']);
     const drain = await updateTelemetryDrainViaProxy(connection, {drainId: args.id, signals, exporter});
 
     // Fall back to the requested ID if the response omits it, so --json never reports an empty id.

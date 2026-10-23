@@ -35,6 +35,12 @@ export type ComputeDeployResult = {
 };
 
 export default class Deploy extends SfCommand<ComputeDeployResult> {
+  // oclif's Command lifecycle prints the warning from state + deprecationOptions; don't also this.warn().
+  public static readonly deprecationOptions = {
+    to: 'project deploy start',
+    message: messages.getMessage('deprecation.message'),
+  };
+
   public static readonly description = messages.getMessage('description');
   public static readonly examples = messages.getMessages('examples');
   public static readonly flags = {
@@ -54,6 +60,8 @@ export default class Deploy extends SfCommand<ComputeDeployResult> {
   };
 
   public static readonly requiresProject = true;
+
+  public static readonly state = 'deprecated';
 
   public static readonly summary = messages.getMessage('summary');
 

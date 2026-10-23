@@ -160,6 +160,24 @@ describe('compute deploy', () => {
     vi.restoreAllMocks();
   });
 
+  it('is deprecated in favor of sf project deploy start', () => {
+    expect(Deploy.state).toBe('deprecated');
+    expect(Deploy.deprecationOptions?.to).toBe('project deploy start');
+    expect(Deploy.deprecationOptions?.message).toBe(
+      'This command will be available as sf project deploy start in version 1.0.0 of plugin-compute.',
+    );
+  });
+
+  it('emits the deprecation warning exactly once at runtime and still deploys', async () => {
+    const result = await Deploy.run(['--target-org', testOrg.username]);
+
+    expect(result.deployId).toBe(deployId);
+    const deprecationWarnings = sfCommandStubs.warn
+      .getCalls()
+      .filter(call => (call.args as [string])[0].includes(Deploy.deprecationOptions.message));
+    expect(deprecationWarnings).toHaveLength(1);
+  });
+
   it('uploads source before deploying metadata, and returns the build ids', async () => {
     const result = await Deploy.run(['--target-org', testOrg.username]);
 

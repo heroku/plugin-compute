@@ -18,6 +18,12 @@ bundle. Both the compute app's own .forceignore and the one at the project
 root (next to sfdx-project.json) are applied, if present. api-spec.yaml and
 project.toml are always included, since the build can't succeed without them.
 
+This command is deprecated but still works. It will be replaced by sf project deploy start.
+
+# deprecation.message
+
+This command will be available as sf project deploy start in version 1.0.0 of plugin-compute.
+
 # flags.source-dir.summary
 
 Directory containing the compute app to deploy. Defaults to the current directory.

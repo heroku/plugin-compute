@@ -149,6 +149,8 @@ DESCRIPTION
   root (next to sfdx-project.json) are applied, if present. api-spec.yaml and
   project.toml are always included, since the build can't succeed without them.
 
+  This command is deprecated but still works. It will be replaced by sf project deploy start.
+
 EXAMPLES
   Deploy a compute app to an org, from inside the app's own directory:
   cd force-app/main/default/platformComputeApps/CreditRatingScorer

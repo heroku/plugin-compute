@@ -177,13 +177,15 @@ describe('compute get runtime-log', () => {
           });
         },
       });
+      // Fire the deadline only once the stream exists, so a slow runner can't abort before fetch is called
+      // (an already-aborted signal never emits 'abort', which would leave the stream open forever).
+      setTimeout(() => {
+        deadline.abort(new DOMException('timed out', 'TimeoutError'));
+      }, 20);
       return new Response(body, {status: 200});
     });
     const deadline = new AbortController();
     vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal);
-    setTimeout(() => {
-      deadline.abort(new DOMException('timed out', 'TimeoutError'));
-    }, 20);
 
     const result = await RuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 

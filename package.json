@@ -113,7 +113,7 @@
     "access": "restricted"
   },
   "overrides": {
-    "fast-uri": "^3.1.8",
+    "fast-uri": "^3.1.9",
     "@jsforce/jsforce-node": "^3.10.27",
     "typescript": "$typescript",
     "http-cache-semantics": "^4.3.0"

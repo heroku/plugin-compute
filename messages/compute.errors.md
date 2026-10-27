@@ -13,7 +13,7 @@ Couldn't determine which compute app to use.
 
 - Pass --name explicitly.
 - Set the COMPUTE_APP_NAME environment variable.
-- cd into the compute app's own directory (the one with its <name>.compute-meta.xml file) and run the command again.
+- cd into the compute app's own directory (the one with its <name>.computeApp-meta.xml file) and run the command again.
 
 # error.connectApiRequestFailed
 
@@ -40,7 +40,7 @@ No compute app named %s was found in the org. It may not have been deployed yet,
 # error.appNotFoundInOrg.actions
 
 - Run sf plugins install @salesforce/plugin-deploy-retrieve@compute.
-- From your Salesforce DX project, run sf project deploy start --metadata PlatformComputeApp:%s --target-org <org>.
+- From your Salesforce DX project, run sf project deploy start --metadata ComputeApp:%s --target-org <org>.
 - Check that the app's directory name matches the DeveloperName used when it was deployed.
 
 # error.ambiguousName

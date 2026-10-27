@@ -48,7 +48,7 @@ export default class Retrieve extends SfCommand<ComputeSourceRetrieveResult> {
       char: 'd',
       summary: messages.getMessage('flags.output-dir.summary'),
       description: messages.getMessage('flags.output-dir.description'),
-      default: 'force-app/main/default/platformComputeApps',
+      default: 'force-app/main/default/computeApps',
     }),
   };
 
@@ -77,7 +77,7 @@ export default class Retrieve extends SfCommand<ComputeSourceRetrieveResult> {
     await mkdir(appDir, {recursive: true});
 
     await retrieveComputeMetadata(connection, appDir, name);
-    this.log(messages.getMessage('info.retrievedMetadata', [`${name}.compute-meta.xml`]));
+    this.log(messages.getMessage('info.retrievedMetadata', [`${name}.computeApp-meta.xml`]));
 
     this.log(messages.getMessage('info.downloadingSource'));
     const bundle = await downloadComputeSource(connection, {appIdOrName: name});

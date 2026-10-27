@@ -39,7 +39,7 @@ describe('compute deploy', () => {
 
     expect(sfCommandStubs.logToStderr.calledOnce).toBe(true);
     expect(sfCommandStubs.logToStderr.firstCall.args[0]).toContain('sf plugins install @salesforce/plugin-deploy-retrieve@compute');
-    expect(sfCommandStubs.logToStderr.firstCall.args[0]).toContain('PlatformComputeApp:<app-name>');
+    expect(sfCommandStubs.logToStderr.firstCall.args[0]).toContain('ComputeApp:<app-name>');
   });
 
   it('returns a nonzero migration error with --json', async () => {

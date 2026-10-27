@@ -119,7 +119,7 @@ npm run dev
 
 \`\`\`
 sf plugins install @salesforce/plugin-deploy-retrieve@compute
-sf project deploy start --metadata PlatformComputeApp:__APP_NAME__ --target-org <org>
+sf project deploy start --metadata ComputeApp:__APP_NAME__ --target-org <org>
 \`\`\`
 `,
   },
@@ -259,7 +259,7 @@ uvicorn app.main:app --reload
 
 \`\`\`
 sf plugins install @salesforce/plugin-deploy-retrieve@compute
-sf project deploy start --metadata PlatformComputeApp:__APP_NAME__ --target-org <org>
+sf project deploy start --metadata ComputeApp:__APP_NAME__ --target-org <org>
 \`\`\`
 `,
   },

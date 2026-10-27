@@ -130,7 +130,7 @@ describe('computeQuery.queryComputeApp', () => {
     const actions = e.actions ?? [];
     expect(actions.join('\n')).toContain('sf plugins install @salesforce/plugin-deploy-retrieve@compute');
     expect(actions.join('\n')).toContain('project deploy start');
-    expect(actions.join('\n')).toContain('PlatformComputeApp:NeverDeployed');
+    expect(actions.join('\n')).toContain('ComputeApp:NeverDeployed');
     expect(actions.join('\n')).not.toContain('%s');
   });
 

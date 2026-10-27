@@ -41,7 +41,7 @@ export type ComputeMetadataDeployResult = {
   id: string;
 };
 
-// Deploying <name>.compute-meta.xml is what actually triggers the build server-side (sets
+// Deploying <name>.computeApp-meta.xml is what actually triggers the build server-side (sets
 // CurrentBuild + Status=DEPLOYING and kicks off the async worker) -- source upload alone does
 // not. See deployment/specs/PLATFORMCOMPUTEAPP_ENTITY_SCHEMA.md "POST /source Inserts a
 // PlatformComputeAppBuild Row -- Does NOT Trigger Deploy". Call this AFTER uploadComputeSource.
@@ -54,7 +54,7 @@ export async function deployComputeMetadata(
   appDir: string,
   name: string,
 ): Promise<ComputeMetadataDeployResult> {
-  const metaXml = await readFile(join(appDir, `${name}.compute-meta.xml`), 'utf8');
+  const metaXml = await readFile(join(appDir, `${name}.computeApp-meta.xml`), 'utf8');
 
   const zip = new JSZip();
   zip.file(
@@ -64,19 +64,19 @@ export async function deployComputeMetadata(
       '<Package xmlns="http://soap.sforce.com/2006/04/metadata">',
       '    <types>',
       `        <members>${name}</members>`,
-      '        <name>PlatformComputeApp</name>',
+      '        <name>ComputeApp</name>',
       '    </types>',
       `    <version>${resolveComputeApiVersion(connection)}</version>`,
       '</Package>',
       '',
     ].join('\n'),
   );
-  // PlatformComputeApp is a standard (non-bundle) metadata type -- flat
+  // ComputeApp is a standard (non-bundle) metadata type -- flat
   // directoryName/<name>.<suffix>, not a per-component subdirectory like LWC/Aura bundles use.
-  // Wire directoryName is "platformComputeApps" per org describeMetadata (expected to become
-  // "compute" later); suffix is "compute" with metaFile: false, so there's no separate -meta.xml
-  // file on the wire -- that's purely our own on-disk source-format convention.
-  zip.file(`platformComputeApps/${name}.compute`, metaXml);
+  // Wire directoryName is "computeApps" per org describeMetadata; suffix is "computeApp" with
+  // metaFile: false, so there's no separate -meta.xml file on the wire -- that's purely our own
+  // on-disk source-format convention.
+  zip.file(`computeApps/${name}.computeApp`, metaXml);
 
   const zipBuffer = await zip.generateAsync({type: 'nodebuffer'});
 

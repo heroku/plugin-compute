@@ -111,7 +111,7 @@ describe('compute source retrieve', () => {
     await $$.stubAuths(testOrg);
 
     const zipFile = await zipBase64({
-      'platformComputeApps/CreditRatingScorer.compute': '<PlatformComputeApp/>\n',
+      'computeApps/CreditRatingScorer.computeApp': '<ComputeApp/>\n',
     });
     const bundle = await buildBundle();
 
@@ -149,12 +149,12 @@ describe('compute source retrieve', () => {
     const result = await Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--api-version', '70.0']);
     expect(connectionSpy).toHaveBeenCalledWith('70.0');
 
-    const relativeAppDir = join('force-app/main/default/platformComputeApps', 'CreditRatingScorer');
+    const relativeAppDir = join('force-app/main/default/computeApps', 'CreditRatingScorer');
     const appDir = join(projectDir, relativeAppDir);
     expect(result).toEqual({files: 2, name: 'CreditRatingScorer', path: relativeAppDir});
 
-    expect(await readFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), 'utf8')).toBe(
-      '<PlatformComputeApp/>\n',
+    expect(await readFile(join(appDir, 'CreditRatingScorer.computeApp-meta.xml'), 'utf8')).toBe(
+      '<ComputeApp/>\n',
     );
     expect(await readFile(join(appDir, 'api-spec.yaml'), 'utf8')).toBe('openapi: 3.0.0\n');
     expect(await readFile(join(appDir, 'src', 'app.js'), 'utf8')).toBe('console.log("hi");\n');
@@ -197,7 +197,7 @@ describe('compute source retrieve', () => {
   });
 
   it('fails fast when the app directory already exists, without calling any API', async () => {
-    const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer');
+    const appDir = join(projectDir, 'force-app/main/default/computeApps/CreditRatingScorer');
     await mkdir(appDir, {recursive: true});
 
     await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('already exists');
@@ -222,9 +222,9 @@ describe('compute source retrieve', () => {
     await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('socket hang up');
 
     expect(metadataRetrieveStub).toHaveBeenCalledOnce();
-    const appDir = join(projectDir, 'force-app/main/default/platformComputeApps/CreditRatingScorer');
-    expect(await readFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), 'utf8')).toBe(
-      '<PlatformComputeApp/>\n',
+    const appDir = join(projectDir, 'force-app/main/default/computeApps/CreditRatingScorer');
+    expect(await readFile(join(appDir, 'CreditRatingScorer.computeApp-meta.xml'), 'utf8')).toBe(
+      '<ComputeApp/>\n',
     );
   });
 });

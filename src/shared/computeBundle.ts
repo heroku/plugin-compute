@@ -53,7 +53,7 @@ export type PackagedBundle = {
 // containing api-spec.yaml plus a nested source.tar.gz) -- see
 // deployment/specs/PLATFORMCOMPUTEAPP_ENTITY_SCHEMA.md "Nested Tarball Structure".
 export async function packageComputeBundle(appDir: string, name: string, projectRoot: string): Promise<PackagedBundle> {
-  const metaFileName = `${name}.compute-meta.xml`;
+  const metaFileName = `${name}.computeApp-meta.xml`;
   // api-spec.yaml and project.toml also go into the outer bundle/get read by the Fir builder
   // respectively, but both are included here too: api-spec.yaml so the AppLink Service Mesh
   // Proxy has it at runtime, project.toml so CNB picks up its declared buildpacks (notably

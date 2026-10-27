@@ -27,7 +27,7 @@ describe('metadataDeploy.deployComputeMetadata', () => {
 
   beforeEach(async () => {
     appDir = await mkdtemp(join(tmpdir(), 'plugin-compute-metadeploy-'));
-    await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    await writeFile(join(appDir, 'CreditRatingScorer.computeApp-meta.xml'), '<ComputeApp/>\n');
   });
 
   afterEach(async () => {
@@ -56,7 +56,7 @@ describe('metadataDeploy.deployComputeMetadata', () => {
     };
   }
 
-  it('builds a package.xml + platformComputeApps/<name>.compute zip and deploys it', async () => {
+  it('builds a package.xml + computeApps/<name>.computeApp zip and deploys it', async () => {
     const {checkDeployStatus, connection, deploy} = stubConnection({
       details: {componentFailures: []},
       success: true,
@@ -81,13 +81,13 @@ describe('metadataDeploy.deployComputeMetadata', () => {
     const zip = await JSZip.loadAsync(zipBuffer);
     const packageXml = await zip.file('package.xml')?.async('string');
     expect(packageXml).toContain('<members>CreditRatingScorer</members>');
-    expect(packageXml).toContain('<name>PlatformComputeApp</name>');
+    expect(packageXml).toContain('<name>ComputeApp</name>');
 
-    const metaXml = await zip.file('platformComputeApps/CreditRatingScorer.compute')?.async('string');
-    expect(metaXml).toBe('<PlatformComputeApp/>\n');
+    const metaXml = await zip.file('computeApps/CreditRatingScorer.computeApp')?.async('string');
+    expect(metaXml).toBe('<ComputeApp/>\n');
   });
 
-  // Regression guard: PlatformComputeApp was only registered as a metadata type in API 68.0.
+  // Regression guard: ComputeApp was only registered as a metadata type in API 68.0.
   // Emitting a package.xml with a lower version (e.g. an org's negotiated default, or a lower
   // sourceApiVersion) makes the server fail to resolve the type before it even inspects the zip
   // contents -- surfacing as a misleading "was named in package.xml, but was not found in zipped
@@ -118,7 +118,7 @@ describe('metadataDeploy.deployComputeMetadata', () => {
 
   it('throws with the component failure detail when the deploy fails', async () => {
     const {connection} = stubConnection({
-      details: {componentFailures: [{problem: 'Invalid metadata type PlatformComputeApp'}]},
+      details: {componentFailures: [{problem: 'Invalid metadata type ComputeApp'}]},
       success: false,
     });
 
@@ -131,6 +131,6 @@ describe('metadataDeploy.deployComputeMetadata', () => {
 
     expect(error).toBeDefined();
     expect(error?.message).toContain('CreditRatingScorer');
-    expect(error?.message).toContain('Invalid metadata type PlatformComputeApp');
+    expect(error?.message).toContain('Invalid metadata type ComputeApp');
   });
 });

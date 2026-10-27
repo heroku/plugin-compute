@@ -208,12 +208,12 @@ describe('compute list telemetry-drain', () => {
     }
   });
 
-  it("resolves --name from the cwd's <name>.compute-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
+  it("resolves --name from the cwd's <name>.computeApp-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
     const originalCwd = process.cwd();
     const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-td-list-'));
     const appDir = join(tmp, 'CreditRatingScorer');
     await mkdir(appDir);
-    await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    await writeFile(join(appDir, 'CreditRatingScorer.computeApp-meta.xml'), '<ComputeApp/>\n');
     process.chdir(appDir);
     try {
       const result = await TelemetryDrainList.run(['--target-org', testOrg.username]);

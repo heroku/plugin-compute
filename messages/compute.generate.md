@@ -4,7 +4,7 @@ Scaffold a new compute app into your Salesforce DX project.
 
 # description
 
-Creates the app directory under force-app/main/default/platformComputeApps/<name>/ (or
+Creates the app directory under force-app/main/default/computeApps/<name>/ (or
 --output-dir) with a compute metadata file, a Procfile, a project.toml, and
 starter source in the language you choose with --language. No org is
 contacted, but this command does fetch the starter source for the chosen
@@ -30,7 +30,7 @@ Directory to create the app in.
 
 # flags.output-dir.description
 
-Defaults to force-app/main/default/platformComputeApps. The app itself is created in a
+Defaults to force-app/main/default/computeApps. The app itself is created in a
 subdirectory named after --name.
 
 # flags.language.summary
@@ -50,7 +50,7 @@ scaffolds starters for node and python only.
 
 - Scaffold a Python compute app into a custom directory:
 
-  <%= config.bin %> <%= command.id %> --name ReceiptOcr --language python --output-dir force-app/main/default/platformComputeApps/scorers
+  <%= config.bin %> <%= command.id %> --name ReceiptOcr --language python --output-dir force-app/main/default/computeApps/scorers
 
 # error.appAlreadyExists
 

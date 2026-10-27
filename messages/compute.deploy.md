@@ -14,7 +14,7 @@ DX project instead.
 
   <%= config.bin %> plugins install @salesforce/plugin-deploy-retrieve@compute
 
-  <%= config.bin %> project deploy start --metadata PlatformComputeApp:my_app --target-org my-org
+  <%= config.bin %> project deploy start --metadata ComputeApp:my_app --target-org my-org
 
 # error.migrate
 
@@ -23,4 +23,4 @@ This command no longer deploys compute apps.
 # error.migrate.actions
 
 - Run sf plugins install @salesforce/plugin-deploy-retrieve@compute.
-- From your Salesforce DX project, run sf project deploy start --metadata PlatformComputeApp:<app-name> --target-org <org>.
+- From your Salesforce DX project, run sf project deploy start --metadata ComputeApp:<app-name> --target-org <org>.

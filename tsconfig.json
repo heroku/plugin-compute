@@ -1,7 +1,5 @@
 {
   "compilerOptions": {
-    // NodeNext tracks current Node resolution semantics, which fits this plugin's
-    // engines.node >=22 floor.
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "es2024",
@@ -11,17 +9,11 @@
     "alwaysStrict": true,
     "noUnusedLocals": true,
     "strict": true,
-    // Skip type-checking third-party .d.ts files, so upstream @types drift we don't own can't
-    // break our compile (e.g. @salesforce/core's .d.ts references pino.TransportSingleOptions,
-    // which the resolved pino types no longer export). Matches test/tsconfig.json.
     "skipLibCheck": true,
     "outDir": "dist",
     "rootDir": "src",
-    // @salesforce/source-deploy-retrieve's own .d.ts imports a co-located .json registry file
-    // (registry/standardvalueset.d.ts -> ./stdValueSetRegistry.json) without this flag set.
     "resolveJsonModule": true
   },
-  // bin/dev.js and the test:command-reference/snapshot/schema steps run via ts-node/esm.
   "ts-node": {
     "esm": true
   },

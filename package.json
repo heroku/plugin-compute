@@ -40,7 +40,7 @@
     "node": ">=22.19.0"
   },
   "files": [
-    "/lib",
+    "/dist",
     "/messages",
     "/npm-shrinkwrap.json",
     "/oclif.manifest.json",
@@ -58,7 +58,7 @@
   ],
   "license": "Apache-2.0",
   "oclif": {
-    "commands": "./lib/commands",
+    "commands": "./dist/commands",
     "bin": "sf",
     "topicSeparator": " ",
     "devPlugins": [
@@ -89,8 +89,8 @@
     "url": "https://github.com/heroku/plugin-compute"
   },
   "scripts": {
-    "clean": "rimraf lib tmp oclif.manifest.json *.tsbuildinfo .eslintcache",
-    "clean-all": "rimraf lib tmp oclif.manifest.json *.tsbuildinfo .eslintcache node_modules",
+    "clean": "rimraf dist tmp oclif.manifest.json *.tsbuildinfo .eslintcache",
+    "clean-all": "rimraf dist tmp oclif.manifest.json *.tsbuildinfo .eslintcache node_modules",
     "compile": "tsc -p . --pretty --incremental",
     "build": "tsc -p . --pretty --incremental",
     "manifest": "oclif manifest",
@@ -106,7 +106,8 @@
     "//test": "The test:command-reference gate was removed from this chain until @salesforce/plugin-command-reference can be reinstalled without its vulnerable transitive deps; see AGENTS.md for restore steps.",
     "test": "npm run test:compile && npm run test:only && npm run test:deprecation-policy && npm run test:json-schema && npm run link-check",
     "test:nuts": "vitest run --config vitest.nut.config.ts",
-    "prepack": "npm run build && oclif manifest && npm shrinkwrap",
+    "prepare": "npm run build && oclif manifest",
+    "prepack": "npm shrinkwrap",
     "postpack": "rimraf oclif.manifest.json npm-shrinkwrap.json"
   },
   "publishConfig": {
@@ -118,6 +119,6 @@
     "typescript": "$typescript",
     "http-cache-semantics": "^4.3.0"
   },
-  "exports": "./lib/index.js",
+  "exports": "./dist/index.js",
   "type": "module"
 }

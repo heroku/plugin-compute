@@ -19,7 +19,7 @@
 // fallen behind their reference repos' current HEAD on GitHub. Run manually or via CI
 // (.github/workflows/checkReferenceAppDrift.yml) -- never called from `sf compute generate`
 // itself, so customers never pay for this extra GitHub API round-trip.
-import { REFERENCE_APPS } from '../lib/shared/computeGenerateSource.js';
+import { REFERENCE_APPS } from '../dist/shared/computeGenerateSource.js';
 
 let stale = false;
 

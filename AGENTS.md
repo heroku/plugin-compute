@@ -141,6 +141,35 @@ nothing to fix at this layer.
   those commands were brand-new; config kept hidden aliases because its
   commands were already established.)
 
+## `tsconfig.json` must stay comment-free (compiled output is `dist/`)
+
+The compiled output dir is **`dist/`** (`tsconfig.json` `outDir`, mirrored by
+`package.json` `files`/`oclif.commands`/`exports`, the `clean` scripts, and
+`.gitignore`). Keep those in lockstep if the dir ever changes again.
+
+**The root `tsconfig.json` must be strict JSON — no `//` comments.** The
+`test:json-schema` gate (`@oclif/plugin-command-snapshot`'s `schema:compare`)
+resolves each command's source `.ts` by reading `outDir`/`rootDir` out of
+`tsconfig.json` with a plain `JSON.parse` (`SchemaGenerator.getDirs()` in
+`node_modules/@oclif/plugin-command-snapshot/lib/commands/schema/generate.js`).
+That parse throws on JSONC comments, and the tool **silently** swallows the
+error and falls back to a hard-coded default `outDir: 'lib'`. While `outDir` was
+`lib` that wrong default happened to match, so a commented tsconfig "worked by
+accident"; with `outDir: 'dist'` the `dist`→`src` path map fails, the tool reads
+the compiled `.js`, and `schema:compare` dies with
+`No return type found for file …/dist/commands/compute/deploy.js`. So any `//`
+comment re-added to the root `tsconfig.json` will silently re-break the schema
+gate. (`test/tsconfig.json` is not read by that tool and may keep comments.)
+
+Rationale for the non-obvious compiler options (kept here since the file can't
+hold comments): `module`/`moduleResolution: NodeNext` tracks current Node
+resolution semantics, fitting the `engines.node >=22` floor; `resolveJsonModule`
+is required because `@salesforce/source-deploy-retrieve`'s own `.d.ts` imports a
+co-located `.json` registry; `skipLibCheck` skips third-party `.d.ts` we don't
+own (e.g. `@salesforce/core`'s `.d.ts` references `pino.TransportSingleOptions`,
+which the resolved `pino` types no longer export) — see the `min-release-age`
+section below. `ts-node.esm` is for `bin/dev.js` and the snapshot/schema steps.
+
 ## Environment quirk: `NODE_ENV=development` breaks oclif tooling
 
 This environment has `NODE_ENV=development` set persistently in the shell.

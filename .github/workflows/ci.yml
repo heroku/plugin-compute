@@ -40,7 +40,7 @@ jobs:
       - name: unit tests + schema/snapshot gates
         run: npm test
 
-  # NUTs run through the built plugin, so lib/ must be compiled first. `sf compute
+  # NUTs run through the built plugin, so dist/ must be compiled first. `sf compute
   # generate` scaffolds locally and fetches starter source from GitHub -- no org
   # auth or scratch org, hence no secrets.
   nuts:
@@ -59,7 +59,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Generate oclif manifest
-        # Make oclif load commands from lib/. Without it, vitest's NODE_ENV=test
+        # Make oclif load commands from dist/. Without it, vitest's NODE_ENV=test
         # flips oclif to transpile mode, where it fails to resolve commands from src/.
         run: npx oclif manifest
       - name: Install Salesforce CLI

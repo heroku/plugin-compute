@@ -18,43 +18,62 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
 /*
- * Give every vitest test file its own home directory, then pre-seed that home's
- * `@salesforce/core` alias store so the accessor's cold-create path never runs.
+ * Give every vitest test file its own private dir, point every path
+ * `@salesforce/core` uses to reach its alias store at that dir, then pre-seed
+ * the store so the accessor's cold-create path never runs.
  *
- * `@salesforce/core` resolves its state dir from `os.homedir()` with no env
- * override (`aliasAccessor.getFileLocation()` -> `join(homedir(), '.sfdx',
- * 'alias.json')`) -- that's `HOME` on POSIX and `USERPROFILE` on Windows.
- * Relocating both per test file (below) stops *cross-file* contention, but it
- * does NOT stop the race that actually flakes Windows CI, because that race is
- * within a single home:
+ * There are TWO paths to the alias store, and the flaky Windows CI race needs
+ * both covered:
  *
- *   `AliasAccessor.readFileToAliasStore()` reads `alias.json`; if it's missing
- *   it falls into an ENOENT branch that `writeFile`s an empty store. `writeFile`
- *   truncates-then-writes, so the file briefly exists at 0 bytes. When a cold
- *   home has two concurrent `Org.init()` -> `StateAggregator.init()` ->
- *   `AliasAccessor.init()` callers (e.g. a command that resolves orgs in
- *   parallel), one creates the file while the other reads it mid-write and gets
- *   `''` -> `JSON.parse('')` -> "Unexpected end of JSON input"
- *   (`fileContentsRawToAliasStore` has no empty-contents guard). Windows'
- *   non-atomic file semantics widen the window; it's latent on all platforms.
+ *   1. Production: `AliasAccessor.getFileLocation()` -> `join(homedir(),
+ *      '.sfdx', 'alias.json')` -- that's `HOME` on POSIX, `USERPROFILE` on
+ *      Windows.
+ *   2. Under `@salesforce/core`'s `TestContext` (the `$$ = new TestContext()`
+ *      used by ~20 of our test files): `getFileLocation` is STUBBED, in the
+ *      global `beforeEach`, to `join(os.tmpdir(), '.sfdx', 'alias.json')`
+ *      (`testSetup.js` `getAliasFileLocation()`). `os.tmpdir()` reads `TMPDIR`
+ *      on POSIX and `TEMP`/`TMP` on Windows. So for every TestContext test the
+ *      store lives under the *shared* OS temp dir, NOT under homedir -- which is
+ *      why relocating HOME alone never stopped the flake (PR #21): it missed the
+ *      path those tests actually read.
  *
- * Seeding a valid `{"orgs":{}}` up front means the ENOENT cold-create branch is
- * never taken, so the 0-byte window never exists and every reader parses valid
- * JSON. (`'orgs'` is aliasAccessor's DEFAULT_GROUP; the shape matches
- * `aliasStoreToRawFileContents(new Map())`.)
+ * The race itself: `AliasAccessor.readFileToAliasStore()` reads `alias.json`;
+ * if it's missing it falls into an ENOENT branch that `writeFile`s an empty
+ * store. `writeFile` truncates-then-writes, so the file briefly exists at 0
+ * bytes. Two concurrent `AliasAccessor.init()` callers across parallel vitest
+ * workers hit the SAME shared-tmpdir file -- one creates it while another reads
+ * it mid-write and gets `''` -> `JSON.parse('')` -> "Unexpected end of JSON
+ * input" (`fileContentsRawToAliasStore` has no empty-contents guard). Windows'
+ * non-atomic file semantics widen the window; it's latent on all platforms.
+ *
+ * Fix: redirect HOME/USERPROFILE *and* TMPDIR/TEMP/TMP to one per-file dir, so
+ * both resolution strategies collapse onto `<isolatedDir>/.sfdx/alias.json`,
+ * then seed a valid `{"orgs":{}}` there. Per-file isolation removes the
+ * cross-worker sharing, and the seed means the ENOENT cold-create branch is
+ * never taken, so the 0-byte window never exists. (`'orgs'` is aliasAccessor's
+ * DEFAULT_GROUP; the shape matches `aliasStoreToRawFileContents(new Map())`.)
  *
  * This file runs via `setupFiles`, so it executes once per test file (not once
- * per worker). `mkdtempSync` mints a fresh unique home each time; the worker id
- * in the prefix is only for human-readable debugging. The dirs live under the OS
- * temp dir and are reclaimed by the OS -- no explicit teardown.
+ * per worker). `mkdtempSync` mints a fresh unique dir each time; the worker id
+ * in the prefix is only for human-readable debugging. The dirs live under the
+ * real OS temp dir (resolved BEFORE we override TMPDIR below) and are reclaimed
+ * by the OS -- no explicit teardown.
  */
 const workerId = process.env.VITEST_WORKER_ID ?? '0';
-const isolatedHome = mkdtempSync(join(tmpdir(), `plugin-compute-sfhome-${workerId}-`));
+// Create the per-file dir under the REAL OS temp dir, before overriding TMPDIR.
+const isolatedDir = mkdtempSync(join(tmpdir(), `plugin-compute-sfhome-${workerId}-`));
 
-process.env.HOME = isolatedHome;
-process.env.USERPROFILE = isolatedHome;
+// Homedir-based resolution (production path).
+process.env.HOME = isolatedDir;
+process.env.USERPROFILE = isolatedDir;
+// tmpdir-based resolution (TestContext's stubbed getFileLocation). os.tmpdir()
+// reads TMPDIR on POSIX, TEMP/TMP on Windows -- set all three.
+process.env.TMPDIR = isolatedDir;
+process.env.TEMP = isolatedDir;
+process.env.TMP = isolatedDir;
 
 // Pre-seed the alias store so AliasAccessor never runs its cold-create writeFile.
-const sfdxDir = join(isolatedHome, '.sfdx');
+// Both paths above now resolve here, so one seeded file covers both.
+const sfdxDir = join(isolatedDir, '.sfdx');
 mkdirSync(sfdxDir, {recursive: true});
 writeFileSync(join(sfdxDir, 'alias.json'), JSON.stringify({orgs: {}}));

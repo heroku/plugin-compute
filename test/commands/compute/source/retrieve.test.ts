@@ -24,6 +24,7 @@ import {
   mkdtemp,
   readFile,
   rm,
+  stat,
   writeFile,
 } from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -212,6 +213,15 @@ describe('compute source retrieve', () => {
     await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('No such app');
 
     expect(findDownloadCall(requestStub)).toBeUndefined();
+  });
+
+  it('leaves no app directory behind when the metadata retrieve fails, so a retry is not blocked', async () => {
+    completeStub.mockResolvedValue({errorMessage: 'No such app', success: false});
+
+    await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('No such app');
+
+    const appDir = join(projectDir, 'force-app/main/default/computeApps/CreditRatingScorer');
+    await expect(stat(appDir)).rejects.toThrow();
   });
 
   // No automatic rollback on failure -- the directory (and whatever was already written into

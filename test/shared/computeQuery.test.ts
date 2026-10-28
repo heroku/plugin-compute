@@ -131,6 +131,7 @@ describe('computeQuery.queryComputeApp', () => {
     expect(actions.join('\n')).toContain('sf plugins install @salesforce/plugin-deploy-retrieve@compute');
     expect(actions.join('\n')).toContain('project deploy start');
     expect(actions.join('\n')).toContain('ComputeApp:NeverDeployed');
+    expect(actions.join('\n')).not.toContain('PlatformComputeApp');
     expect(actions.join('\n')).not.toContain('%s');
   });
 

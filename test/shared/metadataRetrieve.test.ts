@@ -43,7 +43,7 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
     vi.restoreAllMocks();
   });
 
-  function stubConnection(retrieveResult: {errorMessage?: string; success: boolean; zipFile?: string}) {
+  function stubConnection(retrieveResult: {errorMessage?: string; messages?: unknown; success: boolean; zipFile?: string}) {
     const complete = vi.fn().mockResolvedValue(retrieveResult);
     const retrieve = vi.fn().mockReturnValue({complete});
     const connection = {
@@ -140,5 +140,18 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
 
     expect(error).toBeDefined();
     expect(error?.message).toContain('computeApps/CreditRatingScorer.computeApp');
+  });
+
+  it('includes retrieve warnings in the error when the expected entry is missing', async () => {
+    const zipFile = await zipBase64({'package.xml': '<Package/>'});
+    const {connection} = stubConnection({
+      messages: {fileName: 'package.xml', problem: "Entity type: 'ComputeApp' is unknown"},
+      success: true,
+      zipFile,
+    });
+
+    await expect(retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer')).rejects.toThrow(
+      "Entity type: 'ComputeApp' is unknown",
+    );
   });
 });

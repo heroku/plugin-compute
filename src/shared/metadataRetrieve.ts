@@ -17,7 +17,7 @@
 import {getLogger} from '@oclif/core';
 import {type Connection, Messages} from '@salesforce/core';
 import JSZip from 'jszip';
-import {writeFile} from 'node:fs/promises';
+import {mkdir, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 
 import {resolveComputeApiVersion} from './metadataApiVersion.js';
@@ -65,11 +65,15 @@ export async function retrieveComputeMetadata(connection: Connection, appDir: st
   const metaFileName = `${name}.computeApp-meta.xml`;
   const metaEntry = zip.file(`computeApps/${wireFileName}`);
   if (!metaEntry) {
+    // An unknown type doesn't fail the retrieve -- it only adds a warning to result.messages.
+    const problems = [result.messages ?? []].flat().map(m => m.problem);
+    const problemDetail = problems.length > 0 ? ` (${problems.join('; ')})` : '';
     throw messages.createError('error.metadataRetrieveFailed', [
       name,
-      `the retrieved metadata is missing computeApps/${wireFileName}`,
+      `the retrieved metadata is missing computeApps/${wireFileName}${problemDetail}`,
     ]);
   }
 
+  await mkdir(appDir, {recursive: true});
   await writeFile(join(appDir, metaFileName), await metaEntry.async('nodebuffer'));
 }

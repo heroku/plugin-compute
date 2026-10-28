@@ -1,7 +1,7 @@
 {
   "name": "@heroku/plugin-compute",
   "description": "CLI for Compute",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "author": "Heroku",
   "bugs": "https://github.com/heroku/plugin-compute/issues",
   "dependencies": {
@@ -18,29 +18,29 @@
   },
   "devDependencies": {
     "@heroku-cli/test-utils": "2.0.0-beta.0",
-    "@oclif/plugin-command-snapshot": "^6.0.5",
-    "@salesforce/cli-plugins-testkit": "^5.3.75",
-    "@typescript-eslint/parser": "^8.71.1",
+    "@oclif/plugin-command-snapshot": "^6.0.6",
+    "@salesforce/cli-plugins-testkit": "^5.3.78",
+    "@typescript-eslint/parser": "^8.72.0",
     "@types/node": "^22",
-    "@types/sinon": "^22.0.0",
-    "@vitest/coverage-v8": "^5",
+    "@types/sinon": "22.0.0",
+    "@vitest/coverage-v8": "^5.0.5",
     "@vitest/eslint-plugin": "^1.6.27",
-    "eslint": "^10.4.0",
+    "eslint": "^10.13.0",
     "eslint-config-oclif": "^7",
     "linkinator": "^8.1.0",
-    "oclif": "^6",
+    "oclif": "^6.0.10",
     "openapi-typescript": "^7.13.0",
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
     "vite": "^7",
-    "vitest": "^5"
+    "vitest": "^5.0.5"
   },
   "engines": {
     "node": ">=22.19.0"
   },
   "files": [
-    "/lib",
+    "/dist",
     "/messages",
     "/npm-shrinkwrap.json",
     "/oclif.manifest.json",
@@ -58,7 +58,7 @@
   ],
   "license": "Apache-2.0",
   "oclif": {
-    "commands": "./lib/commands",
+    "commands": "./dist/commands",
     "bin": "sf",
     "topicSeparator": " ",
     "devPlugins": [
@@ -89,8 +89,8 @@
     "url": "https://github.com/heroku/plugin-compute"
   },
   "scripts": {
-    "clean": "rimraf lib tmp oclif.manifest.json *.tsbuildinfo .eslintcache",
-    "clean-all": "rimraf lib tmp oclif.manifest.json *.tsbuildinfo .eslintcache node_modules",
+    "clean": "rimraf dist tmp oclif.manifest.json *.tsbuildinfo .eslintcache",
+    "clean-all": "rimraf dist tmp oclif.manifest.json *.tsbuildinfo .eslintcache node_modules",
     "compile": "tsc -p . --pretty --incremental",
     "build": "tsc -p . --pretty --incremental",
     "manifest": "oclif manifest",
@@ -106,18 +106,19 @@
     "//test": "The test:command-reference gate was removed from this chain until @salesforce/plugin-command-reference can be reinstalled without its vulnerable transitive deps; see AGENTS.md for restore steps.",
     "test": "npm run test:compile && npm run test:only && npm run test:deprecation-policy && npm run test:json-schema && npm run link-check",
     "test:nuts": "vitest run --config vitest.nut.config.ts",
-    "prepack": "npm run build && oclif manifest && npm shrinkwrap",
+    "prepare": "npm run build && oclif manifest",
+    "prepack": "npm shrinkwrap",
     "postpack": "rimraf oclif.manifest.json npm-shrinkwrap.json"
   },
   "publishConfig": {
     "access": "restricted"
   },
   "overrides": {
-    "fast-uri": "^3.1.8",
+    "fast-uri": "^3.1.9",
     "@jsforce/jsforce-node": "^3.10.27",
     "typescript": "$typescript",
     "http-cache-semantics": "^4.3.0"
   },
-  "exports": "./lib/index.js",
+  "exports": "./dist/index.js",
   "type": "module"
 }

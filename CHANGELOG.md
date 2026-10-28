@@ -2,6 +2,27 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.3.2](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.3.1...plugin-compute-v0.3.2) (2026-10-27)
+
+
+### Features
+
+* add sf compute delete telemetry-drain command ([#48](https://github.com/heroku/plugin-compute/issues/48)) ([2049117](https://github.com/heroku/plugin-compute/commit/2049117486dbeddccfa816d30ddb90d16130c79a))
+* removes `compute deploy` functionality, removes sensitive output from `--json`, other small tweaks @W-24389913@ ([#55](https://github.com/heroku/plugin-compute/issues/55)) ([984f399](https://github.com/heroku/plugin-compute/commit/984f399b6d3f0c757921e599ac514c7b944cb2e9))
+
+
+### Bug Fixes
+
+* stop Ctrl-C trace on tail runtime-log and never hang get runtime-log ([#54](https://github.com/heroku/plugin-compute/issues/54)) ([81c15b4](https://github.com/heroku/plugin-compute/commit/81c15b49d2e1fc923bc928633318de9ee3d1c959))
+
+
+### Dependencies
+
+* bump fast-uri from 3.1.8 to 3.1.9 ([#61](https://github.com/heroku/plugin-compute/issues/61)) ([f3bb684](https://github.com/heroku/plugin-compute/commit/f3bb6848963efeb1f53bdd94113724e3df4fd837))
+* bump ip-address from 10.7.3 to 10.7.4 ([#52](https://github.com/heroku/plugin-compute/issues/52)) ([2f27cf4](https://github.com/heroku/plugin-compute/commit/2f27cf47fb66cdeed4ba7ed2c1ed7b62be514bf8))
+* bump undici from 8.11.2 to 8.12.3 ([#62](https://github.com/heroku/plugin-compute/issues/62)) ([43bedfa](https://github.com/heroku/plugin-compute/commit/43bedfa2873f9aceb39b4127d1d9eb850917a6e5))
+* bump zod from 4.6.5 to 4.6.7 ([#57](https://github.com/heroku/plugin-compute/issues/57)) ([9469dea](https://github.com/heroku/plugin-compute/commit/9469deaab0918fbd1c03501dcd0d9b97122bbb79))
+
 ## [0.3.1](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.3.0...plugin-compute-v0.3.1) (2026-10-20)
 
 

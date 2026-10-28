@@ -66,7 +66,7 @@ servers:
 #           description: Successful response
 paths: {}
 `,
-    'src/routes/index.js': `export default async function (_fastify, _opts) {
+    'src/routes/index.js': `export default async function (fastify, _opts) {
   // Add your routes here. Every route registered this way automatically gets
   // the Salesforce preHandler from ../plugins/heroku-applink.js, which
   // decodes the invoking org's context onto request.sdk. For example:

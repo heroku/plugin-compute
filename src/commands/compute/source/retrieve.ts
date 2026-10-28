@@ -16,7 +16,6 @@
 
 import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
-import {mkdir} from 'node:fs/promises';
 
 import {pathExists, resolveAppDir, validateName} from '../../../shared/computeApp.js';
 import {unpackComputeBundle} from '../../../shared/computeBundle.js';
@@ -48,7 +47,7 @@ export default class Retrieve extends SfCommand<ComputeSourceRetrieveResult> {
       char: 'd',
       summary: messages.getMessage('flags.output-dir.summary'),
       description: messages.getMessage('flags.output-dir.description'),
-      default: 'force-app/main/default/platformComputeApps',
+      default: 'force-app/main/default/computeApps',
     }),
   };
 
@@ -70,14 +69,12 @@ export default class Retrieve extends SfCommand<ComputeSourceRetrieveResult> {
     const username = connection.getUsername() ?? flags['target-org'].getUsername() ?? '<org>';
     this.log(messages.getMessage('info.retrieving', [name, username]));
 
-    // No rollback on failure below -- if either API call fails, appDir is left in place,
+    // No rollback on failure below -- if the source download fails, appDir is left in place,
     // partially populated, same as generate.ts/deploy.ts's own "no automatic rollback" style
     // elsewhere in this plugin. A retry after a failure here will need the directory removed
     // first, since it now exists and would otherwise hit error.appAlreadyExists.
-    await mkdir(appDir, {recursive: true});
-
     await retrieveComputeMetadata(connection, appDir, name);
-    this.log(messages.getMessage('info.retrievedMetadata', [`${name}.compute-meta.xml`]));
+    this.log(messages.getMessage('info.retrievedMetadata', [`${name}.computeApp-meta.xml`]));
 
     this.log(messages.getMessage('info.downloadingSource'));
     const bundle = await downloadComputeSource(connection, {appIdOrName: name});

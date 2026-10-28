@@ -361,12 +361,12 @@ describe('compute unset config', () => {
     }
   });
 
-  it("resolves --name from the current directory's <name>.compute-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
+  it("resolves --name from the current directory's <name>.computeApp-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
     const originalCwd = process.cwd();
     const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-config-unset-'));
     const appDir = join(tmp, 'CreditRatingScorer');
     await mkdir(appDir);
-    await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    await writeFile(join(appDir, 'CreditRatingScorer.computeApp-meta.xml'), '<ComputeApp/>\n');
     process.chdir(appDir);
     try {
       const result = await ConfigUnset.run(['LOG_LEVEL', '--target-org', testOrg.username]);

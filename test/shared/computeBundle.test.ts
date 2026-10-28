@@ -92,11 +92,11 @@ describe('computeBundle.packageComputeBundle', () => {
 
   beforeEach(async () => {
     projectRoot = await mkdtemp(join(tmpdir(), 'plugin-compute-bundle-'));
-    appDir = join(projectRoot, 'force-app/main/default/platformComputeApps/CreditRatingScorer');
+    appDir = join(projectRoot, 'force-app/main/default/computeApps/CreditRatingScorer');
     await mkdir(appDir, {recursive: true});
     await writeFile(join(appDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
     await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');
-    await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    await writeFile(join(appDir, 'CreditRatingScorer.computeApp-meta.xml'), '<ComputeApp/>\n');
     await writeFile(join(appDir, 'project.toml'), '[_]\nschema-version = "0.2"\n');
     await mkdir(join(appDir, 'src'), {recursive: true});
     await writeFile(join(appDir, 'src', 'app.js'), 'console.log("hi");\n');
@@ -114,7 +114,7 @@ describe('computeBundle.packageComputeBundle', () => {
     expect(outer['api-spec.yaml'].toString('utf8')).toBe('openapi: 3.0.0\n');
   });
 
-  it('excludes only the compute-meta.xml from source.tar.gz, keeping api-spec.yaml and project.toml', async () => {
+  it('excludes only the computeApp-meta.xml from source.tar.gz, keeping api-spec.yaml and project.toml', async () => {
     const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
 
     const outer = await extractTarGz(buffer);
@@ -237,11 +237,11 @@ describe('computeBundle.unpackComputeBundle', () => {
   it('round-trips packageComputeBundle output into api-spec.yaml and the source files', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'plugin-compute-bundle-src-'));
     try {
-      const appDir = join(projectRoot, 'force-app/main/default/platformComputeApps/CreditRatingScorer');
+      const appDir = join(projectRoot, 'force-app/main/default/computeApps/CreditRatingScorer');
       await mkdir(join(appDir, 'src'), {recursive: true});
       await writeFile(join(appDir, 'api-spec.yaml'), 'openapi: 3.0.0\n');
       await writeFile(join(appDir, 'Procfile'), 'web: node src/app.js\n');
-      await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
+      await writeFile(join(appDir, 'CreditRatingScorer.computeApp-meta.xml'), '<ComputeApp/>\n');
       await writeFile(join(appDir, 'project.toml'), '[_]\nschema-version = "0.2"\n');
       await writeFile(join(appDir, 'src', 'app.js'), 'console.log("hi");\n');
       const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);

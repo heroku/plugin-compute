@@ -17,7 +17,7 @@
 import {getLogger} from '@oclif/core';
 import {type Connection, Messages} from '@salesforce/core';
 import JSZip from 'jszip';
-import {writeFile} from 'node:fs/promises';
+import {mkdir, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 
 import {resolveComputeApiVersion} from './metadataApiVersion.js';
@@ -31,7 +31,7 @@ const {debug} = getLogger('sf:compute:metadataRetrieve');
 
 // Inverse of deployComputeMetadata in metadataDeploy.ts, but NOT built on SDR's
 // ComponentSet/MetadataApiRetrieve the way that function is built on MetadataApiDeploy --
-// PlatformComputeApp has no entry in SDR's metadata registry, and ComponentSet.getObject()
+// ComputeApp has no entry in SDR's metadata registry, and ComponentSet.getObject()
 // (called internally when building a retrieve request) requires resolving every member's type
 // against that registry, so it throws for this type today. This uses jsforce's lower-level
 // retrieve API directly instead. Note the asymmetry with deployComputeMetadata's
@@ -43,7 +43,7 @@ export async function retrieveComputeMetadata(connection: Connection, appDir: st
     apiVersion: Number(version),
     singlePackage: true,
     unpackaged: {
-      types: [{members: [name], name: 'PlatformComputeApp'}],
+      types: [{members: [name], name: 'ComputeApp'}],
       version,
       // Package requires objectPermissions -- retrieve doesn't use it, but the type isn't
       // Partial<Package> the way the outer RetrieveRequest is Partial<RetrieveRequest>.
@@ -60,16 +60,20 @@ export async function retrieveComputeMetadata(connection: Connection, appDir: st
 
   const zip = await JSZip.loadAsync(result.zipFile, {base64: true});
   // Wire directoryName/suffix -- see the matching comment in metadataDeploy.ts. Our own on-disk
-  // source-format filename (<name>.compute-meta.xml) is independent of the wire filename.
-  const wireFileName = `${name}.compute`;
-  const metaFileName = `${name}.compute-meta.xml`;
-  const metaEntry = zip.file(`platformComputeApps/${wireFileName}`);
+  // source-format filename (<name>.computeApp-meta.xml) is independent of the wire filename.
+  const wireFileName = `${name}.computeApp`;
+  const metaFileName = `${name}.computeApp-meta.xml`;
+  const metaEntry = zip.file(`computeApps/${wireFileName}`);
   if (!metaEntry) {
+    // An unknown type doesn't fail the retrieve -- it only adds a warning to result.messages.
+    const problems = [result.messages ?? []].flat().map(m => m.problem);
+    const problemDetail = problems.length > 0 ? ` (${problems.join('; ')})` : '';
     throw messages.createError('error.metadataRetrieveFailed', [
       name,
-      `the retrieved metadata is missing platformComputeApps/${wireFileName}`,
+      `the retrieved metadata is missing computeApps/${wireFileName}${problemDetail}`,
     ]);
   }
 
+  await mkdir(appDir, {recursive: true});
   await writeFile(join(appDir, metaFileName), await metaEntry.async('nodebuffer'));
 }

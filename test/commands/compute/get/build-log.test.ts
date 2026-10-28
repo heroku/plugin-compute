@@ -307,13 +307,13 @@ describe('compute get build-log', () => {
     }
   });
 
-  it("resolves --name from the current directory's <name>.compute-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
+  it("resolves --name from the current directory's <name>.computeApp-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
     resolveWith([succeededRecord]);
     const originalCwd = process.cwd();
     const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-build-log-'));
     const appDir = join(tmp, 'CreditRatingScorer');
     await mkdir(appDir);
-    await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    await writeFile(join(appDir, 'CreditRatingScorer.computeApp-meta.xml'), '<ComputeApp/>\n');
     process.chdir(appDir);
     try {
       const result = await BuildLog.run(['--target-org', testOrg.username]);

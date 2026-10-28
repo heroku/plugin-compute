@@ -86,7 +86,7 @@ export async function pathExists(path: string): Promise<boolean> {
 // fallback chain shared by every other command that takes --name.
 export async function resolveComputeAppNameFromDir(dir: string): Promise<string | undefined> {
   const name = basename(dir);
-  return (await pathExists(join(dir, `${name}.compute-meta.xml`))) ? name : undefined;
+  return (await pathExists(join(dir, `${name}.computeApp-meta.xml`))) ? name : undefined;
 }
 
 // Shared by every command in the --name/COMPUTE_APP_NAME/directory fallback chain, so the

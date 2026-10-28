@@ -311,13 +311,13 @@ describe('compute display', () => {
     }
   });
 
-  it("resolves --name from the current directory's <name>.compute-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
+  it("resolves --name from the current directory's <name>.computeApp-meta.xml when --name and COMPUTE_APP_NAME are both absent", async () => {
     resolveWith([activeRecord]);
     const originalCwd = process.cwd();
     const tmp = await mkdtemp(join(tmpdir(), 'plugin-compute-display-'));
     const appDir = join(tmp, 'CreditRatingScorer');
     await mkdir(appDir);
-    await writeFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), '<PlatformComputeApp/>\n');
+    await writeFile(join(appDir, 'CreditRatingScorer.computeApp-meta.xml'), '<ComputeApp/>\n');
     process.chdir(appDir);
     try {
       const result = await Display.run(['--target-org', testOrg.username]);

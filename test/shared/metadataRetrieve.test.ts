@@ -43,7 +43,7 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
     vi.restoreAllMocks();
   });
 
-  function stubConnection(retrieveResult: {errorMessage?: string; success: boolean; zipFile?: string}) {
+  function stubConnection(retrieveResult: {errorMessage?: string; messages?: unknown; success: boolean; zipFile?: string}) {
     const complete = vi.fn().mockResolvedValue(retrieveResult);
     const retrieve = vi.fn().mockReturnValue({complete});
     const connection = {
@@ -54,9 +54,9 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
     return {complete, connection, retrieve};
   }
 
-  it('requests a singlePackage unpackaged retrieve of the named PlatformComputeApp', async () => {
+  it('requests a singlePackage unpackaged retrieve of the named ComputeApp', async () => {
     const zipFile = await zipBase64({
-      'platformComputeApps/CreditRatingScorer.compute': '<PlatformComputeApp/>\n',
+      'computeApps/CreditRatingScorer.computeApp': '<ComputeApp/>\n',
     });
     const {connection, retrieve} = stubConnection({success: true, zipFile});
 
@@ -67,14 +67,14 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
       {apiVersion: number; singlePackage: boolean; unpackaged: {types: Array<{members: string[]; name: string}>}},
     ];
     expect(request.singlePackage).toBe(true);
-    expect(request.unpackaged.types).toEqual([{members: ['CreditRatingScorer'], name: 'PlatformComputeApp'}]);
+    expect(request.unpackaged.types).toEqual([{members: ['CreditRatingScorer'], name: 'ComputeApp'}]);
   });
 
   // Locks in the retrieve-vs-deploy asymmetry: RetrieveResultLocator#complete() takes no
   // argument, unlike DeployResultLocator#complete(includeDetails?).
   it('calls complete() with no arguments', async () => {
     const zipFile = await zipBase64({
-      'platformComputeApps/CreditRatingScorer.compute': '<PlatformComputeApp/>\n',
+      'computeApps/CreditRatingScorer.computeApp': '<ComputeApp/>\n',
     });
     const {complete, connection} = stubConnection({success: true, zipFile});
 
@@ -84,23 +84,23 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
     expect(complete.mock.calls[0]).toEqual([]);
   });
 
-  it('writes the retrieved compute-meta.xml into appDir', async () => {
+  it('writes the retrieved computeApp-meta.xml into appDir', async () => {
     const zipFile = await zipBase64({
-      'platformComputeApps/CreditRatingScorer.compute': '<PlatformComputeApp><label>x</label></PlatformComputeApp>\n',
+      'computeApps/CreditRatingScorer.computeApp': '<ComputeApp><label>x</label></ComputeApp>\n',
     });
     const {connection} = stubConnection({success: true, zipFile});
 
     await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
 
-    const written = await readFile(join(appDir, 'CreditRatingScorer.compute-meta.xml'), 'utf8');
-    expect(written).toBe('<PlatformComputeApp><label>x</label></PlatformComputeApp>\n');
+    const written = await readFile(join(appDir, 'CreditRatingScorer.computeApp-meta.xml'), 'utf8');
+    expect(written).toBe('<ComputeApp><label>x</label></ComputeApp>\n');
   });
 
-  // Regression guard: mirrors the same floor in metadataDeploy.test.ts -- PlatformComputeApp
+  // Regression guard: mirrors the same floor in metadataDeploy.test.ts -- ComputeApp
   // wasn't a resolvable metadata type before API 68.0.
   it('floors the retrieve request version at 68.0 even when the connection reports a lower API version', async () => {
     const zipFile = await zipBase64({
-      'platformComputeApps/CreditRatingScorer.compute': '<PlatformComputeApp/>\n',
+      'computeApps/CreditRatingScorer.computeApp': '<ComputeApp/>\n',
     });
     const {connection, retrieve} = stubConnection({success: true, zipFile});
     connection.getApiVersion = () => '62.0';
@@ -128,7 +128,7 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
   });
 
   it('throws when the retrieved zip is missing the expected wire entry', async () => {
-    const zipFile = await zipBase64({'platformComputeApps/unrelated.txt': 'oops'});
+    const zipFile = await zipBase64({'computeApps/unrelated.txt': 'oops'});
     const {connection} = stubConnection({success: true, zipFile});
 
     let error: Error | undefined;
@@ -139,6 +139,19 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
     }
 
     expect(error).toBeDefined();
-    expect(error?.message).toContain('platformComputeApps/CreditRatingScorer.compute');
+    expect(error?.message).toContain('computeApps/CreditRatingScorer.computeApp');
+  });
+
+  it('includes retrieve warnings in the error when the expected entry is missing', async () => {
+    const zipFile = await zipBase64({'package.xml': '<Package/>'});
+    const {connection} = stubConnection({
+      messages: {fileName: 'package.xml', problem: "Entity type: 'ComputeApp' is unknown"},
+      success: true,
+      zipFile,
+    });
+
+    await expect(retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer')).rejects.toThrow(
+      "Entity type: 'ComputeApp' is unknown",
+    );
   });
 });

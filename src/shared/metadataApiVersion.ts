@@ -16,7 +16,7 @@
 
 import type {Connection} from '@salesforce/core';
 
-// PlatformComputeApp was introduced as a metadata type in API 68.0. Deploying/retrieving it at
+// ComputeApp was introduced as a metadata type in API 68.0. Deploying/retrieving it at
 // a lower version (e.g. an org's negotiated default, or a lower sourceApiVersion in
 // sfdx-project.json) makes the server fail to resolve the type before it ever inspects the zip
 // contents against package.xml -- surfacing as the misleading "was named in package.xml, but was

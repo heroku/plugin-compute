@@ -66,3 +66,26 @@ jobs:
         run: npm install --global @salesforce/cli
       - name: nuts
         run: npm run test:nuts
+
+  # Rehearses the release signing path (pack, sign, verify locally, npm publish
+  # --dry-run) with no credentials, so signing breakage shows up before release.
+  # Depends on npm-release-workflows PR #71 (the sign-and-publish action) being on
+  # main; not a required check. `npm ci` already builds via `prepare`.
+  signing-dry-run:
+    if: github.event_name == 'pull_request'
+    runs-on: sfdc-hk-ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+      - run: npm ci
+      - name: Sign and publish (dry run)
+        uses: heroku/npm-release-workflows/.github/actions/sign-and-publish@main
+        with:
+          signing-mode: dry-run
+          npm_tag: latest
+          dry_run: "true"

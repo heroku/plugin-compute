@@ -2,6 +2,27 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.4.1](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.3.2...plugin-compute-v0.4.1) (2026-10-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* use new ComputeApp metadata type ([#63](https://github.com/heroku/plugin-compute/issues/63))
+
+### Features
+
+* use new ComputeApp metadata type ([#63](https://github.com/heroku/plugin-compute/issues/63)) ([ad524a0](https://github.com/heroku/plugin-compute/commit/ad524a055b292cb89df9941641c933b54d238c2a))
+
+
+### Dependencies
+
+* bump ignore from 7.0.12 to 7.0.13 ([#59](https://github.com/heroku/plugin-compute/issues/59)) ([10ffceb](https://github.com/heroku/plugin-compute/commit/10ffceb8bcadb4a759cd9ca21eb013d08f6c1659))
+
+
+### Miscellaneous Chores
+
+* roll plugin-compute release track forward to 0.4.1 ([#67](https://github.com/heroku/plugin-compute/issues/67)) ([c3e15b0](https://github.com/heroku/plugin-compute/commit/c3e15b0e7fe70354ef26ebae8570f14f20125aa4))
+
 ## [0.3.2](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.3.1...plugin-compute-v0.3.2) (2026-10-27)
 
 

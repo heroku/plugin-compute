@@ -1,7 +1,7 @@
 {
   "name": "@heroku/plugin-compute",
   "description": "CLI for Compute",
-  "version": "0.3.2",
+  "version": "0.4.1",
   "author": "Heroku",
   "bugs": "https://github.com/heroku/plugin-compute/issues",
   "dependencies": {
@@ -11,7 +11,7 @@
     "@salesforce/sf-plugins-core": "^12",
     "@salesforce/source-deploy-retrieve": "^12.37.2",
     "form-data": "^4.0.6",
-    "ignore": "^7.0.8",
+    "ignore": "^7.0.13",
     "jszip": "^3.10.1",
     "openapi-fetch": "^0.17.0",
     "tar-stream": "^3.2.1"

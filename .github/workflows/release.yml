@@ -31,7 +31,6 @@ jobs:
       build_command: ''
       # Signing is off unless the repo variable PLUGIN_SIGNING_MODE is set (none | dry-run | aws-role).
       # aws-role also needs PLUGIN_SIGNING_BUCKET, PLUGIN_SIGNING_PUBLIC_HOST and PLUGIN_SIGNING_AWS_ROLE_ARN (no defaults).
-      # Requires npm-release-workflows PR #71 (signing inputs) to be on main.
       signing_mode: ${{ vars.PLUGIN_SIGNING_MODE || 'none' }}
       upload_bucket: ${{ vars.PLUGIN_SIGNING_BUCKET }}
       public_host: ${{ vars.PLUGIN_SIGNING_PUBLIC_HOST }}

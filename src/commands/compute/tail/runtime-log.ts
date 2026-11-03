@@ -20,7 +20,7 @@ import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
 import {streamLogplexOutput} from '../../../shared/computeLogStream.js';
 import {queryComputeApp, requireHerokuAppId, toComputeAppSummary} from '../../../shared/computeQuery.js';
-import {createComputeLogSessionViaProxy} from '../../../shared/herokuProxyApi.js';
+import {createComputeLogSessionViaProxy, fetchComputeAppViaProxy} from '../../../shared/herokuProxyApi.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
@@ -73,6 +73,11 @@ export default class TailRuntimeLog extends SfCommand<ComputeTailRuntimeLogResul
     }
 
     const appId = requireHerokuAppId(record, name);
+    // Fir sessions send one record per chunk with no newline, which the line splitter would hold
+    // back forever. The lookup only picks the framing: if it fails, fall back to newline framing
+    // and let session creation surface any real proxy failure.
+    const herokuApp = await fetchComputeAppViaProxy(connection, {appId, name}).catch(() => undefined);
+    const isFir = herokuApp?.generation === 'fir';
     const session = await createComputeLogSessionViaProxy(connection, {
       name, appId, lines: num, tail: true,
     });
@@ -97,7 +102,7 @@ export default class TailRuntimeLog extends SfCommand<ComputeTailRuntimeLogResul
       const reason = await streamLogplexOutput(session.logplexUrl, line => {
         lineCount++;
         this.log(line);
-      }, controller.signal);
+      }, controller.signal, {recordPerChunk: isFir});
       wasAborted = reason === 'aborted';
       if (!wasAborted && lineCount === 0) {
         // A session that closes without a single line is indistinguishable from "nothing happened"

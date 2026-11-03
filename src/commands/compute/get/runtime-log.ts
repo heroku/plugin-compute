@@ -99,7 +99,7 @@ export default class RuntimeLog extends SfCommand<ComputeGetRuntimeLogResult> {
     const {output, timedOut} = await fetchLogplexOutput(
       session.logplexUrl,
       LOGPLEX_FETCH_TIMEOUT_MS,
-      isFir ? {idleMs: FIR_IDLE_MS} : {},
+      isFir ? {idleMs: FIR_IDLE_MS, recordPerChunk: true} : {},
     );
     const lines = splitLines(output);
     if (lines.length === 0) {

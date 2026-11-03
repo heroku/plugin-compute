@@ -136,7 +136,9 @@ describe('compute get runtime-log', () => {
     fetchStub.mockImplementation(async (_url: unknown, init?: RequestInit) => {
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
-          controller.enqueue(encoder.encode('fir one\nfir two\n'));
+          // Fir sends each record as its own chunk, with no trailing newline.
+          controller.enqueue(encoder.encode('fir one'));
+          controller.enqueue(encoder.encode('fir two'));
           init?.signal?.addEventListener('abort', () => {
             controller.error(init.signal?.reason);
           });

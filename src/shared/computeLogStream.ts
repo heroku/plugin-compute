@@ -41,6 +41,10 @@ export type LogplexFetchOptions = {
   // snapshot (not a timeout). For Fir session URLs, which stream live and never close, so there is
   // no EOF to wait for; unset for Cedar, where the server closes the response itself.
   idleMs?: number;
+  // Fir sessions deliver each log record as its own chunk with no trailing newline, so chunk
+  // boundaries are record boundaries; without this the records run together on one line. Unset for
+  // Cedar, where chunk boundaries are arbitrary HTTP framing.
+  recordPerChunk?: boolean;
 };
 
 // On timeout, returns the partial output if any arrived rather than discarding it; throws only
@@ -51,7 +55,7 @@ export async function fetchLogplexOutput(
   timeoutMs: number = LOGPLEX_FETCH_TIMEOUT_MS,
   options: LogplexFetchOptions = {},
 ): Promise<LogplexSnapshot> {
-  const {idleMs} = options;
+  const {idleMs, recordPerChunk} = options;
   const deadline = AbortSignal.timeout(timeoutMs);
   const idle = new AbortController();
   const signal = idleMs === undefined ? deadline : AbortSignal.any([deadline, idle.signal]);
@@ -90,7 +94,7 @@ export async function fetchLogplexOutput(
       }
 
       armIdleTimer();
-      output += decoder.decode(value, {stream: true});
+      output += endRecord(decoder.decode(value, {stream: true}), recordPerChunk);
     }
 
     return {output: output + decoder.decode(), timedOut: false};
@@ -129,6 +133,10 @@ export async function fetchBuildOutputStream(outputStreamUrl: string): Promise<s
   }
 }
 
+function endRecord(chunk: string, recordPerChunk: boolean | undefined): string {
+  return recordPerChunk && chunk.length > 0 && !chunk.endsWith('\n') ? `${chunk}\n` : chunk;
+}
+
 export type StreamEndReason = 'aborted' | 'eof';
 
 // Reports whether the stream ended because the server closed it (EOF) or because the caller's
@@ -139,6 +147,7 @@ export async function streamLogplexOutput(
   logplexUrl: string,
   onLine: (line: string) => void,
   signal?: AbortSignal,
+  options: Pick<LogplexFetchOptions, 'recordPerChunk'> = {},
 ): Promise<StreamEndReason> {
   let response: Response;
   try {
@@ -174,7 +183,7 @@ export async function streamLogplexOutput(
         break;
       }
 
-      buffer += decoder.decode(value, {stream: true});
+      buffer += endRecord(decoder.decode(value, {stream: true}), options.recordPerChunk);
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
       for (const line of lines) {

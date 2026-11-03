@@ -115,6 +115,20 @@ describe('compute tail runtime-log', () => {
     toolingQueryStub.mockResolvedValue({done: true, records, totalSize: records.length});
   }
 
+  it('prints each newline-less chunk of a Fir session as its own line', async () => {
+    resolveWith([deployedRecord]);
+    requestStub.mockImplementation(async (req: {url?: string}) =>
+      req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')
+        ? {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'}
+        : {generation: {name: 'fir'}, name: 'credit-rating-scorer'},
+    );
+    fetchStub.mockResolvedValue(new Response(streamOf(['fir one', 'fir two']), {status: 200}));
+
+    await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(sfCommandStubs.log.getCalls().flatMap(c => c.args)).toEqual(['fir one', 'fir two']);
+  });
+
   it('streams lines and reports the session ending naturally', async () => {
     resolveWith([deployedRecord]);
 

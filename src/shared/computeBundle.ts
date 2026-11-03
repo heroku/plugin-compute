@@ -99,22 +99,13 @@ export type UnpackedBundle = {
   fileCount: number;
 };
 
-// Inverse of packageComputeBundle above -- given the same outer tar.gz shape (api-spec.yaml plus
-// a nested source.tar.gz), writes api-spec.yaml and every source file into appDir. Used by
-// sf compute source retrieve, the only caller that needs to go this direction.
+// Writes every file in the downloaded source.tar.gz into appDir. The download endpoint returns
+// that inner tarball directly (api-spec.yaml included), unlike the nested bundle packageComputeBundle
+// uploads -- the asymmetry is deliberate: the appserver inspects the upload's top-level files
+// without untarring the source. Used by sf compute source retrieve, the only caller that needs
+// to go this direction.
 export async function unpackComputeBundle(buffer: Buffer, appDir: string): Promise<UnpackedBundle> {
-  const outer = await untarGzip(buffer);
-  const apiSpec = outer['api-spec.yaml'];
-  const sourceTarGz = outer['source.tar.gz'];
-  if (!apiSpec || !sourceTarGz) {
-    throw messages.createError('error.sourceBundleMalformed', [
-      `missing ${[!apiSpec && 'api-spec.yaml', !sourceTarGz && 'source.tar.gz'].filter(Boolean).join(', ')}`,
-    ]);
-  }
-
-  await writeFile(join(appDir, 'api-spec.yaml'), apiSpec);
-
-  const sourceEntries = await untarGzip(sourceTarGz);
+  const sourceEntries = await untarGzip(buffer);
   const resolvedAppDir = resolve(appDir);
   await Promise.all(
     Object.entries(sourceEntries).map(async ([relativePath, data]) => {
@@ -131,9 +122,7 @@ export async function unpackComputeBundle(buffer: Buffer, appDir: string): Promi
     }),
   );
 
-  // Mirrors packageComputeBundle's convention: distinct files written. Bundles produced by this
-  // plugin carry api-spec.yaml in source.tar.gz too; older ones only had the outer copy.
-  return {fileCount: new Set([...Object.keys(sourceEntries), 'api-spec.yaml']).size};
+  return {fileCount: Object.keys(sourceEntries).length};
 }
 
 // Inverse of tarGzip below -- decompress and read every tar entry into memory, keyed by name.

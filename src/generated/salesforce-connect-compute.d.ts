@@ -167,7 +167,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Deployment bundle tarball (deployment-bundle.tar.gz) most recently deployed for the app. */
+            /** @description Source tarball (source.tar.gz, including api-spec.yaml) most recently deployed for the app. Unlike the nested upload bundle, this is the inner tarball only. */
             200: {
                 headers: {
                     [name: string]: unknown;

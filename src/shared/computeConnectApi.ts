@@ -66,8 +66,8 @@ export type DownloadComputeSourceParams = {
 };
 
 // Speculative resource -- see the Compute tag description in salesforce-connect-compute.yaml.
-// The response body is the same binary deployment-bundle.tar.gz uploadComputeSource sends, so
-// this must round-trip exact bytes. connection.request()'s default string decoding is UTF-8,
+// The response body is the flat source.tar.gz (not the nested deployment-bundle.tar.gz
+// uploadComputeSource sends), binary, so this must round-trip exact bytes. connection.request()'s default string decoding is UTF-8,
 // which is lossy for arbitrary gzip bytes (any byte >0x7F gets re-encoded) -- passing
 // { encoding: 'binary' } (Node's alias for latin1) as the second argument makes jsforce decode
 // the response 1:1 into a string, which Buffer.from(str, 'binary') then turns back into the

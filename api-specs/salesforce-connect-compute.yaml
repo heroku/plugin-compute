@@ -127,8 +127,9 @@ paths:
       responses:
         '200':
           description: >-
-            Deployment bundle tarball (deployment-bundle.tar.gz) most
-            recently deployed for the app.
+            Source tarball (source.tar.gz, including api-spec.yaml) most
+            recently deployed for the app. Unlike the nested upload bundle,
+            this is the inner tarball only.
           content:
             application/gzip:
               schema:

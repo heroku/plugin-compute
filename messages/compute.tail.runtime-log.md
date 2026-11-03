@@ -44,6 +44,10 @@ Stopped tailing %s.
 
 The log session for %s ended.
 
+# warning.tailEndedWithoutOutput
+
+The log session for %s closed without sending any log lines. The app may have produced no output yet; run the command again, or check that the app is running.
+
 # examples
 
 - Tail the log until stopped with Ctrl-C:

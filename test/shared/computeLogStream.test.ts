@@ -96,6 +96,30 @@ describe('computeLogStream.fetchLogplexOutput', () => {
     );
   });
 
+  it('with idleMs, ends a never-closing stream cleanly once it goes quiet, without flagging a timeout', async () => {
+    stubNeverClosingStream(['line one\n', 'line two\n']);
+
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 5000, {idleMs: 30});
+
+    expect(result).toStrictEqual({output: 'line one\nline two\n', timedOut: false});
+  });
+
+  it('with idleMs, returns empty output rather than a timeout error when the stream never sends anything', async () => {
+    stubNeverClosingStream([]);
+
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 5000, {idleMs: 30});
+
+    expect(result).toStrictEqual({output: '', timedOut: false});
+  });
+
+  it('with idleMs, still reports a timeout when the hard deadline fires first', async () => {
+    stubNeverClosingStream(['line one\n']);
+
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 30, {idleMs: 5000});
+
+    expect(result).toStrictEqual({output: 'line one\n', timedOut: true});
+  });
+
   it('wraps a non-2xx response as a hard error', async () => {
     stubFetchResponse(new Response('gone', {status: 410}));
 

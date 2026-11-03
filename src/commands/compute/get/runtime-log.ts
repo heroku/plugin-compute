@@ -18,13 +18,17 @@ import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 
 import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
-import {fetchLogplexOutput} from '../../../shared/computeLogStream.js';
+import {fetchLogplexOutput, LOGPLEX_FETCH_TIMEOUT_MS} from '../../../shared/computeLogStream.js';
 import {queryComputeApp, requireHerokuAppId, toComputeAppSummary} from '../../../shared/computeQuery.js';
 import {createComputeLogSessionViaProxy, fetchComputeAppViaProxy} from '../../../shared/herokuProxyApi.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.get.runtime-log');
+
+// How long a Fir log session may stay silent before the one-shot read treats the buffered output as
+// complete. Long enough to cover session setup and the initial backfill, short enough to feel instant.
+const FIR_IDLE_MS = 3000;
 
 export type ComputeGetRuntimeLogResult = {
   lines?: string[];
@@ -80,20 +84,23 @@ export default class RuntimeLog extends SfCommand<ComputeGetRuntimeLogResult> {
     }
 
     const appId = requireHerokuAppId(record, name);
-    // Fir apps keep no log history -- their session URL is a live stream that never closes -- so
-    // fail fast before creating a session. The lookup is only a guard: if it fails, or the
-    // generation is unknown, fall through to the Cedar path (the fetch timeout still bounds it) and
-    // let session creation surface any real proxy failure.
+    // Fir apps keep no log history -- their session URL is a live stream that never closes -- so a
+    // one-shot read can't wait for EOF; it drains whatever is buffered and stops once the stream
+    // goes idle. The lookup only picks the read mode: if it fails, or the generation is unknown, fall
+    // through to the Cedar path (the fetch timeout still bounds it) and let session creation surface
+    // any real proxy failure.
     const herokuApp = await fetchComputeAppViaProxy(connection, {appId, name}).catch(() => undefined);
-    if (herokuApp?.generation === 'fir') {
-      throw messages.createError('error.firNoLogHistory', [name]);
-    }
+    const isFir = herokuApp?.generation === 'fir';
 
     const session = await createComputeLogSessionViaProxy(connection, {
       name, appId, lines: num, tail: false,
     });
 
-    const {output, timedOut} = await fetchLogplexOutput(session.logplexUrl);
+    const {output, timedOut} = await fetchLogplexOutput(
+      session.logplexUrl,
+      LOGPLEX_FETCH_TIMEOUT_MS,
+      isFir ? {idleMs: FIR_IDLE_MS} : {},
+    );
     const lines = splitLines(output);
     if (lines.length === 0) {
       this.info(messages.getMessage('info.noLogLines', [name]));

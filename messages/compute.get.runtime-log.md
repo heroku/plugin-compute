@@ -12,8 +12,10 @@ This prints the most recent log lines and exits. To keep the session open and
 stream new lines as they arrive, use compute tail runtime-log.
 
 The recent lines come from the Cedar log buffer (about 1500 lines at most), so
---num can't return more than that. Fir apps keep no log history, so this
-command isn't supported for them; use compute tail runtime-log instead. The
+--num can't return more than that. Fir apps keep no log history, so for them
+the command reads the live log session instead and stops once it goes quiet
+for a few seconds; it can only show output the session delivers in that
+window, so use compute tail runtime-log to follow a Fir app's log. The
 command stops waiting after 30 seconds and prints whatever log lines it has
 received by then; if none arrived, it fails with a timeout error.
 
@@ -32,15 +34,6 @@ directory's app name if that isn't set either.
 # flags.num.summary
 
 Number of recent log lines to print.
-
-# error.firNoLogHistory
-
-Fir apps keep no log history, so there is no recent log to fetch for %s.
-
-# error.firNoLogHistory.actions
-
-- Run sf compute tail runtime-log to watch the live log instead.
-- To learn how Fir differs from Cedar, see https://devcenter.heroku.com/articles/generations.
 
 # warning.logFetchPartial
 

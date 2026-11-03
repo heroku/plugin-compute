@@ -92,11 +92,19 @@ export default class TailRuntimeLog extends SfCommand<ComputeTailRuntimeLogResul
     });
 
     let wasAborted: boolean;
+    let lineCount = 0;
     try {
       const reason = await streamLogplexOutput(session.logplexUrl, line => {
+        lineCount++;
         this.log(line);
       }, controller.signal);
       wasAborted = reason === 'aborted';
+      if (!wasAborted && lineCount === 0) {
+        // A session that closes without a single line is indistinguishable from "nothing happened"
+        // unless we say so -- surface it rather than exiting silently.
+        this.warn(messages.getMessage('warning.tailEndedWithoutOutput', [name]));
+      }
+
       this.info(
         wasAborted
           ? messages.getMessage('info.tailStopped', [name])

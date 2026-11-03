@@ -36,15 +36,40 @@ export type LogplexSnapshot = {
   timedOut: boolean;
 };
 
+export type LogplexFetchOptions = {
+  // Stop reading once no data has arrived for this long, treating what was received as the complete
+  // snapshot (not a timeout). For Fir session URLs, which stream live and never close, so there is
+  // no EOF to wait for; unset for Cedar, where the server closes the response itself.
+  idleMs?: number;
+};
+
 // On timeout, returns the partial output if any arrived rather than discarding it; throws only
-// when nothing arrived before the deadline.
+// when nothing arrived before the deadline. With `idleMs`, an idle gap ends the read cleanly
+// (including with no output at all) instead of counting as a timeout.
 export async function fetchLogplexOutput(
   logplexUrl: string,
   timeoutMs: number = LOGPLEX_FETCH_TIMEOUT_MS,
+  options: LogplexFetchOptions = {},
 ): Promise<LogplexSnapshot> {
-  const signal = AbortSignal.timeout(timeoutMs);
+  const {idleMs} = options;
+  const deadline = AbortSignal.timeout(timeoutMs);
+  const idle = new AbortController();
+  const signal = idleMs === undefined ? deadline : AbortSignal.any([deadline, idle.signal]);
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  const armIdleTimer = (): void => {
+    if (idleMs === undefined) {
+      return;
+    }
+
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      idle.abort();
+    }, idleMs);
+  };
+
   let output = '';
   try {
+    armIdleTimer();
     const response = await fetch(logplexUrl, {signal});
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -64,11 +89,16 @@ export async function fetchLogplexOutput(
         break;
       }
 
+      armIdleTimer();
       output += decoder.decode(value, {stream: true});
     }
 
     return {output: output + decoder.decode(), timedOut: false};
   } catch (error) {
+    if (idle.signal.aborted && !deadline.aborted) {
+      return {output, timedOut: false};
+    }
+
     if (signal.aborted) {
       if (output.length > 0) {
         return {output, timedOut: true};
@@ -78,6 +108,8 @@ export async function fetchLogplexOutput(
     }
 
     throw messages.createError('error.logStreamFailed', [(error as Error).message]);
+  } finally {
+    clearTimeout(idleTimer);
   }
 }
 

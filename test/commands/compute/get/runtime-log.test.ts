@@ -125,16 +125,42 @@ describe('compute get runtime-log', () => {
     });
   });
 
-  it('fails fast on a Fir app, pointing at tail runtime-log, without creating a log session or fetching', async () => {
+  it('reads a Fir app through a log session, stopping once the never-closing stream goes idle', async () => {
     resolveWith([deployedRecord]);
-    requestStub.mockResolvedValue({generation: {name: 'fir'}, name: 'credit-rating-scorer'});
-
-    await expect(RuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow(
-      'Fir apps keep no log history',
+    requestStub.mockImplementation(async (req: {url?: string}) =>
+      req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')
+        ? {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'}
+        : {generation: {name: 'fir'}, name: 'credit-rating-scorer'},
     );
+    const encoder = new TextEncoder();
+    fetchStub.mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('fir one\nfir two\n'));
+          init?.signal?.addEventListener('abort', () => {
+            controller.error(init.signal?.reason);
+          });
+        },
+      });
+      return new Response(body, {status: 200});
+    });
+    vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']});
+    try {
+      const run = RuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      await vi.waitFor(() => {
+        expect(fetchStub).toHaveBeenCalled();
+      });
+      await vi.advanceTimersByTimeAsync(3000);
+      const result = await run;
 
-    expect(findLogSessionCall(requestStub)).toBeUndefined();
-    expect(fetchStub).not.toHaveBeenCalled();
+      expect(result).toStrictEqual({lines: ['fir one', 'fir two'], name: 'CreditRatingScorer'});
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(sfCommandStubs.warn.called).toBe(false);
+    const call = findLogSessionCall(requestStub);
+    expect(call, 'expected a POST to the Heroku proxy log-sessions path').toBeDefined();
   });
 
   it('keeps the Cedar path unchanged when the app reports generation cedar', async () => {

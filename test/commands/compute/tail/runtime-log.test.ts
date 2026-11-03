@@ -140,6 +140,24 @@ describe('compute tail runtime-log', () => {
     expect(fetchStub.mock.calls[0][0]).toBe('https://logplex.heroku.com/sessions/abc?srv=1');
   });
 
+  it('warns instead of exiting silently when the session closes without sending any lines', async () => {
+    resolveWith([deployedRecord]);
+    fetchStub.mockResolvedValue(new Response(streamOf([]), {status: 200}));
+
+    const result = await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result).toStrictEqual({name: 'CreditRatingScorer'});
+    expect(sfCommandStubs.warn.firstCall.args[0]).toContain('closed without sending any log lines');
+  });
+
+  it('does not warn when lines were received before the session ended', async () => {
+    resolveWith([deployedRecord]);
+
+    await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(sfCommandStubs.warn.called).toBe(false);
+  });
+
   describe('SIGINT', () => {
     const frameworkListener = (): void => {
       throw new Error('framework SIGINT listener ran');

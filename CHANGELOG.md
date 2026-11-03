@@ -2,6 +2,13 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.4.2](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.1...plugin-compute-v0.4.2) (2026-11-03)
+
+
+### Features
+
+* support runtime-log fetch and tail on Fir apps via log sessions ([#73](https://github.com/heroku/plugin-compute/issues/73)) ([8f5b5d4](https://github.com/heroku/plugin-compute/commit/8f5b5d452feb43244b97ccc34b23732b820bfbeb))
+
 ## [0.4.1](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.3.2...plugin-compute-v0.4.1) (2026-10-29)
 
 

@@ -37,6 +37,18 @@ function proxyTarget(url: string): string {
   return new URL(url, 'https://example.com').searchParams.get('proxy_url') ?? '';
 }
 
+// The generation probe and the log-session create share the proxy path; answer each like Heroku does.
+function proxyAnswer(generation: 'cedar' | 'fir'): (req: {url?: string}) => Promise<unknown> {
+  return async req =>
+    req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')
+      ? {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'}
+      : {generation: {name: generation}, name: 'credit-rating-scorer'};
+}
+
+function sseEvents(...records: string[]): string[] {
+  return records.map((record, i) => `id: ${i}\ndata: ${record}\n\n\n`);
+}
+
 // Org.create()/getConnection() issues its own Organization-lookup request through the same
 // shared requestStub while resolving --target-org, so callCount/called on the stub itself is
 // unreliable -- filter for the specific log-sessions call instead (mirrors get/build-log.test.ts).
@@ -84,7 +96,7 @@ describe('compute get runtime-log', () => {
     toolingQueryStub = vi.spyOn(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
-    requestStub = vi.fn().mockResolvedValue({logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'});
+    requestStub = vi.fn().mockImplementation(proxyAnswer('cedar'));
 
     $$.fakeConnectionRequest = requestStub;
 
@@ -127,18 +139,12 @@ describe('compute get runtime-log', () => {
 
   it('reads a Fir app through a log session, stopping once the never-closing stream goes idle', async () => {
     resolveWith([deployedRecord]);
-    requestStub.mockImplementation(async (req: {url?: string}) =>
-      req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')
-        ? {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'}
-        : {generation: {name: 'fir'}, name: 'credit-rating-scorer'},
-    );
+    requestStub.mockImplementation(proxyAnswer('fir'));
     const encoder = new TextEncoder();
     fetchStub.mockImplementation(async (_url: unknown, init?: RequestInit) => {
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
-          // Fir sends each record as its own chunk, with no trailing newline.
-          controller.enqueue(encoder.encode('fir one'));
-          controller.enqueue(encoder.encode('fir two'));
+          controller.enqueue(encoder.encode(sseEvents('fir one', 'fir two').join('')));
           init?.signal?.addEventListener('abort', () => {
             controller.error(init.signal?.reason);
           });
@@ -163,6 +169,9 @@ describe('compute get runtime-log', () => {
     expect(sfCommandStubs.warn.called).toBe(false);
     const call = findLogSessionCall(requestStub);
     expect(call, 'expected a POST to the Heroku proxy log-sessions path').toBeDefined();
+    // Fir sessions take no line count or tail flag, and are read as an event stream.
+    expect(JSON.parse((call![0] as {body: string}).body)).toEqual({});
+    expect(fetchStub.mock.calls[0][1]).toMatchObject({headers: {Accept: 'text/event-stream'}});
   });
 
   it('keeps the Cedar path unchanged when the app reports generation cedar', async () => {
@@ -191,6 +200,7 @@ describe('compute get runtime-log', () => {
     const result = await RuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(result).toStrictEqual({lines: ['line one', 'line two'], name: 'CreditRatingScorer'});
+    expect(sfCommandStubs.warn.firstCall.args[0]).toContain("Couldn't tell whether CreditRatingScorer");
   });
 
   it('prints the partial output and warns when the log fetch times out after some lines arrived', async () => {

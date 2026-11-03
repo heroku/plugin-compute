@@ -88,18 +88,28 @@ export default class RuntimeLog extends SfCommand<ComputeGetRuntimeLogResult> {
     // one-shot read can't wait for EOF; it drains whatever is buffered and stops once the stream
     // goes idle. The lookup only picks the read mode: if it fails, or the generation is unknown, fall
     // through to the Cedar path (the fetch timeout still bounds it) and let session creation surface
-    // any real proxy failure.
+    // any real proxy failure -- but say so, since a Fir app read that way waits out the full timeout.
     const herokuApp = await fetchComputeAppViaProxy(connection, {appId, name}).catch(() => undefined);
+    if (herokuApp?.generation === undefined) {
+      this.warn(messages.getMessage('warning.generationUnknown', [name]));
+    }
+
     const isFir = herokuApp?.generation === 'fir';
 
-    const session = await createComputeLogSessionViaProxy(connection, {
-      name, appId, lines: num, tail: false,
-    });
+    // Fir sessions take no line count or tail flag -- they are always a live stream.
+    const session = await createComputeLogSessionViaProxy(
+      connection,
+      isFir
+        ? {name, appId}
+        : {
+          name, appId, lines: num, tail: false,
+        },
+    );
 
     const {output, timedOut} = await fetchLogplexOutput(
       session.logplexUrl,
       LOGPLEX_FETCH_TIMEOUT_MS,
-      isFir ? {idleMs: FIR_IDLE_MS, recordPerChunk: true} : {},
+      isFir ? {idleMs: FIR_IDLE_MS, sse: true} : {},
     );
     const lines = splitLines(output);
     if (lines.length === 0) {

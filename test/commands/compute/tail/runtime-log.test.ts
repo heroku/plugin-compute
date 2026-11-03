@@ -37,6 +37,18 @@ function proxyTarget(url: string): string {
   return new URL(url, 'https://example.com').searchParams.get('proxy_url') ?? '';
 }
 
+// The generation probe and the log-session create share the proxy path; answer each like Heroku does.
+function proxyAnswer(generation: 'cedar' | 'fir'): (req: {url?: string}) => Promise<unknown> {
+  return async req =>
+    req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')
+      ? {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'}
+      : {generation: {name: generation}, name: 'credit-rating-scorer'};
+}
+
+function sseEvents(...records: string[]): string[] {
+  return records.map((record, i) => `id: ${i}\ndata: ${record}\n\n\n`);
+}
+
 // Org.create()/getConnection() issues its own Organization-lookup request through the same
 // shared requestStub while resolving --target-org, so callCount/called on the stub itself is
 // unreliable -- filter for the specific log-sessions call instead (mirrors get/runtime-log.test.ts).
@@ -97,7 +109,7 @@ describe('compute tail runtime-log', () => {
     toolingQueryStub = vi.spyOn(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
-    requestStub = vi.fn().mockResolvedValue({logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'});
+    requestStub = vi.fn().mockImplementation(proxyAnswer('cedar'));
 
     $$.fakeConnectionRequest = requestStub;
 
@@ -115,18 +127,102 @@ describe('compute tail runtime-log', () => {
     toolingQueryStub.mockResolvedValue({done: true, records, totalSize: records.length});
   }
 
-  it('prints each newline-less chunk of a Fir session as its own line', async () => {
+  it('reads a Fir session as an event stream and prints one line per event', async () => {
     resolveWith([deployedRecord]);
-    requestStub.mockImplementation(async (req: {url?: string}) =>
-      req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')
-        ? {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'}
-        : {generation: {name: 'fir'}, name: 'credit-rating-scorer'},
-    );
-    fetchStub.mockResolvedValue(new Response(streamOf(['fir one', 'fir two']), {status: 200}));
+    requestStub.mockImplementation(proxyAnswer('fir'));
+    // The second event is split across reads, as a real transport may do.
+    const [first, second] = sseEvents('fir one', 'fir two');
+    const reads = [first, second.slice(0, 8), second.slice(8)];
+    fetchStub.mockResolvedValue(new Response(streamOf(reads), {status: 200}));
 
     await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     expect(sfCommandStubs.log.getCalls().flatMap(c => c.args)).toEqual(['fir one', 'fir two']);
+    expect(fetchStub.mock.calls[0][1]).toMatchObject({headers: {Accept: 'text/event-stream'}});
+    const call = findLogSessionCall(requestStub);
+    expect(JSON.parse((call![0] as {body: string}).body)).toEqual({});
+  });
+
+  describe('Fir session expiry', () => {
+    const logSessionCalls = (): unknown[][] =>
+      requestStub.mock.calls.filter(call => {
+        const req = call[0] as undefined | {url?: string};
+        return req?.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions');
+      });
+
+    beforeEach(() => {
+      resolveWith([deployedRecord]);
+      requestStub.mockImplementation(proxyAnswer('fir'));
+      vi.useFakeTimers({toFake: ['Date']});
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('recreates the session when it closes after a real run, and keeps following', async () => {
+      fetchStub
+        .mockImplementationOnce(async () => {
+          vi.setSystemTime(Date.now() + 60_000);
+          return new Response(streamOf(sseEvents('first session')), {status: 200});
+        })
+        .mockImplementationOnce(async () => new Response(streamOf(sseEvents('second session')), {status: 200}));
+
+      await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+      expect(logSessionCalls()).toHaveLength(2);
+      expect(sfCommandStubs.log.getCalls().flatMap(c => c.args)).toEqual(['first session', 'second session']);
+      const infoMessages = sfCommandStubs.info.getCalls().map(c => c.args[0] as string);
+      expect(infoMessages.some(message => message.includes('expired; reconnecting'))).toBe(true);
+    });
+
+    it('does not reconnect a session that closes almost immediately', async () => {
+      fetchStub.mockImplementation(async () => new Response(streamOf(sseEvents('only session')), {status: 200}));
+
+      await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+      expect(logSessionCalls()).toHaveLength(1);
+      expect(sfCommandStubs.log.getCalls().flatMap(c => c.args)).toEqual(['only session']);
+    });
+  });
+
+  it('warns when a Fir session closes without sending any lines', async () => {
+    resolveWith([deployedRecord]);
+    requestStub.mockImplementation(proxyAnswer('fir'));
+    fetchStub.mockResolvedValue(new Response(streamOf([]), {status: 200}));
+
+    const result = await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result).toStrictEqual({name: 'CreditRatingScorer'});
+    expect(sfCommandStubs.warn.firstCall.args[0]).toContain('closed without sending any log lines');
+  });
+
+  it('keeps the Cedar path unchanged: no warning when a Cedar session closes without lines', async () => {
+    resolveWith([deployedRecord]);
+    fetchStub.mockResolvedValue(new Response(streamOf([]), {status: 200}));
+
+    await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(sfCommandStubs.warn.called).toBe(false);
+    expect(fetchStub.mock.calls[0][1]).not.toHaveProperty('headers');
+    const call = findLogSessionCall(requestStub);
+    expect(JSON.parse((call![0] as {body: string}).body)).toEqual({lines: 100, tail: true});
+  });
+
+  it('warns that the generation is unknown when the lookup fails, and still reads as Cedar', async () => {
+    resolveWith([deployedRecord]);
+    requestStub.mockImplementation(async (req: {url?: string}) => {
+      if (req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')) {
+        return {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'};
+      }
+
+      throw new Error('proxy unavailable');
+    });
+
+    await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(sfCommandStubs.warn.firstCall.args[0]).toContain("Couldn't tell whether CreditRatingScorer");
+    expect(sfCommandStubs.log.getCalls().flatMap(c => c.args)).toEqual(['line one', 'line two']);
   });
 
   it('streams lines and reports the session ending naturally', async () => {
@@ -152,16 +248,6 @@ describe('compute tail runtime-log', () => {
     expect(body).toEqual({lines: 100, tail: true});
     // streamLogplexOutput passes an AbortSignal as the second fetch arg, so assert only the URL.
     expect(fetchStub.mock.calls[0][0]).toBe('https://logplex.heroku.com/sessions/abc?srv=1');
-  });
-
-  it('warns instead of exiting silently when the session closes without sending any lines', async () => {
-    resolveWith([deployedRecord]);
-    fetchStub.mockResolvedValue(new Response(streamOf([]), {status: 200}));
-
-    const result = await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-
-    expect(result).toStrictEqual({name: 'CreditRatingScorer'});
-    expect(sfCommandStubs.warn.firstCall.args[0]).toContain('closed without sending any log lines');
   });
 
   it('does not warn when lines were received before the session ended', async () => {

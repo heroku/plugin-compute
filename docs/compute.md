@@ -398,7 +398,7 @@ DESCRIPTION
   --num can't return more than that. Fir apps keep no log history, so for them
   the command reads the live log session instead and stops once it goes quiet
   for a few seconds; it can only show output the session delivers in that
-  window, so use compute tail runtime-log to follow a Fir app's log. The
+  window, so --num doesn't apply; use compute tail runtime-log to follow a Fir app's log. The
   command stops waiting after 30 seconds and prints whatever log lines it has
   received by then; if none arrived, it fails with a timeout error.
 

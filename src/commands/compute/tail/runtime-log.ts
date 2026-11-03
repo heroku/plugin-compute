@@ -18,13 +18,17 @@ import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 
 import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
-import {streamLogplexOutput} from '../../../shared/computeLogStream.js';
+import {type StreamEndReason, streamLogplexOutput} from '../../../shared/computeLogStream.js';
 import {queryComputeApp, requireHerokuAppId, toComputeAppSummary} from '../../../shared/computeQuery.js';
 import {createComputeLogSessionViaProxy, fetchComputeAppViaProxy} from '../../../shared/herokuProxyApi.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.tail.runtime-log');
+
+// A Fir session that closes sooner than this was rejected or dropped, not expired, so reconnecting
+// would just loop; a real session runs far longer before the server ends it.
+const MIN_FIR_SESSION_MS = 5000;
 
 export type ComputeTailRuntimeLogResult = {
   name: string;
@@ -73,14 +77,22 @@ export default class TailRuntimeLog extends SfCommand<ComputeTailRuntimeLogResul
     }
 
     const appId = requireHerokuAppId(record, name);
-    // Fir sessions send one record per chunk with no newline, which the line splitter would hold
-    // back forever. The lookup only picks the framing: if it fails, fall back to newline framing
-    // and let session creation surface any real proxy failure.
+    // Fir sessions are SSE streams with their own framing and a server-side lifetime. The lookup
+    // only picks the read mode: if it fails, fall back to the Cedar path and let session creation
+    // surface any real proxy failure -- but say so, since a Fir app read that way can show nothing.
     const herokuApp = await fetchComputeAppViaProxy(connection, {appId, name}).catch(() => undefined);
+    if (herokuApp?.generation === undefined) {
+      this.warn(messages.getMessage('warning.generationUnknown', [name]));
+    }
+
     const isFir = herokuApp?.generation === 'fir';
-    const session = await createComputeLogSessionViaProxy(connection, {
-      name, appId, lines: num, tail: true,
-    });
+    // Fir sessions take no line count or tail flag -- they are always a live stream.
+    const sessionParams = isFir
+      ? {name, appId}
+      : {
+        name, appId, lines: num, tail: true,
+      };
+    let session = await createComputeLogSessionViaProxy(connection, sessionParams);
 
     this.info(messages.getMessage('info.tailStarting', [name]));
     const controller = new AbortController();
@@ -98,13 +110,30 @@ export default class TailRuntimeLog extends SfCommand<ComputeTailRuntimeLogResul
 
     let wasAborted: boolean;
     let lineCount = 0;
+    const onLine = (line: string): void => {
+      lineCount++;
+      this.log(line);
+    };
+
     try {
-      const reason = await streamLogplexOutput(session.logplexUrl, line => {
-        lineCount++;
-        this.log(line);
-      }, controller.signal, {recordPerChunk: isFir});
+      let reason: StreamEndReason;
+      let isReconnect: boolean;
+      do {
+        const startedAt = Date.now();
+        // eslint-disable-next-line no-await-in-loop
+        reason = await streamLogplexOutput(session.logplexUrl, onLine, controller.signal, {sse: isFir});
+        // Fir sessions expire server-side, so a clean close after a real run means "keep following",
+        // not "done". A session that dies almost at once is not worth retrying -- that would spin.
+        isReconnect = isFir && reason === 'eof' && Date.now() - startedAt >= MIN_FIR_SESSION_MS;
+        if (isReconnect) {
+          this.info(messages.getMessage('info.tailReconnecting', [name]));
+          // eslint-disable-next-line no-await-in-loop
+          session = await createComputeLogSessionViaProxy(connection, sessionParams);
+        }
+      } while (isReconnect);
+
       wasAborted = reason === 'aborted';
-      if (!wasAborted && lineCount === 0) {
+      if (isFir && !wasAborted && lineCount === 0) {
         // A session that closes without a single line is indistinguishable from "nothing happened"
         // unless we say so -- surface it rather than exiting silently.
         this.warn(messages.getMessage('warning.tailEndedWithoutOutput', [name]));

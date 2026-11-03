@@ -15,7 +15,7 @@ The recent lines come from the Cedar log buffer (about 1500 lines at most), so
 --num can't return more than that. Fir apps keep no log history, so for them
 the command reads the live log session instead and stops once it goes quiet
 for a few seconds; it can only show output the session delivers in that
-window, so use compute tail runtime-log to follow a Fir app's log. The
+window, so --num doesn't apply; use compute tail runtime-log to follow a Fir app's log. The
 command stops waiting after 30 seconds and prints whatever log lines it has
 received by then; if none arrived, it fails with a timeout error.
 
@@ -34,6 +34,10 @@ directory's app name if that isn't set either.
 # flags.num.summary
 
 Number of recent log lines to print.
+
+# warning.generationUnknown
+
+Couldn't tell whether %s is a Fir or Cedar app, so it's being read as a Cedar app. If it's a Fir app, its log output may be missing or delayed; run the command again.
 
 # warning.logFetchPartial
 

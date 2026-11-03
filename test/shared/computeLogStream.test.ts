@@ -112,12 +112,47 @@ describe('computeLogStream.fetchLogplexOutput', () => {
     expect(result).toStrictEqual({output: '', timedOut: false});
   });
 
-  it('with recordPerChunk, ends each newline-less chunk as its own line', async () => {
-    stubFetchResponse(new Response(streamOf(['record one', 'record two\n', 'record three']), {status: 200}));
+  it('with sse, requests an event stream and emits one line per event even when events coalesce or split across reads', async () => {
+    const fetchStub = stubFetchResponse(
+      new Response(streamOf(['id: 1\ndata: record one\n\n\nid: 2\ndata: rec', 'ord two\n\n\n', 'id: 3\r\ndata: record three\r\n\r\n']), {
+        status: 200,
+      }),
+    );
 
-    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 5000, {recordPerChunk: true});
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 5000, {sse: true});
 
     expect(result).toStrictEqual({output: 'record one\nrecord two\nrecord three\n', timedOut: false});
+    expect(fetchStub.mock.calls[0][1]).toMatchObject({headers: {Accept: 'text/event-stream'}});
+  });
+
+  it('with sse, splits a multi-line event into lines and drops a trailing incomplete event', async () => {
+    stubFetchResponse(new Response(streamOf(['data: a\ndata: b\n\ndata: never finished']), {status: 200}));
+
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 5000, {sse: true});
+
+    expect(result).toStrictEqual({output: 'a\nb\n', timedOut: false});
+  });
+
+  it('with idleMs, does not count a slow connect as idle', async () => {
+    const encoder = new TextEncoder();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      await new Promise(resolve => {
+        setTimeout(resolve, 100);
+      });
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('line one\n'));
+          init?.signal?.addEventListener('abort', () => {
+            controller.error(init.signal?.reason);
+          });
+        },
+      });
+      return new Response(body, {status: 200});
+    });
+
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 5000, {idleMs: 30});
+
+    expect(result).toStrictEqual({output: 'line one\n', timedOut: false});
   });
 
   it('with idleMs, still reports a timeout when the hard deadline fires first', async () => {
@@ -162,8 +197,10 @@ describe('computeLogStream.streamLogplexOutput', () => {
     expect(lines).toEqual(['line one', 'line two', 'line three (no trailing newline)']);
   });
 
-  it('with recordPerChunk, emits each newline-less chunk as its own line without waiting for EOF', async () => {
-    stubFetchResponse(new Response(streamOf(['record one', 'record two']), {status: 200}));
+  it('with sse, requests an event stream and emits one line per event', async () => {
+    const fetchStub = stubFetchResponse(
+      new Response(streamOf(['id: 1\ndata: record one\n\n\nid: 2\ndata: rec', 'ord two\n\n\n']), {status: 200}),
+    );
     const lines: string[] = [];
 
     await streamLogplexOutput(
@@ -172,10 +209,11 @@ describe('computeLogStream.streamLogplexOutput', () => {
         lines.push(line);
       },
       undefined,
-      {recordPerChunk: true},
+      {sse: true},
     );
 
     expect(lines).toEqual(['record one', 'record two']);
+    expect(fetchStub.mock.calls[0][1]).toMatchObject({headers: {Accept: 'text/event-stream'}});
   });
 
   it('resolves cleanly with "aborted" when the signal is already aborted, without throwing', async () => {

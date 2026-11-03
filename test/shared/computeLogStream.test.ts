@@ -96,6 +96,79 @@ describe('computeLogStream.fetchLogplexOutput', () => {
     );
   });
 
+  it('with idleMs, ends a never-closing stream cleanly once it goes quiet, without flagging a timeout', async () => {
+    stubNeverClosingStream(['line one\n', 'line two\n']);
+
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 5000, {idleMs: 30});
+
+    expect(result).toStrictEqual({output: 'line one\nline two\n', timedOut: false});
+  });
+
+  it('with idleMs, returns empty output rather than a timeout error when the stream never sends anything', async () => {
+    stubNeverClosingStream([]);
+
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 5000, {idleMs: 30});
+
+    expect(result).toStrictEqual({output: '', timedOut: false});
+  });
+
+  it('with sse, requests an event stream and emits one line per event even when events coalesce or split across reads', async () => {
+    const fetchStub = stubFetchResponse(
+      new Response(streamOf(['id: 1\ndata: record one\n\n\nid: 2\ndata: rec', 'ord two\n\n\n', 'id: 3\r\ndata: record three\r\n\r\n']), {
+        headers: {'content-type': 'text/event-stream'},
+        status: 200,
+      }),
+    );
+
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 5000, {sse: true});
+
+    expect(result).toStrictEqual({output: 'record one\nrecord two\nrecord three\n', timedOut: false});
+    expect(fetchStub.mock.calls[0][1]).toMatchObject({headers: {Accept: 'text/event-stream'}});
+  });
+
+  it('with sse, splits a multi-line event into lines and drops a trailing incomplete event', async () => {
+    stubFetchResponse(
+      new Response(streamOf(['data: a\ndata: b\n\ndata: never finished']), {
+        headers: {'content-type': 'text/event-stream'},
+        status: 200,
+      }),
+    );
+
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 5000, {sse: true});
+
+    expect(result).toStrictEqual({output: 'a\nb\n', timedOut: false});
+  });
+
+  it('with idleMs, does not count a slow connect as idle', async () => {
+    const encoder = new TextEncoder();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      await new Promise(resolve => {
+        setTimeout(resolve, 100);
+      });
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('line one\n'));
+          init?.signal?.addEventListener('abort', () => {
+            controller.error(init.signal?.reason);
+          });
+        },
+      });
+      return new Response(body, {status: 200});
+    });
+
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 5000, {idleMs: 30});
+
+    expect(result).toStrictEqual({output: 'line one\n', timedOut: false});
+  });
+
+  it('with idleMs, still reports a timeout when the hard deadline fires first', async () => {
+    stubNeverClosingStream(['line one\n']);
+
+    const result = await fetchLogplexOutput('https://logplex.heroku.com/sessions/abc', 30, {idleMs: 5000});
+
+    expect(result).toStrictEqual({output: 'line one\n', timedOut: true});
+  });
+
   it('wraps a non-2xx response as a hard error', async () => {
     stubFetchResponse(new Response('gone', {status: 410}));
 
@@ -128,6 +201,92 @@ describe('computeLogStream.streamLogplexOutput', () => {
 
     expect(reason).toBe('eof');
     expect(lines).toEqual(['line one', 'line two', 'line three (no trailing newline)']);
+  });
+
+  it('with sse, requests an event stream and emits one line per event', async () => {
+    const fetchStub = stubFetchResponse(
+      new Response(streamOf(['id: 1\ndata: record one\n\n\nid: 2\ndata: rec', 'ord two\n\n\n']), {
+        headers: {'content-type': 'text/event-stream'},
+        status: 200,
+      }),
+    );
+    const lines: string[] = [];
+
+    await streamLogplexOutput(
+      'https://logplex.heroku.com/sessions/abc',
+      line => {
+        lines.push(line);
+      },
+      undefined,
+      {sse: true},
+    );
+
+    expect(lines).toEqual(['record one', 'record two']);
+    expect(fetchStub.mock.calls[0][1]).toMatchObject({headers: {Accept: 'text/event-stream'}});
+  });
+
+  it('with sse requested but a plain-text answer, parses newline-delimited lines instead of dropping them', async () => {
+    stubFetchResponse(new Response(streamOf(['plain one\nplain two\npartial']), {headers: {'content-type': 'text/plain'}, status: 200}));
+    const lines: string[] = [];
+
+    await streamLogplexOutput('https://logplex.heroku.com/sessions/abc', line => {
+      lines.push(line);
+    }, undefined, {sse: true});
+
+    expect(lines).toEqual(['plain one', 'plain two', 'partial']);
+  });
+
+  it('with stallMs, cancels a stream that goes silent without closing and reports "stalled"', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      const encoder = new TextEncoder();
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('line one\n'));
+          init?.signal?.addEventListener('abort', () => {
+            controller.error(init.signal?.reason);
+          });
+        },
+      });
+      return new Response(body, {status: 200});
+    });
+    const lines: string[] = [];
+    let chunks = 0;
+
+    const reason = await streamLogplexOutput('https://logplex.heroku.com/sessions/abc', line => {
+      lines.push(line);
+    }, undefined, {
+      onActivity() {
+        chunks++;
+      },
+      stallMs: 30,
+    });
+
+    expect(reason).toBe('stalled');
+    expect(lines).toEqual(['line one']);
+    expect(chunks).toBe(1);
+  });
+
+  it('with stallMs, still reports "aborted" when the caller aborts first', async () => {
+    const controller = new AbortController();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(stream) {
+          init?.signal?.addEventListener('abort', () => {
+            stream.error(init.signal?.reason);
+          });
+        },
+      });
+      setTimeout(() => {
+        controller.abort();
+      }, 10);
+      return new Response(body, {status: 200});
+    });
+
+    const reason = await streamLogplexOutput('https://logplex.heroku.com/sessions/abc', () => undefined, controller.signal, {
+      stallMs: 5000,
+    });
+
+    expect(reason).toBe('aborted');
   });
 
   it('resolves cleanly with "aborted" when the signal is already aborted, without throwing', async () => {

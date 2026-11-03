@@ -18,9 +18,10 @@ import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 
 import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
+import {followFirLogSession} from '../../../shared/computeLogFollow.js';
 import {streamLogplexOutput} from '../../../shared/computeLogStream.js';
 import {queryComputeApp, requireHerokuAppId, toComputeAppSummary} from '../../../shared/computeQuery.js';
-import {createComputeLogSessionViaProxy} from '../../../shared/herokuProxyApi.js';
+import {createComputeLogSessionViaProxy, fetchComputeAppViaProxy} from '../../../shared/herokuProxyApi.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
@@ -73,9 +74,22 @@ export default class TailRuntimeLog extends SfCommand<ComputeTailRuntimeLogResul
     }
 
     const appId = requireHerokuAppId(record, name);
-    const session = await createComputeLogSessionViaProxy(connection, {
-      name, appId, lines: num, tail: true,
-    });
+    // Fir sessions are SSE streams with their own framing and a server-side lifetime. The lookup
+    // only picks the read mode: if it fails, fall back to the Cedar path and let session creation
+    // surface any real proxy failure -- but say so, since a Fir app read that way can show nothing.
+    const herokuApp = await fetchComputeAppViaProxy(connection, {appId, name}).catch(() => undefined);
+    if (herokuApp?.generation === undefined) {
+      this.warn(messages.getMessage('warning.generationUnknown', [name]));
+    }
+
+    const isFir = herokuApp?.generation === 'fir';
+    // Fir sessions take no line count or tail flag -- they are always a live stream.
+    const sessionParams = isFir
+      ? {name, appId}
+      : {
+        name, appId, lines: num, tail: true,
+      };
+    const session = await createComputeLogSessionViaProxy(connection, sessionParams);
 
     this.info(messages.getMessage('info.tailStarting', [name]));
     const controller = new AbortController();
@@ -92,11 +106,42 @@ export default class TailRuntimeLog extends SfCommand<ComputeTailRuntimeLogResul
     });
 
     let wasAborted: boolean;
+    let lineCount = 0;
+    const onLine = (line: string): void => {
+      lineCount++;
+      this.log(line);
+    };
+
     try {
-      const reason = await streamLogplexOutput(session.logplexUrl, line => {
-        this.log(line);
-      }, controller.signal);
-      wasAborted = reason === 'aborted';
+      if (isFir) {
+        const result = await followFirLogSession({
+          createSession: async () => createComputeLogSessionViaProxy(connection, sessionParams),
+          initialSession: session,
+          onLine,
+          onNotice: notice => {
+            if (notice.kind === 'retrying') {
+              this.info(
+                messages.getMessage('info.tailRetrying', [
+                  name, notice.reason, String(notice.delayMs / 1000), String(notice.attempt), String(notice.max),
+                ]),
+              );
+            } else {
+              this.info(messages.getMessage(notice.kind === 'stalled' ? 'info.tailStalled' : 'info.tailReconnecting', [name]));
+            }
+          },
+          signal: controller.signal,
+        });
+        wasAborted = result === 'aborted';
+      } else {
+        wasAborted = (await streamLogplexOutput(session.logplexUrl, onLine, controller.signal)) === 'aborted';
+      }
+
+      if (isFir && !wasAborted && lineCount === 0) {
+        // A session that closes without a single line is indistinguishable from "nothing happened"
+        // unless we say so -- surface it rather than exiting silently.
+        this.warn(messages.getMessage('warning.tailEndedWithoutOutput', [name]));
+      }
+
       this.info(
         wasAborted
           ? messages.getMessage('info.tailStopped', [name])

@@ -150,7 +150,7 @@ describe('compute get runtime-log', () => {
           });
         },
       });
-      return new Response(body, {status: 200});
+      return new Response(body, {headers: {'content-type': 'text/event-stream'}, status: 200});
     });
     vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']});
     try {

@@ -52,6 +52,17 @@ function requestInit(signal: AbortSignal | undefined, sse: boolean | undefined):
   return sse ? {headers: {Accept: 'text/event-stream'}, signal} : {signal};
 }
 
+// A server that ignores the Accept header answers text/plain, which the SSE splitter would turn into
+// nothing at all -- so the response, not the request, decides how it is parsed.
+function createSplitterFor(response: Response, sse: boolean | undefined): LineSplitter | undefined {
+  if (!sse) {
+    return undefined;
+  }
+
+  const isSse = (response.headers.get('content-type') ?? '').toLowerCase().includes('text/event-stream');
+  return isSse ? createSseSplitter() : createNewlineSplitter();
+}
+
 type LineSplitter = {
   flush: () => string[];
   push: (chunk: string) => string[];
@@ -119,11 +130,13 @@ export async function fetchLogplexOutput(
     }, idleMs);
   };
 
-  const splitter = sse ? createSseSplitter() : undefined;
+  let splitter: LineSplitter | undefined;
   const decoder = new TextDecoder();
   const toOutput = (text: string): string =>
     splitter ? splitter.push(text).map(line => `${line}\n`).join('') : text;
   const decode = (bytes?: Uint8Array): string => toOutput(decoder.decode(bytes, {stream: bytes !== undefined}));
+  const finish = (): string =>
+    decode() + (splitter ? splitter.flush().map(line => `${line}\n`).join('') : '');
 
   let output = '';
   try {
@@ -132,6 +145,7 @@ export async function fetchLogplexOutput(
       throw new Error(`HTTP ${response.status}`);
     }
 
+    splitter = createSplitterFor(response, sse);
     if (!response.body) {
       return {output: toOutput(await response.text()), timedOut: false};
     }
@@ -151,10 +165,10 @@ export async function fetchLogplexOutput(
       output += decode(value);
     }
 
-    return {output: output + decode(), timedOut: false};
+    return {output: output + finish(), timedOut: false};
   } catch (error) {
     if (idle.signal.aborted && !deadline.aborted) {
-      return {output: output + decode(), timedOut: false};
+      return {output: output + finish(), timedOut: false};
     }
 
     if (signal.aborted) {
@@ -187,24 +201,74 @@ export async function fetchBuildOutputStream(outputStreamUrl: string): Promise<s
   }
 }
 
-export type StreamEndReason = 'aborted' | 'eof';
+// 'stalled' means the stream went silent for `stallMs` without closing, so the reader was cancelled.
+export type StreamEndReason = 'aborted' | 'eof' | 'stalled';
 
-// Reports whether the stream ended because the server closed it (EOF) or because the caller's
-// AbortSignal fired, rather than leaving the caller to re-derive that from signal.aborted after
-// the fact -- ambient signal state can flip between a natural EOF and a same-instant abort,
-// misattributing one for the other.
+export type StreamLogplexOptions = Pick<LogplexFetchOptions, 'sse'> & {
+  // Called for every chunk read, so a caller can tell a session that delivered data from one that
+  // only opened and closed.
+  onActivity?: () => void;
+  // Give up on a stream that has been silent for this long (a half-open socket or wedged proxy never
+  // closes, so it would otherwise hang until Ctrl-C). Armed once connected.
+  stallMs?: number;
+};
+
+// Reports whether the stream ended because the server closed it (EOF), because it went silent
+// (stalled), or because the caller's AbortSignal fired, rather than leaving the caller to
+// re-derive that from signal.aborted after the fact -- ambient signal state can flip between a
+// natural EOF and a same-instant abort, misattributing one for the other.
 export async function streamLogplexOutput(
   logplexUrl: string,
   onLine: (line: string) => void,
   signal?: AbortSignal,
-  options: Pick<LogplexFetchOptions, 'sse'> = {},
+  options: StreamLogplexOptions = {},
 ): Promise<StreamEndReason> {
-  let response: Response;
+  const stall = new AbortController();
+  const requestSignal = signal ? AbortSignal.any([signal, stall.signal]) : stall.signal;
+  let stallTimer: ReturnType<typeof setTimeout> | undefined;
+  const armStallTimer = (): void => {
+    if (options.stallMs === undefined) {
+      return;
+    }
+
+    clearTimeout(stallTimer);
+    stallTimer = setTimeout(() => {
+      stall.abort();
+    }, options.stallMs);
+  };
+
   try {
-    response = await fetch(logplexUrl, requestInit(signal, options.sse));
-  } catch (error) {
+    return await readLogplexStream(logplexUrl, onLine, signal, requestSignal, stall, armStallTimer, options);
+  } finally {
+    clearTimeout(stallTimer);
+  }
+}
+
+async function readLogplexStream(
+  logplexUrl: string,
+  onLine: (line: string) => void,
+  signal: AbortSignal | undefined,
+  requestSignal: AbortSignal,
+  stall: AbortController,
+  armStallTimer: () => void,
+  options: StreamLogplexOptions,
+): Promise<StreamEndReason> {
+  // An abort is either the caller's (stop) or the stall timer's (recreate); anything else is a failure.
+  const endedByAbort = (): StreamEndReason | undefined => {
     if (signal?.aborted) {
       return 'aborted';
+    }
+
+    return stall.signal.aborted ? 'stalled' : undefined;
+  };
+
+  let response: Response;
+  try {
+    response = await fetch(logplexUrl, requestInit(requestSignal, options.sse));
+  } catch (error) {
+    const ended = endedByAbort();
+    if (ended) {
+      return ended;
     }
 
     throw messages.createError('error.logStreamFailed', [(error as Error).message]);
@@ -223,7 +287,8 @@ export async function streamLogplexOutput(
   // actually returns.
   const reader = response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
   const decoder = new TextDecoder();
-  const splitter = options.sse ? createSseSplitter() : createNewlineSplitter();
+  const splitter = createSplitterFor(response, options.sse) ?? createNewlineSplitter();
+  armStallTimer();
   try {
     while (true) {
       // Sequential reads of one ordered stream -- there's nothing to parallelize.
@@ -233,13 +298,16 @@ export async function streamLogplexOutput(
         break;
       }
 
+      armStallTimer();
+      options.onActivity?.();
       for (const line of splitter.push(decoder.decode(value, {stream: true}))) {
         onLine(line);
       }
     }
   } catch (error) {
-    if (signal?.aborted) {
-      return 'aborted';
+    const ended = endedByAbort();
+    if (ended) {
+      return ended;
     }
 
     throw messages.createError('error.logStreamFailed', [(error as Error).message]);

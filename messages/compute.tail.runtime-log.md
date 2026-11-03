@@ -48,6 +48,14 @@ The log session for %s ended.
 
 The log session for %s expired; reconnecting.
 
+# info.tailStalled
+
+The log session for %s went quiet; reconnecting.
+
+# info.tailRetrying
+
+Lost the log session for %s (%s). Retrying in %s s (attempt %s of %s).
+
 # warning.generationUnknown
 
 Couldn't tell whether %s is a Fir or Cedar app, so it's being read as a Cedar app. If it's a Fir app, its log output may be missing or delayed; run the command again.

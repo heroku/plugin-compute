@@ -18,17 +18,14 @@ import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 
 import {requireAppName, resolveComputeAppNameFromDir, validateName} from '../../../shared/computeApp.js';
-import {type StreamEndReason, streamLogplexOutput} from '../../../shared/computeLogStream.js';
+import {followFirLogSession} from '../../../shared/computeLogFollow.js';
+import {streamLogplexOutput} from '../../../shared/computeLogStream.js';
 import {queryComputeApp, requireHerokuAppId, toComputeAppSummary} from '../../../shared/computeQuery.js';
 import {createComputeLogSessionViaProxy, fetchComputeAppViaProxy} from '../../../shared/herokuProxyApi.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
 
 Messages.importMessagesDirectoryFromMetaUrl(import.meta.url);
 const messages = Messages.loadMessages(PLUGIN_NAME, 'compute.tail.runtime-log');
-
-// A Fir session that closes sooner than this was rejected or dropped, not expired, so reconnecting
-// would just loop; a real session runs far longer before the server ends it.
-const MIN_FIR_SESSION_MS = 5000;
 
 export type ComputeTailRuntimeLogResult = {
   name: string;
@@ -92,7 +89,7 @@ export default class TailRuntimeLog extends SfCommand<ComputeTailRuntimeLogResul
       : {
         name, appId, lines: num, tail: true,
       };
-    let session = await createComputeLogSessionViaProxy(connection, sessionParams);
+    const session = await createComputeLogSessionViaProxy(connection, sessionParams);
 
     this.info(messages.getMessage('info.tailStarting', [name]));
     const controller = new AbortController();
@@ -116,23 +113,29 @@ export default class TailRuntimeLog extends SfCommand<ComputeTailRuntimeLogResul
     };
 
     try {
-      let reason: StreamEndReason;
-      let isReconnect: boolean;
-      do {
-        const startedAt = Date.now();
-        // eslint-disable-next-line no-await-in-loop
-        reason = await streamLogplexOutput(session.logplexUrl, onLine, controller.signal, {sse: isFir});
-        // Fir sessions expire server-side, so a clean close after a real run means "keep following",
-        // not "done". A session that dies almost at once is not worth retrying -- that would spin.
-        isReconnect = isFir && reason === 'eof' && Date.now() - startedAt >= MIN_FIR_SESSION_MS;
-        if (isReconnect) {
-          this.info(messages.getMessage('info.tailReconnecting', [name]));
-          // eslint-disable-next-line no-await-in-loop
-          session = await createComputeLogSessionViaProxy(connection, sessionParams);
-        }
-      } while (isReconnect);
+      if (isFir) {
+        const result = await followFirLogSession({
+          createSession: async () => createComputeLogSessionViaProxy(connection, sessionParams),
+          initialSession: session,
+          onLine,
+          onNotice: notice => {
+            if (notice.kind === 'retrying') {
+              this.info(
+                messages.getMessage('info.tailRetrying', [
+                  name, notice.reason, String(notice.delayMs / 1000), String(notice.attempt), String(notice.max),
+                ]),
+              );
+            } else {
+              this.info(messages.getMessage(notice.kind === 'stalled' ? 'info.tailStalled' : 'info.tailReconnecting', [name]));
+            }
+          },
+          signal: controller.signal,
+        });
+        wasAborted = result === 'aborted';
+      } else {
+        wasAborted = (await streamLogplexOutput(session.logplexUrl, onLine, controller.signal)) === 'aborted';
+      }
 
-      wasAborted = reason === 'aborted';
       if (isFir && !wasAborted && lineCount === 0) {
         // A session that closes without a single line is indistinguishable from "nothing happened"
         // unless we say so -- surface it rather than exiting silently.

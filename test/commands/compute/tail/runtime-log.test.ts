@@ -59,6 +59,26 @@ function findLogSessionCall(stub: Mock): undefined | unknown[] {
   });
 }
 
+function sseResponse(chunks: string[]): Response {
+  return new Response(streamOf(chunks), {headers: {'content-type': 'text/event-stream'}, status: 200});
+}
+
+// Fir sessions that end are recreated with a backoff; fake timers let the command run through its
+// retries without waiting, and runToEnd drives them.
+async function runToEnd<T>(run: Promise<T>): Promise<T> {
+  const state = {isSettled: false};
+  const guarded = run.finally(() => {
+    state.isSettled = true;
+  });
+  // The command awaits real I/O between sleeps, so keep advancing the clock until it settles.
+  while (!state.isSettled) {
+    // eslint-disable-next-line no-await-in-loop
+    await vi.advanceTimersByTimeAsync(1000);
+  }
+
+  return guarded;
+}
+
 function streamOf(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   return new ReadableStream({
@@ -127,74 +147,94 @@ describe('compute tail runtime-log', () => {
     toolingQueryStub.mockResolvedValue({done: true, records, totalSize: records.length});
   }
 
-  it('reads a Fir session as an event stream and prints one line per event', async () => {
-    resolveWith([deployedRecord]);
-    requestStub.mockImplementation(proxyAnswer('fir'));
-    // The second event is split across reads, as a real transport may do.
-    const [first, second] = sseEvents('fir one', 'fir two');
-    const reads = [first, second.slice(0, 8), second.slice(8)];
-    fetchStub.mockResolvedValue(new Response(streamOf(reads), {status: 200}));
-
-    await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
-
-    expect(sfCommandStubs.log.getCalls().flatMap(c => c.args)).toEqual(['fir one', 'fir two']);
-    expect(fetchStub.mock.calls[0][1]).toMatchObject({headers: {Accept: 'text/event-stream'}});
-    const call = findLogSessionCall(requestStub);
-    expect(JSON.parse((call![0] as {body: string}).body)).toEqual({});
-  });
-
-  describe('Fir session expiry', () => {
+  describe('Fir sessions', () => {
     const logSessionCalls = (): unknown[][] =>
       requestStub.mock.calls.filter(call => {
         const req = call[0] as undefined | {url?: string};
         return req?.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions');
       });
+    const infoMessages = (): string[] => sfCommandStubs.info.getCalls().map(c => c.args[0] as string);
+    const logged = (): unknown[] => sfCommandStubs.log.getCalls().flatMap(c => c.args);
+    const tail = async (): Promise<unknown> =>
+      TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
 
     beforeEach(() => {
       resolveWith([deployedRecord]);
       requestStub.mockImplementation(proxyAnswer('fir'));
-      vi.useFakeTimers({toFake: ['Date']});
+      vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
     });
 
     afterEach(() => {
       vi.useRealTimers();
     });
 
+    it('reads the session as an event stream and prints one line per event', async () => {
+      // The second event is split across reads, as a real transport may do.
+      const [first, second] = sseEvents('fir one', 'fir two');
+      fetchStub
+        .mockImplementationOnce(async () => sseResponse([first, second.slice(0, 8), second.slice(8)]))
+        .mockImplementation(async () => sseResponse([]));
+
+      await runToEnd(tail());
+
+      expect(logged()).toEqual(['fir one', 'fir two']);
+      expect(fetchStub.mock.calls[0][1]).toMatchObject({headers: {Accept: 'text/event-stream'}});
+      const call = findLogSessionCall(requestStub);
+      expect(JSON.parse((call![0] as {body: string}).body)).toEqual({});
+    });
+
     it('recreates the session when it closes after a real run, and keeps following', async () => {
       fetchStub
         .mockImplementationOnce(async () => {
           vi.setSystemTime(Date.now() + 60_000);
-          return new Response(streamOf(sseEvents('first session')), {status: 200});
+          return sseResponse(sseEvents('first session'));
         })
-        .mockImplementationOnce(async () => new Response(streamOf(sseEvents('second session')), {status: 200}));
+        .mockImplementationOnce(async () => sseResponse(sseEvents('second session')))
+        .mockImplementation(async () => sseResponse([]));
 
-      await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      await runToEnd(tail());
 
-      expect(logSessionCalls()).toHaveLength(2);
-      expect(sfCommandStubs.log.getCalls().flatMap(c => c.args)).toEqual(['first session', 'second session']);
-      const infoMessages = sfCommandStubs.info.getCalls().map(c => c.args[0] as string);
-      expect(infoMessages.some(message => message.includes('expired; reconnecting'))).toBe(true);
+      expect(logged()).toEqual(['first session', 'second session']);
+      expect(logSessionCalls().length).toBeGreaterThanOrEqual(2);
+      expect(infoMessages().some(message => message.includes('expired; reconnecting'))).toBe(true);
     });
 
-    it('does not reconnect a session that closes almost immediately', async () => {
-      fetchStub.mockImplementation(async () => new Response(streamOf(sseEvents('only session')), {status: 200}));
+    it('retries a session that closes almost immediately with backoff, then stops after five failures', async () => {
+      fetchStub.mockImplementation(async () => sseResponse(sseEvents('only session')));
 
-      await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      await runToEnd(tail());
 
-      expect(logSessionCalls()).toHaveLength(1);
-      expect(sfCommandStubs.log.getCalls().flatMap(c => c.args)).toEqual(['only session']);
+      // The first session plus five retries.
+      expect(logSessionCalls()).toHaveLength(6);
+      const retries = infoMessages().filter(message => message.includes('Retrying in'));
+      expect(retries).toHaveLength(5);
+      expect(retries[0]).toContain('Retrying in 0.5 s (attempt 1 of 5)');
+      expect(retries[4]).toContain('Retrying in 5 s (attempt 5 of 5)');
+      expect(infoMessages().at(-1)).toContain('ended');
     });
-  });
 
-  it('warns when a Fir session closes without sending any lines', async () => {
-    resolveWith([deployedRecord]);
-    requestStub.mockImplementation(proxyAnswer('fir'));
-    fetchStub.mockResolvedValue(new Response(streamOf([]), {status: 200}));
+    it('recovers from a dropped connection and keeps following', async () => {
+      fetchStub
+        .mockRejectedValueOnce(new Error('socket hang up'))
+        .mockImplementationOnce(async () => sseResponse(sseEvents('after the drop')))
+        .mockImplementation(async () => sseResponse([]));
 
-    const result = await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+      await runToEnd(tail());
 
-    expect(result).toStrictEqual({name: 'CreditRatingScorer'});
-    expect(sfCommandStubs.warn.firstCall.args[0]).toContain('closed without sending any log lines');
+      expect(logged()).toEqual(['after the drop']);
+      expect(infoMessages().some(message => message.includes('socket hang up') && message.includes('Retrying'))).toBe(
+        true,
+      );
+    });
+
+    it('warns when the session never sends any lines', async () => {
+      fetchStub.mockImplementation(async () => sseResponse([]));
+
+      const result = await runToEnd(tail());
+
+      expect(result).toStrictEqual({name: 'CreditRatingScorer'});
+      expect(sfCommandStubs.warn.firstCall.args[0]).toContain('closed without sending any log lines');
+    });
   });
 
   it('keeps the Cedar path unchanged: no warning when a Cedar session closes without lines', async () => {

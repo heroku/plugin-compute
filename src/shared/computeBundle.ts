@@ -106,6 +106,18 @@ export type UnpackedBundle = {
 // to go this direction.
 export async function unpackComputeBundle(buffer: Buffer, appDir: string): Promise<UnpackedBundle> {
   const sourceEntries = await untarGzip(buffer);
+  // Release ordering alone doesn't protect against an org still returning the old nested bundle
+  // (api-spec.yaml + source.tar.gz), which would otherwise "succeed" with an unextracted blob.
+  if (Object.keys(sourceEntries).length === 0) {
+    throw messages.createError('error.sourceBundleMalformed', ['archive contains no files']);
+  }
+
+  if ('source.tar.gz' in sourceEntries) {
+    throw messages.createError('error.sourceBundleMalformed', [
+      'unexpected nested source.tar.gz (the org returned the older nested bundle shape)',
+    ]);
+  }
+
   const resolvedAppDir = resolve(appDir);
   await Promise.all(
     Object.entries(sourceEntries).map(async ([relativePath, data]) => {

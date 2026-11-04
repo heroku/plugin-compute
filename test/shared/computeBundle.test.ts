@@ -278,6 +278,22 @@ describe('computeBundle.unpackComputeBundle', () => {
     expect(await readFile(join(outputDir, 'Procfile'), 'utf8')).toBe('web: node src/app.js\n');
   });
 
+  it('rejects an empty archive instead of reporting a zero-file success', async () => {
+    const emptyTarGz = await buildTarGz([]);
+
+    await expect(unpackComputeBundle(emptyTarGz, outputDir)).rejects.toThrow('archive contains no files');
+  });
+
+  it('rejects the older nested bundle shape (api-spec.yaml + source.tar.gz) without writing anything', async () => {
+    const nested = await buildTarGz([
+      {data: Buffer.from('openapi: 3.0.0\n'), name: 'api-spec.yaml'},
+      {data: Buffer.from('inner'), name: 'source.tar.gz'},
+    ]);
+
+    await expect(unpackComputeBundle(nested, outputDir)).rejects.toThrow('older nested bundle shape');
+    await expect(readFile(join(outputDir, 'api-spec.yaml'), 'utf8')).rejects.toThrow();
+  });
+
   it('rejects an entry whose name would tar-slip outside appDir, without writing it', async () => {
     const sourceTarGz = await buildTarGz([{data: Buffer.from('pwned'), name: '../evil.txt'}]);
 

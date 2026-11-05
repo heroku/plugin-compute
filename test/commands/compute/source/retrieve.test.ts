@@ -163,7 +163,7 @@ describe('compute source retrieve', () => {
 
     expect(metadataRetrieveStub).toHaveBeenCalledOnce();
     const downloadCall = findDownloadCall(requestStub);
-    expect(downloadCall, 'expected a GET to /connect/compute/source').toBeDefined();
+    expect(downloadCall, 'expected a GET to /connect/compute/{app}/builds/latest/source').toBeDefined();
     expect(metadataRetrieveStub.mock.invocationCallOrder[0]).toBeLessThan(
       requestStub.mock.invocationCallOrder[findDownloadCallIndex(requestStub)],
     );

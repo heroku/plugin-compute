@@ -66,6 +66,7 @@ export type DownloadComputeSourceParams = {
 };
 
 // Speculative resource -- see the Compute tag description in salesforce-connect-compute.yaml.
+// The CLI always asks for the `latest` build (it has no build id); Heroku Builds pins a build id.
 // The response body is the flat source.tar.gz (not the nested deployment-bundle.tar.gz
 // uploadComputeSource sends), binary, so this must round-trip exact bytes. connection.request()'s default string decoding is UTF-8,
 // which is lossy for arbitrary gzip bytes (any byte >0x7F gets re-encoded) -- passing
@@ -78,7 +79,7 @@ export async function downloadComputeSource(
 ): Promise<Buffer> {
   try {
     const body = await connection.request<string>(
-      {method: 'GET', url: `/connect/compute/${encodeURIComponent(params.appIdOrName)}/source`},
+      {method: 'GET', url: `/connect/compute/${encodeURIComponent(params.appIdOrName)}/builds/latest/source`},
       {encoding: 'binary'},
     );
     return Buffer.from(body, 'binary');

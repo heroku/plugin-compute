@@ -2,6 +2,13 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.4.3](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.2...plugin-compute-v0.4.3) (2026-11-06)
+
+
+### Bug Fixes
+
+* handle flat source.tar.gz response in sf compute source retrieve ([#75](https://github.com/heroku/plugin-compute/issues/75)) ([fb1b939](https://github.com/heroku/plugin-compute/commit/fb1b93952435a4b995af89bbd2203f9d84ae060a))
+
 ## [0.4.2](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.1...plugin-compute-v0.4.2) (2026-11-03)
 
 

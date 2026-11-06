@@ -225,17 +225,51 @@ describe('compute source retrieve', () => {
     await expect(stat(appDir)).rejects.toThrow();
   });
 
-  // No automatic rollback on failure -- the directory (and whatever was already written into
-  // it) is left in place, same as generate.ts/deploy.ts's own style elsewhere in this plugin.
-  it('propagates a source download failure after a successful metadata retrieve, leaving the metadata file in place', async () => {
+  it('never creates the app directory when the source download fails, so a retry is not blocked', async () => {
     requestStub.mockRejectedValue(new Error('socket hang up'));
 
     await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('socket hang up');
 
     expect(metadataRetrieveStub).toHaveBeenCalledOnce();
     const appDir = join(projectDir, 'force-app/main/default/computeApps/CreditRatingScorer');
-    expect(await readFile(join(appDir, 'CreditRatingScorer.computeApp-meta.xml'), 'utf8')).toBe(
-      '<ComputeApp/>\n',
-    );
+    await expect(stat(appDir)).rejects.toThrow();
+  });
+
+  it('never creates the app directory when the downloaded archive is not a valid gzip', async () => {
+    requestStub.mockResolvedValue('not a gzip archive');
+
+    await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('not a valid gzip archive');
+
+    const appDir = join(projectDir, 'force-app/main/default/computeApps/CreditRatingScorer');
+    await expect(stat(appDir)).rejects.toThrow();
+  });
+
+  it('removes the already-written app directory when the archive has an unsafe entry path', async () => {
+    const evil = await tarGz([{data: Buffer.from('pwned'), name: '../evil.txt'}]);
+    requestStub.mockResolvedValue(evil.toString('binary'));
+
+    await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('unsafe entry path');
+
+    const appDir = join(projectDir, 'force-app/main/default/computeApps/CreditRatingScorer');
+    await expect(stat(appDir)).rejects.toThrow();
+  });
+
+  it('succeeds on a retry after a failed download', async () => {
+    const bundle = (await buildBundle()).toString('binary');
+    // Only the download fails: Org.init()'s own lookup request rides the same stub.
+    let shouldFail = true;
+    requestStub.mockImplementation(async (request: {url?: string}) => {
+      if (shouldFail && request.url?.endsWith('/source')) {
+        throw new Error('socket hang up');
+      }
+
+      return bundle;
+    });
+    await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('socket hang up');
+
+    shouldFail = false;
+    const result = await Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(result.files).toBe(2);
   });
 });

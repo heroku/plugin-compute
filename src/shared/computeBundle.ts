@@ -119,16 +119,21 @@ export async function unpackComputeBundle(buffer: Buffer, appDir: string): Promi
   }
 
   const resolvedAppDir = resolve(appDir);
-  await Promise.all(
-    Object.entries(sourceEntries).map(async ([relativePath, data]) => {
-      const filePath = resolve(appDir, relativePath);
-      // Guards against a tar-slip: a malicious (or corrupted) entry name like "../../etc/foo"
-      // must not be allowed to write outside appDir. The bundle comes from the org's most
-      // recently deployed source, which this plugin doesn't otherwise validate the shape of.
-      if (filePath !== resolvedAppDir && !filePath.startsWith(resolvedAppDir + sep)) {
-        throw messages.createError('error.sourceBundleMalformed', [`unsafe entry path "${relativePath}"`]);
-      }
+  // Validate every path before writing any, so a bad entry can't leave a partial extraction.
+  // A tar-slip guard: a malicious (or corrupted) entry name like "../../etc/foo" must not be
+  // allowed to write outside appDir. The bundle comes from the org's most recently deployed
+  // source, which this plugin doesn't otherwise validate the shape of.
+  const targets = Object.entries(sourceEntries).map(([relativePath, data]) => {
+    const filePath = resolve(appDir, relativePath);
+    if (filePath !== resolvedAppDir && !filePath.startsWith(resolvedAppDir + sep)) {
+      throw messages.createError('error.sourceBundleMalformed', [`unsafe entry path "${relativePath}"`]);
+    }
 
+    return {data, filePath};
+  });
+
+  await Promise.all(
+    targets.map(async ({data, filePath}) => {
       await mkdir(dirname(filePath), {recursive: true});
       await writeFile(filePath, data);
     }),

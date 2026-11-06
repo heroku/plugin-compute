@@ -294,10 +294,15 @@ describe('computeBundle.unpackComputeBundle', () => {
     await expect(readFile(join(outputDir, 'api-spec.yaml'), 'utf8')).rejects.toThrow();
   });
 
-  it('rejects an entry whose name would tar-slip outside appDir, without writing it', async () => {
-    const sourceTarGz = await buildTarGz([{data: Buffer.from('pwned'), name: '../evil.txt'}]);
+  it('rejects an entry whose name would tar-slip outside appDir, without writing it or any sibling', async () => {
+    const sourceTarGz = await buildTarGz([
+      {data: Buffer.from('fine'), name: 'ok.txt'},
+      {data: Buffer.from('pwned'), name: '../evil.txt'},
+    ]);
 
     await expect(unpackComputeBundle(sourceTarGz, outputDir)).rejects.toThrow('unsafe entry path');
+    // Every path is validated before any write, so the safe sibling isn't written either.
+    await expect(readFile(join(outputDir, 'ok.txt'), 'utf8')).rejects.toThrow();
 
     let isEscaped = true;
     try {

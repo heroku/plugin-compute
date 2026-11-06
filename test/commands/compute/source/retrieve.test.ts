@@ -77,11 +77,12 @@ async function tarGz(entries: ReadonlyArray<{data: Buffer; name: string}>): Prom
   });
 }
 
+// The download endpoint returns the flat source.tar.gz (api-spec.yaml inside), not the nested
+// deployment bundle the upload sends.
 async function buildBundle(): Promise<Buffer> {
-  const sourceTarGz = await tarGz([{data: Buffer.from('console.log("hi");\n'), name: 'src/app.js'}]);
   return tarGz([
     {data: Buffer.from('openapi: 3.0.0\n'), name: 'api-spec.yaml'},
-    {data: sourceTarGz, name: 'source.tar.gz'},
+    {data: Buffer.from('console.log("hi");\n'), name: 'src/app.js'},
   ]);
 }
 
@@ -162,7 +163,7 @@ describe('compute source retrieve', () => {
 
     expect(metadataRetrieveStub).toHaveBeenCalledOnce();
     const downloadCall = findDownloadCall(requestStub);
-    expect(downloadCall, 'expected a GET to /connect/compute/source').toBeDefined();
+    expect(downloadCall, 'expected a GET to /connect/compute/{app}/builds/latest/source').toBeDefined();
     expect(metadataRetrieveStub.mock.invocationCallOrder[0]).toBeLessThan(
       requestStub.mock.invocationCallOrder[findDownloadCallIndex(requestStub)],
     );

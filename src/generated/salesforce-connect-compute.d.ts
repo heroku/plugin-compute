@@ -24,7 +24,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/connect/compute/{app_id_or_name}/source": {
+    "/connect/compute/{app_id_or_name}/builds/{build_id_or_latest}/source": {
         parameters: {
             query?: never;
             header?: never;
@@ -33,7 +33,7 @@ export interface paths {
         };
         /**
          * Download a Compute app's deployed source
-         * @description Downloads the same nested deployment bundle (OpenAPI spec plus application source tarball) most recently deployed for a Compute app -- the GET counterpart to the upload above, used by `sf compute source retrieve` alongside a Metadata API retrieve of the app's computeApp-meta.xml. Also accepts a C2C JWT (minted for the `sfdc.salesforce-compute` Core CASC integration) for Heroku Builds' own inbound fetch, in addition to a standard org access token. Requires the `DeployCompute` or `ManageCompute` user permission on the standard-token path. Speculative resource -- see the Compute tag description above; not yet built in core. See W-23502012.
+         * @description Downloads the source tarball (source.tar.gz, including api-spec.yaml) of a Compute app build -- the GET counterpart to the upload above. `sf compute source retrieve` passes `latest` as the build, alongside a Metadata API retrieve of the app's computeApp-meta.xml; Heroku Builds passes a specific build id. Also accepts a C2C JWT (minted for the `sfdc.salesforce-compute` Core CASC integration) for Heroku Builds' own inbound fetch, in addition to a standard org access token. Requires the `DeployCompute` or `ManageCompute` user permission on the standard-token path. Speculative resource -- see the Compute tag description above; not yet built in core. See W-23502012.
          */
         get: operations["downloadComputeSource"];
         put?: never;
@@ -162,12 +162,17 @@ export interface operations {
                  * @example CreditRatingScorer
                  */
                 app_id_or_name: string;
+                /**
+                 * @description PlatformComputeAppBuild Id, or `latest` for the most recent build.
+                 * @example latest
+                 */
+                build_id_or_latest: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Deployment bundle tarball (deployment-bundle.tar.gz) most recently deployed for the app. */
+            /** @description Source tarball (source.tar.gz, including api-spec.yaml) of the requested build. Unlike the nested upload bundle, this is the inner tarball only. */
             200: {
                 headers: {
                     [name: string]: unknown;

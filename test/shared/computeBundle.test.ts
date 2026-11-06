@@ -234,7 +234,9 @@ describe('computeBundle.unpackComputeBundle', () => {
     await rm(outputDir, {force: true, recursive: true});
   });
 
-  it('round-trips packageComputeBundle output into api-spec.yaml and the source files', async () => {
+  // The download endpoint returns source.tar.gz directly, i.e. the inner tarball of the nested
+  // upload bundle, so the round trip extracts it out of packageComputeBundle's outer bundle first.
+  it('round-trips the source.tar.gz inside packageComputeBundle output into the source files', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'plugin-compute-bundle-src-'));
     try {
       const appDir = join(projectRoot, 'force-app/main/default/computeApps/CreditRatingScorer');
@@ -245,10 +247,11 @@ describe('computeBundle.unpackComputeBundle', () => {
       await writeFile(join(appDir, 'project.toml'), '[_]\nschema-version = "0.2"\n');
       await writeFile(join(appDir, 'src', 'app.js'), 'console.log("hi");\n');
       const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
+      const flatSource = (await extractTarGz(buffer))['source.tar.gz'];
 
-      const {fileCount} = await unpackComputeBundle(buffer, outputDir);
+      const {fileCount} = await unpackComputeBundle(flatSource, outputDir);
 
-      expect(fileCount).toBe(4); // Procfile, project.toml, src/app.js, api-spec.yaml
+      expect(fileCount).toBe(4); // api-spec.yaml, Procfile, project.toml, src/app.js
       expect(await readFile(join(outputDir, 'api-spec.yaml'), 'utf8')).toBe('openapi: 3.0.0\n');
       expect(await readFile(join(outputDir, 'Procfile'), 'utf8')).toBe('web: node src/app.js\n');
       expect(await readFile(join(outputDir, 'src', 'app.js'), 'utf8')).toBe('console.log("hi");\n');
@@ -259,38 +262,42 @@ describe('computeBundle.unpackComputeBundle', () => {
 
   it('recreates nested directories for nested source paths', async () => {
     const sourceTarGz = await buildTarGz([{data: Buffer.from('module.exports = {};\n'), name: 'lib/nested/util.js'}]);
-    const outer = await buildTarGz([
-      {data: Buffer.from('openapi: 3.0.0\n'), name: 'api-spec.yaml'},
-      {data: sourceTarGz, name: 'source.tar.gz'},
-    ]);
 
-    const {fileCount} = await unpackComputeBundle(outer, outputDir);
+    const {fileCount} = await unpackComputeBundle(sourceTarGz, outputDir);
 
-    expect(fileCount).toBe(2); // lib/nested/util.js, plus api-spec.yaml
+    expect(fileCount).toBe(1);
     expect(await readFile(join(outputDir, 'lib', 'nested', 'util.js'), 'utf8')).toBe('module.exports = {};\n');
   });
 
-  it('throws error.sourceBundleMalformed when the outer bundle is missing api-spec.yaml', async () => {
+  it('does not require an outer api-spec.yaml or a nested source.tar.gz', async () => {
     const sourceTarGz = await buildTarGz([{data: Buffer.from('web: node src/app.js\n'), name: 'Procfile'}]);
-    const outer = await buildTarGz([{data: sourceTarGz, name: 'source.tar.gz'}]);
 
-    await expect(unpackComputeBundle(outer, outputDir)).rejects.toThrow('api-spec.yaml');
+    const {fileCount} = await unpackComputeBundle(sourceTarGz, outputDir);
+
+    expect(fileCount).toBe(1);
+    expect(await readFile(join(outputDir, 'Procfile'), 'utf8')).toBe('web: node src/app.js\n');
   });
 
-  it('throws error.sourceBundleMalformed when the outer bundle is missing source.tar.gz', async () => {
-    const outer = await buildTarGz([{data: Buffer.from('openapi: 3.0.0\n'), name: 'api-spec.yaml'}]);
+  it('rejects an empty archive instead of reporting a zero-file success', async () => {
+    const emptyTarGz = await buildTarGz([]);
 
-    await expect(unpackComputeBundle(outer, outputDir)).rejects.toThrow('source.tar.gz');
+    await expect(unpackComputeBundle(emptyTarGz, outputDir)).rejects.toThrow('archive contains no files');
   });
 
-  it('rejects a source entry whose name would tar-slip outside appDir, without writing it', async () => {
-    const sourceTarGz = await buildTarGz([{data: Buffer.from('pwned'), name: '../evil.txt'}]);
-    const outer = await buildTarGz([
+  it('rejects the older nested bundle shape (api-spec.yaml + source.tar.gz) without writing anything', async () => {
+    const nested = await buildTarGz([
       {data: Buffer.from('openapi: 3.0.0\n'), name: 'api-spec.yaml'},
-      {data: sourceTarGz, name: 'source.tar.gz'},
+      {data: Buffer.from('inner'), name: 'source.tar.gz'},
     ]);
 
-    await expect(unpackComputeBundle(outer, outputDir)).rejects.toThrow('unsafe entry path');
+    await expect(unpackComputeBundle(nested, outputDir)).rejects.toThrow('older nested bundle shape');
+    await expect(readFile(join(outputDir, 'api-spec.yaml'), 'utf8')).rejects.toThrow();
+  });
+
+  it('rejects an entry whose name would tar-slip outside appDir, without writing it', async () => {
+    const sourceTarGz = await buildTarGz([{data: Buffer.from('pwned'), name: '../evil.txt'}]);
+
+    await expect(unpackComputeBundle(sourceTarGz, outputDir)).rejects.toThrow('unsafe entry path');
 
     let isEscaped = true;
     try {
@@ -308,7 +315,7 @@ describe('computeBundle.unpackComputeBundle', () => {
     );
   });
 
-  it('throws error.sourceBundleMalformed instead of a raw tar-stream error when the outer archive is gzip but not a valid tar', async () => {
+  it('throws error.sourceBundleMalformed instead of a raw tar-stream error when the archive is gzip but not a valid tar', async () => {
     const notATar = gzipSync(Buffer.from('just some gzipped bytes, not a tar archive'));
 
     await expect(unpackComputeBundle(notATar, outputDir)).rejects.toThrow('not a valid tar archive');

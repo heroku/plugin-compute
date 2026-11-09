@@ -162,6 +162,9 @@ export async function writeBundleFiles(files: readonly BundleFile[]): Promise<vo
   }
 }
 
+// Decode + write in one call. Kept as a convenience for tests; the retrieve command calls
+// decodeComputeBundle and writeBundleFiles separately so it can create the app directory
+// between the two.
 export async function unpackComputeBundle(buffer: Buffer, appDir: string): Promise<UnpackedBundle> {
   const files = await decodeComputeBundle(buffer, appDir);
   await writeBundleFiles(files);
@@ -189,11 +192,14 @@ async function untarGzip(buffer: Buffer): Promise<Record<string, Buffer>> {
     extract.on('entry', (header, stream, next) => {
       const isFile = header.type === 'file' || header.type === 'contiguous-file';
       if (!isFile && header.type !== 'directory') {
+        // Stop reading the rest of the archive; the answer is already decided.
+        extract.destroy();
         reject(
           messages.createError('error.sourceBundleMalformed', [
             `unsupported entry type "${header.type}" for "${header.name}"`,
           ]),
         );
+        return;
       }
 
       const chunks: Buffer[] = [];

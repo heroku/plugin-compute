@@ -99,12 +99,19 @@ export type UnpackedBundle = {
   fileCount: number;
 };
 
-// Writes every file in the downloaded source.tar.gz into appDir. The download endpoint returns
-// that inner tarball directly (api-spec.yaml included), unlike the nested bundle packageComputeBundle
-// uploads -- the asymmetry is deliberate: the appserver inspects the upload's top-level files
-// without untarring the source. Used by sf compute source retrieve, the only caller that needs
-// to go this direction.
-export async function unpackComputeBundle(buffer: Buffer, appDir: string): Promise<UnpackedBundle> {
+// One file from a downloaded bundle: where it goes (already confined to appDir) and its bytes.
+export type BundleFile = {
+  data: Buffer;
+  filePath: string;
+};
+
+// Reads and checks the downloaded source.tar.gz without touching disk, so every archive or path
+// problem (bad gzip/tar, empty or nested bundle, unsafe or duplicate entry paths) surfaces before
+// the caller creates anything. The download endpoint returns that inner tarball directly
+// (api-spec.yaml included), unlike the nested bundle packageComputeBundle uploads -- the
+// asymmetry is deliberate: the appserver inspects the upload's top-level files without untarring
+// the source. Used by sf compute source retrieve, the only caller that needs to go this direction.
+export async function decodeComputeBundle(buffer: Buffer, appDir: string): Promise<BundleFile[]> {
   const sourceEntries = await untarGzip(buffer);
   // Release ordering alone doesn't protect against an org still returning the old nested bundle
   // (api-spec.yaml + source.tar.gz), which would otherwise "succeed" with an unextracted blob.
@@ -119,33 +126,54 @@ export async function unpackComputeBundle(buffer: Buffer, appDir: string): Promi
   }
 
   const resolvedAppDir = resolve(appDir);
-  // Validate every path before writing any, so a bad entry can't leave a partial extraction.
-  // A tar-slip guard: a malicious (or corrupted) entry name like "../../etc/foo" must not be
-  // allowed to write outside appDir. The bundle comes from the org's most recently deployed
-  // source, which this plugin doesn't otherwise validate the shape of.
-  const targets = Object.entries(sourceEntries).map(([relativePath, data]) => {
+  // Keyed by resolved path so entries that name the same file ("a" and "./a") collapse to one
+  // write (the later entry wins, as in tar) instead of racing each other.
+  const filesByPath = new Map<string, Buffer>();
+  for (const [relativePath, data] of Object.entries(sourceEntries)) {
     const filePath = resolve(appDir, relativePath);
-    if (filePath !== resolvedAppDir && !filePath.startsWith(resolvedAppDir + sep)) {
+    // A tar-slip guard: a malicious (or corrupted) entry name like "../../etc/foo" must not be
+    // allowed to write outside appDir, and a file entry can't be appDir itself. The bundle comes
+    // from the org's most recently deployed source, which this plugin doesn't otherwise validate
+    // the shape of.
+    if (!filePath.startsWith(resolvedAppDir + sep)) {
       throw messages.createError('error.sourceBundleMalformed', [`unsafe entry path "${relativePath}"`]);
     }
 
-    return {data, filePath};
-  });
+    filesByPath.set(filePath, data);
+  }
 
-  await Promise.all(
-    targets.map(async ({data, filePath}) => {
+  return [...filesByPath].map(([filePath, data]) => ({data, filePath}));
+}
+
+// Writes decoded files to disk. Waits for every write to settle before failing, so a caller that
+// cleans up after an error never races writes that are still in flight (which could recreate
+// directories it just removed, or make its rm fail with ENOTEMPTY).
+export async function writeBundleFiles(files: readonly BundleFile[]): Promise<void> {
+  const results = await Promise.allSettled(
+    files.map(async ({data, filePath}) => {
       await mkdir(dirname(filePath), {recursive: true});
       await writeFile(filePath, data);
     }),
   );
 
-  return {fileCount: Object.keys(sourceEntries).length};
+  const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+  if (failed) {
+    throw failed.reason as Error;
+  }
 }
 
-// Inverse of tarGzip below -- decompress and read every tar entry into memory, keyed by name.
-// Wraps decompression/parse failures as error.sourceBundleMalformed rather than letting a raw
-// zlib/tar-stream error (e.g. "incorrect header check") reach the user -- a truncated download
-// or an HTTP error page returned with a 200 status both land here.
+export async function unpackComputeBundle(buffer: Buffer, appDir: string): Promise<UnpackedBundle> {
+  const files = await decodeComputeBundle(buffer, appDir);
+  await writeBundleFiles(files);
+  return {fileCount: files.length};
+}
+
+// Inverse of tarGzip below -- decompress and read every file entry into memory, keyed by name.
+// Directory entries are skipped (writing a file mkdirs its parents), and anything that isn't a
+// plain file or directory (symlinks, hardlinks, devices) is rejected rather than silently
+// written as an empty file. Wraps decompression/parse failures as error.sourceBundleMalformed
+// rather than letting a raw zlib/tar-stream error (e.g. "incorrect header check") reach the
+// user -- a truncated download or an HTTP error page returned with a 200 status both land here.
 async function untarGzip(buffer: Buffer): Promise<Record<string, Buffer>> {
   return new Promise((resolveEntries, reject) => {
     let decompressed: Buffer;
@@ -159,12 +187,24 @@ async function untarGzip(buffer: Buffer): Promise<Record<string, Buffer>> {
     const entries: Record<string, Buffer> = {};
     const extract = tarStream.extract();
     extract.on('entry', (header, stream, next) => {
+      const isFile = header.type === 'file' || header.type === 'contiguous-file';
+      if (!isFile && header.type !== 'directory') {
+        reject(
+          messages.createError('error.sourceBundleMalformed', [
+            `unsupported entry type "${header.type}" for "${header.name}"`,
+          ]),
+        );
+      }
+
       const chunks: Buffer[] = [];
       stream.on('data', (chunk: unknown) => {
         chunks.push(chunk as Buffer);
       });
       stream.on('end', () => {
-        entries[header.name] = Buffer.concat(chunks);
+        if (isFile) {
+          entries[header.name] = Buffer.concat(chunks);
+        }
+
         next();
       });
       stream.on('error', reject);

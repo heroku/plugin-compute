@@ -17,10 +17,10 @@
 import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
 import {mkdir, rm, writeFile} from 'node:fs/promises';
-import {join} from 'node:path';
+import {dirname, join} from 'node:path';
 
 import {pathExists, resolveAppDir, validateName} from '../../../shared/computeApp.js';
-import {unpackComputeBundle} from '../../../shared/computeBundle.js';
+import {decodeComputeBundle, writeBundleFiles} from '../../../shared/computeBundle.js';
 import {downloadComputeSource} from '../../../shared/computeConnectApi.js';
 import {retrieveComputeMetadata} from '../../../shared/metadataRetrieve.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
@@ -79,22 +79,40 @@ export default class Retrieve extends SfCommand<ComputeSourceRetrieveResult> {
     this.log(messages.getMessage('info.downloadingSource'));
     const bundle = await downloadComputeSource(connection, {appIdOrName: name});
 
-    // appDir didn't exist when we checked above, so anything in it is ours: remove it if the
-    // writes fail partway (e.g. out of disk space), otherwise a retry would hit error.appAlreadyExists.
-    let fileCount: number;
+    // Check the archive and every entry path now, so a bad bundle fails before anything touches
+    // disk and the cleanup below only has to cover real I/O failures (ENOSPC, EACCES, ...).
+    const files = await decodeComputeBundle(bundle, appDir);
+
+    // The existence check above ran before two slow network calls, so claim appDir itself with a
+    // non-recursive mkdir: it throws EEXIST if the folder appeared in the meantime. That makes
+    // the cleanup below safe -- it only ever removes a folder this run created.
+    await mkdir(dirname(appDir), {recursive: true});
     try {
-      await mkdir(appDir, {recursive: true});
-      await writeFile(join(appDir, metadata.fileName), metadata.contents);
-      ({fileCount} = await unpackComputeBundle(bundle, appDir));
+      await mkdir(appDir);
     } catch (error) {
-      await rm(appDir, {force: true, recursive: true});
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+        throw messages.createError('error.appAlreadyExists', [name, appDir]);
+      }
+
       throw error;
     }
 
-    this.log(messages.getMessage('info.extractedSource', [fileCount]));
+    try {
+      await writeFile(join(appDir, metadata.fileName), metadata.contents);
+      await writeBundleFiles(files);
+    } catch (error) {
+      // Remove the half-written folder so a retry isn't blocked by error.appAlreadyExists. A
+      // failed cleanup must not replace the error that caused it, so warn and rethrow the original.
+      await rm(appDir, {force: true, recursive: true}).catch((rmError: unknown) => {
+        this.warn(messages.getMessage('warning.cleanupFailed', [appDir, String(rmError)]));
+      });
+      throw error;
+    }
+
+    this.log(messages.getMessage('info.extractedSource', [files.length]));
 
     this.logSuccess(messages.getMessage('info.done', [name, appDir]));
 
-    return {name, path: appDir, files: fileCount};
+    return {name, path: appDir, files: files.length};
   }
 }

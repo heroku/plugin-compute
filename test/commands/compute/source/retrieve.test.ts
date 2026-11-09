@@ -1,3 +1,4 @@
+import type * as FsPromises from 'node:fs/promises';
 import type {Mock, MockInstance} from 'vitest';
 
 import {Org} from '@salesforce/core';
@@ -33,6 +34,18 @@ import {gzipSync} from 'node:zlib';
 import tarStream from 'tar-stream';
 
 import Retrieve from '../../../../src/commands/compute/source/retrieve.js';
+
+// Wrap mkdir/rm/writeFile so tests can assert on them or inject I/O failures (ENOSPC, EBUSY);
+// they pass through to the real implementation unless a test overrides a single call.
+vi.mock('node:fs/promises', async importOriginal => {
+  const actual = await importOriginal<typeof FsPromises>();
+  return {
+    ...actual,
+    mkdir: vi.fn(actual.mkdir),
+    rm: vi.fn(actual.rm),
+    writeFile: vi.fn(actual.writeFile),
+  };
+});
 
 async function zipBase64(entries: Record<string, string>): Promise<string> {
   const zip = new JSZip();
@@ -201,11 +214,32 @@ describe('compute source retrieve', () => {
   it('fails fast when the app directory already exists, without calling any API', async () => {
     const appDir = join(projectDir, 'force-app/main/default/computeApps/CreditRatingScorer');
     await mkdir(appDir, {recursive: true});
+    await writeFile(join(appDir, 'keep'), 'mine');
 
     await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('already exists');
 
     expect(metadataRetrieveStub).not.toHaveBeenCalled();
     expect(findDownloadCall(requestStub)).toBeUndefined();
+    expect(await readFile(join(appDir, 'keep'), 'utf8')).toBe('mine');
+  });
+
+  it('does not delete a directory that appears while the source is downloading', async () => {
+    const appDir = join(projectDir, 'force-app/main/default/computeApps/CreditRatingScorer');
+    const bundle = (await buildBundle()).toString('binary');
+    // Someone (a concurrent run, the user) creates the folder after the up-front existence check.
+    requestStub.mockImplementation(async (request: {url?: string}) => {
+      if (request.url?.endsWith('/source')) {
+        await mkdir(appDir, {recursive: true});
+        await writeFile(join(appDir, 'keep'), 'mine');
+      }
+
+      return bundle;
+    });
+
+    await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('already exists');
+
+    expect(await readFile(join(appDir, 'keep'), 'utf8')).toBe('mine');
+    expect(rm).not.toHaveBeenCalledWith(appDir, expect.anything());
   });
 
   it('does not attempt the source download when the metadata retrieve fails', async () => {
@@ -244,14 +278,41 @@ describe('compute source retrieve', () => {
     await expect(stat(appDir)).rejects.toThrow();
   });
 
-  it('removes the already-written app directory when the archive has an unsafe entry path', async () => {
+  it('never creates the app directory when the archive has an unsafe entry path', async () => {
     const evil = await tarGz([{data: Buffer.from('pwned'), name: '../evil.txt'}]);
     requestStub.mockResolvedValue(evil.toString('binary'));
+    vi.mocked(mkdir).mockClear();
 
     await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('unsafe entry path');
 
+    // The archive is checked before anything touches disk, so no directory is made, let alone removed.
+    expect(mkdir).not.toHaveBeenCalled();
+    expect(rm).not.toHaveBeenCalled();
     const appDir = join(projectDir, 'force-app/main/default/computeApps/CreditRatingScorer');
     await expect(stat(appDir)).rejects.toThrow();
+  });
+
+  it('removes the app directory it created when a write fails partway, so a retry is not blocked', async () => {
+    vi.mocked(writeFile).mockRejectedValueOnce(Object.assign(new Error('no space left on device'), {code: 'ENOSPC'}));
+
+    await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('no space left on device');
+
+    const appDir = join(projectDir, 'force-app/main/default/computeApps/CreditRatingScorer');
+    await expect(stat(appDir)).rejects.toThrow();
+  });
+
+  it('reports the original error and warns when the cleanup itself fails', async () => {
+    vi.mocked(writeFile).mockRejectedValueOnce(Object.assign(new Error('no space left on device'), {code: 'ENOSPC'}));
+    vi.mocked(rm).mockRejectedValueOnce(Object.assign(new Error('resource busy or locked'), {code: 'EBUSY'}));
+
+    await expect(Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username])).rejects.toThrow('no space left on device');
+
+    const warnings = sfCommandStubs.warn
+      .getCalls()
+      .flatMap(c => c.args as string[])
+      .join('\n');
+    expect(warnings).toContain('could not be removed');
+    expect(warnings).toContain('resource busy or locked');
   });
 
   it('succeeds on a retry after a failed download', async () => {

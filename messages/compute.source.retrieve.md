@@ -57,3 +57,7 @@ extracted %s files
 # info.done
 
 Retrieved compute app %s into %s.
+
+# warning.cleanupFailed
+
+Retrieving the compute app failed, and the partially written directory %s could not be removed (%s). Delete it before running this command again, or it will stop with "already exists".

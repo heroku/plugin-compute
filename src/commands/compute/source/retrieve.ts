@@ -16,9 +16,11 @@
 
 import {Messages} from '@salesforce/core';
 import {Flags, SfCommand} from '@salesforce/sf-plugins-core';
+import {mkdir, rm, writeFile} from 'node:fs/promises';
+import {dirname, join} from 'node:path';
 
 import {pathExists, resolveAppDir, validateName} from '../../../shared/computeApp.js';
-import {unpackComputeBundle} from '../../../shared/computeBundle.js';
+import {decodeComputeBundle, writeBundleFiles} from '../../../shared/computeBundle.js';
 import {downloadComputeSource} from '../../../shared/computeConnectApi.js';
 import {retrieveComputeMetadata} from '../../../shared/metadataRetrieve.js';
 import {PLUGIN_NAME} from '../../../shared/plugin-name.js';
@@ -69,20 +71,48 @@ export default class Retrieve extends SfCommand<ComputeSourceRetrieveResult> {
     const username = connection.getUsername() ?? flags['target-org'].getUsername() ?? '<org>';
     this.log(messages.getMessage('info.retrieving', [name, username]));
 
-    // No rollback on failure below -- if the source download fails, appDir is left in place,
-    // partially populated, same as generate.ts/deploy.ts's own "no automatic rollback" style
-    // elsewhere in this plugin. A retry after a failure here will need the directory removed
-    // first, since it now exists and would otherwise hit error.appAlreadyExists.
-    await retrieveComputeMetadata(connection, appDir, name);
-    this.log(messages.getMessage('info.retrievedMetadata', [`${name}.computeApp-meta.xml`]));
+    // Finish every network call before touching disk (as generate.ts does), so a failed retrieve
+    // or download leaves nothing behind for a retry to trip over.
+    const metadata = await retrieveComputeMetadata(connection, name);
+    this.log(messages.getMessage('info.retrievedMetadata', [metadata.fileName]));
 
     this.log(messages.getMessage('info.downloadingSource'));
     const bundle = await downloadComputeSource(connection, {appIdOrName: name});
-    const {fileCount} = await unpackComputeBundle(bundle, appDir);
-    this.log(messages.getMessage('info.extractedSource', [fileCount]));
+
+    // Check the archive and every entry path now, so a bad bundle fails before anything touches
+    // disk and the cleanup below only has to cover real I/O failures (ENOSPC, EACCES, ...).
+    const files = await decodeComputeBundle(bundle, appDir);
+
+    // The existence check above ran before two slow network calls, so claim appDir itself with a
+    // non-recursive mkdir: it throws EEXIST if the folder appeared in the meantime. That makes
+    // the cleanup below safe -- it only ever removes a folder this run created.
+    await mkdir(dirname(appDir), {recursive: true});
+    try {
+      await mkdir(appDir);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+        throw messages.createError('error.appAlreadyExists', [name, appDir]);
+      }
+
+      throw error;
+    }
+
+    try {
+      await writeFile(join(appDir, metadata.fileName), metadata.contents);
+      await writeBundleFiles(files);
+    } catch (error) {
+      // Remove the half-written folder so a retry isn't blocked by error.appAlreadyExists. A
+      // failed cleanup must not replace the error that caused it, so warn and rethrow the original.
+      await rm(appDir, {force: true, recursive: true}).catch((rmError: unknown) => {
+        this.warn(messages.getMessage('warning.cleanupFailed', [appDir, String(rmError)]));
+      });
+      throw error;
+    }
+
+    this.log(messages.getMessage('info.extractedSource', [files.length]));
 
     this.logSuccess(messages.getMessage('info.done', [name, appDir]));
 
-    return {name, path: appDir, files: fileCount};
+    return {name, path: appDir, files: files.length};
   }
 }

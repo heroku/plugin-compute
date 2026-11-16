@@ -2,6 +2,13 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.4.4](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.3...plugin-compute-v0.4.4) (2026-11-11)
+
+
+### Bug Fixes
+
+* leave no app directory behind when sf compute source retrieve fails ([#77](https://github.com/heroku/plugin-compute/issues/77)) ([cdefb40](https://github.com/heroku/plugin-compute/commit/cdefb4088067a427ec1cc05a2f17a752db5bd006))
+
 ## [0.4.3](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.2...plugin-compute-v0.4.3) (2026-11-06)
 
 

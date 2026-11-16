@@ -37,6 +37,18 @@ function proxyTarget(url: string): string {
   return new URL(url, 'https://example.com').searchParams.get('proxy_url') ?? '';
 }
 
+// The generation probe and the log-session create share the proxy path; answer each like Heroku does.
+function proxyAnswer(generation: 'cedar' | 'fir'): (req: {url?: string}) => Promise<unknown> {
+  return async req =>
+    req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')
+      ? {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'}
+      : {generation: {name: generation}, name: 'credit-rating-scorer'};
+}
+
+function sseEvents(...records: string[]): string[] {
+  return records.map((record, i) => `id: ${i}\ndata: ${record}\n\n\n`);
+}
+
 // Org.create()/getConnection() issues its own Organization-lookup request through the same
 // shared requestStub while resolving --target-org, so callCount/called on the stub itself is
 // unreliable -- filter for the specific log-sessions call instead (mirrors get/runtime-log.test.ts).
@@ -45,6 +57,26 @@ function findLogSessionCall(stub: Mock): undefined | unknown[] {
     const req = call[0] as undefined | {url?: string};
     return req?.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions');
   });
+}
+
+function sseResponse(chunks: string[]): Response {
+  return new Response(streamOf(chunks), {headers: {'content-type': 'text/event-stream'}, status: 200});
+}
+
+// Fir sessions that end are recreated with a backoff; fake timers let the command run through its
+// retries without waiting, and runToEnd drives them.
+async function runToEnd<T>(run: Promise<T>): Promise<T> {
+  const state = {isSettled: false};
+  const guarded = run.finally(() => {
+    state.isSettled = true;
+  });
+  // The command awaits real I/O between sleeps, so keep advancing the clock until it settles.
+  while (!state.isSettled) {
+    // eslint-disable-next-line no-await-in-loop
+    await vi.advanceTimersByTimeAsync(1000);
+  }
+
+  return guarded;
 }
 
 function streamOf(chunks: string[]): ReadableStream<Uint8Array> {
@@ -97,7 +129,7 @@ describe('compute tail runtime-log', () => {
     toolingQueryStub = vi.spyOn(connection.tooling, 'query');
     $$.SANDBOX.stub(Org.prototype, 'getConnection').returns(connection);
 
-    requestStub = vi.fn().mockResolvedValue({logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'});
+    requestStub = vi.fn().mockImplementation(proxyAnswer('cedar'));
 
     $$.fakeConnectionRequest = requestStub;
 
@@ -114,6 +146,124 @@ describe('compute tail runtime-log', () => {
   function resolveWith(records: unknown[]): void {
     toolingQueryStub.mockResolvedValue({done: true, records, totalSize: records.length});
   }
+
+  describe('Fir sessions', () => {
+    const logSessionCalls = (): unknown[][] =>
+      requestStub.mock.calls.filter(call => {
+        const req = call[0] as undefined | {url?: string};
+        return req?.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions');
+      });
+    const infoMessages = (): string[] => sfCommandStubs.info.getCalls().map(c => c.args[0] as string);
+    const logged = (): unknown[] => sfCommandStubs.log.getCalls().flatMap(c => c.args);
+    const tail = async (): Promise<unknown> =>
+      TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    beforeEach(() => {
+      resolveWith([deployedRecord]);
+      requestStub.mockImplementation(proxyAnswer('fir'));
+      vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('reads the session as an event stream and prints one line per event', async () => {
+      // The second event is split across reads, as a real transport may do.
+      const [first, second] = sseEvents('fir one', 'fir two');
+      fetchStub
+        .mockImplementationOnce(async () => sseResponse([first, second.slice(0, 8), second.slice(8)]))
+        .mockImplementation(async () => sseResponse([]));
+
+      await runToEnd(tail());
+
+      expect(logged()).toEqual(['fir one', 'fir two']);
+      expect(fetchStub.mock.calls[0][1]).toMatchObject({headers: {Accept: 'text/event-stream'}});
+      const call = findLogSessionCall(requestStub);
+      expect(JSON.parse((call![0] as {body: string}).body)).toEqual({});
+    });
+
+    it('recreates the session when it closes after a real run, and keeps following', async () => {
+      fetchStub
+        .mockImplementationOnce(async () => {
+          vi.setSystemTime(Date.now() + 60_000);
+          return sseResponse(sseEvents('first session'));
+        })
+        .mockImplementationOnce(async () => sseResponse(sseEvents('second session')))
+        .mockImplementation(async () => sseResponse([]));
+
+      await runToEnd(tail());
+
+      expect(logged()).toEqual(['first session', 'second session']);
+      expect(logSessionCalls().length).toBeGreaterThanOrEqual(2);
+      expect(infoMessages().some(message => message.includes('expired; reconnecting'))).toBe(true);
+    });
+
+    it('retries a session that closes almost immediately with backoff, then stops after five failures', async () => {
+      fetchStub.mockImplementation(async () => sseResponse(sseEvents('only session')));
+
+      await runToEnd(tail());
+
+      // The first session plus five retries.
+      expect(logSessionCalls()).toHaveLength(6);
+      const retries = infoMessages().filter(message => message.includes('Retrying in'));
+      expect(retries).toHaveLength(5);
+      expect(retries[0]).toContain('Retrying in 0.5 s (attempt 1 of 5)');
+      expect(retries[4]).toContain('Retrying in 5 s (attempt 5 of 5)');
+      expect(infoMessages().at(-1)).toContain('ended');
+    });
+
+    it('recovers from a dropped connection and keeps following', async () => {
+      fetchStub
+        .mockRejectedValueOnce(new Error('socket hang up'))
+        .mockImplementationOnce(async () => sseResponse(sseEvents('after the drop')))
+        .mockImplementation(async () => sseResponse([]));
+
+      await runToEnd(tail());
+
+      expect(logged()).toEqual(['after the drop']);
+      expect(infoMessages().some(message => message.includes('socket hang up') && message.includes('Retrying'))).toBe(
+        true,
+      );
+    });
+
+    it('warns when the session never sends any lines', async () => {
+      fetchStub.mockImplementation(async () => sseResponse([]));
+
+      const result = await runToEnd(tail());
+
+      expect(result).toStrictEqual({name: 'CreditRatingScorer'});
+      expect(sfCommandStubs.warn.firstCall.args[0]).toContain('closed without sending any log lines');
+    });
+  });
+
+  it('keeps the Cedar path unchanged: no warning when a Cedar session closes without lines', async () => {
+    resolveWith([deployedRecord]);
+    fetchStub.mockResolvedValue(new Response(streamOf([]), {status: 200}));
+
+    await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(sfCommandStubs.warn.called).toBe(false);
+    expect(fetchStub.mock.calls[0][1]).not.toHaveProperty('headers');
+    const call = findLogSessionCall(requestStub);
+    expect(JSON.parse((call![0] as {body: string}).body)).toEqual({lines: 100, tail: true});
+  });
+
+  it('warns that the generation is unknown when the lookup fails, and still reads as Cedar', async () => {
+    resolveWith([deployedRecord]);
+    requestStub.mockImplementation(async (req: {url?: string}) => {
+      if (req.url !== undefined && proxyTarget(req.url).endsWith('/log-sessions')) {
+        return {logplex_url: 'https://logplex.heroku.com/sessions/abc?srv=1'};
+      }
+
+      throw new Error('proxy unavailable');
+    });
+
+    await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(sfCommandStubs.warn.firstCall.args[0]).toContain("Couldn't tell whether CreditRatingScorer");
+    expect(sfCommandStubs.log.getCalls().flatMap(c => c.args)).toEqual(['line one', 'line two']);
+  });
 
   it('streams lines and reports the session ending naturally', async () => {
     resolveWith([deployedRecord]);
@@ -138,6 +288,14 @@ describe('compute tail runtime-log', () => {
     expect(body).toEqual({lines: 100, tail: true});
     // streamLogplexOutput passes an AbortSignal as the second fetch arg, so assert only the URL.
     expect(fetchStub.mock.calls[0][0]).toBe('https://logplex.heroku.com/sessions/abc?srv=1');
+  });
+
+  it('does not warn when lines were received before the session ended', async () => {
+    resolveWith([deployedRecord]);
+
+    await TailRuntimeLog.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    expect(sfCommandStubs.warn.called).toBe(false);
   });
 
   describe('SIGINT', () => {

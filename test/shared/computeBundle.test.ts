@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import type * as FsPromises from 'node:fs/promises';
+
 import {
   mkdir,
   mkdtemp,
@@ -25,7 +27,18 @@ import {join} from 'node:path';
 import {gunzipSync, gzipSync} from 'node:zlib';
 import tarStream from 'tar-stream';
 
-import {packageComputeBundle, unpackComputeBundle} from '../../src/shared/computeBundle.js';
+import {
+  decodeComputeBundle,
+  packageComputeBundle,
+  unpackComputeBundle,
+} from '../../src/shared/computeBundle.js';
+
+// Wrap writeFile/mkdir so tests can assert on (or interleave) disk writes; they pass through to
+// the real implementation unless a test overrides them.
+vi.mock('node:fs/promises', async importOriginal => {
+  const actual = await importOriginal<typeof FsPromises>();
+  return {...actual, mkdir: vi.fn(actual.mkdir), writeFile: vi.fn(actual.writeFile)};
+});
 
 async function extractTarGz(buffer: Buffer): Promise<Record<string, Buffer>> {
   const entries: Record<string, Buffer> = {};
@@ -52,15 +65,19 @@ async function extractTarGz(buffer: Buffer): Promise<Record<string, Buffer>> {
   return entries;
 }
 
-async function buildTarGz(entries: ReadonlyArray<{data: Buffer; name: string}>): Promise<Buffer> {
+type TarEntry = {data: Buffer; linkname?: string; name: string; type?: 'directory' | 'symlink'};
+
+async function buildTarGz(entries: readonly TarEntry[]): Promise<Buffer> {
   const pack = tarStream.pack();
   // Sequential promise chain (entries written one at a time, in order), awaited once.
   let previous = Promise.resolve();
-  for (const {data, name} of entries) {
+  for (const {data, linkname, name, type} of entries) {
     previous = previous.then(
       async () =>
         new Promise<void>((resolve, reject) => {
-          pack.entry({name, size: data.length}, data, err => {
+          pack.entry({
+            linkname, name, size: type ? 0 : data.length, type,
+          }, type ? Buffer.alloc(0) : data, err => {
             if (err) {
               reject(err);
             } else {
@@ -234,7 +251,9 @@ describe('computeBundle.unpackComputeBundle', () => {
     await rm(outputDir, {force: true, recursive: true});
   });
 
-  it('round-trips packageComputeBundle output into api-spec.yaml and the source files', async () => {
+  // The download endpoint returns source.tar.gz directly, i.e. the inner tarball of the nested
+  // upload bundle, so the round trip extracts it out of packageComputeBundle's outer bundle first.
+  it('round-trips the source.tar.gz inside packageComputeBundle output into the source files', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'plugin-compute-bundle-src-'));
     try {
       const appDir = join(projectRoot, 'force-app/main/default/computeApps/CreditRatingScorer');
@@ -245,10 +264,11 @@ describe('computeBundle.unpackComputeBundle', () => {
       await writeFile(join(appDir, 'project.toml'), '[_]\nschema-version = "0.2"\n');
       await writeFile(join(appDir, 'src', 'app.js'), 'console.log("hi");\n');
       const {buffer} = await packageComputeBundle(appDir, 'CreditRatingScorer', projectRoot);
+      const flatSource = (await extractTarGz(buffer))['source.tar.gz'];
 
-      const {fileCount} = await unpackComputeBundle(buffer, outputDir);
+      const {fileCount} = await unpackComputeBundle(flatSource, outputDir);
 
-      expect(fileCount).toBe(4); // Procfile, project.toml, src/app.js, api-spec.yaml
+      expect(fileCount).toBe(4); // api-spec.yaml, Procfile, project.toml, src/app.js
       expect(await readFile(join(outputDir, 'api-spec.yaml'), 'utf8')).toBe('openapi: 3.0.0\n');
       expect(await readFile(join(outputDir, 'Procfile'), 'utf8')).toBe('web: node src/app.js\n');
       expect(await readFile(join(outputDir, 'src', 'app.js'), 'utf8')).toBe('console.log("hi");\n');
@@ -259,38 +279,52 @@ describe('computeBundle.unpackComputeBundle', () => {
 
   it('recreates nested directories for nested source paths', async () => {
     const sourceTarGz = await buildTarGz([{data: Buffer.from('module.exports = {};\n'), name: 'lib/nested/util.js'}]);
-    const outer = await buildTarGz([
-      {data: Buffer.from('openapi: 3.0.0\n'), name: 'api-spec.yaml'},
-      {data: sourceTarGz, name: 'source.tar.gz'},
-    ]);
 
-    const {fileCount} = await unpackComputeBundle(outer, outputDir);
+    const {fileCount} = await unpackComputeBundle(sourceTarGz, outputDir);
 
-    expect(fileCount).toBe(2); // lib/nested/util.js, plus api-spec.yaml
+    expect(fileCount).toBe(1);
     expect(await readFile(join(outputDir, 'lib', 'nested', 'util.js'), 'utf8')).toBe('module.exports = {};\n');
   });
 
-  it('throws error.sourceBundleMalformed when the outer bundle is missing api-spec.yaml', async () => {
+  it('does not require an outer api-spec.yaml or a nested source.tar.gz', async () => {
     const sourceTarGz = await buildTarGz([{data: Buffer.from('web: node src/app.js\n'), name: 'Procfile'}]);
-    const outer = await buildTarGz([{data: sourceTarGz, name: 'source.tar.gz'}]);
 
-    await expect(unpackComputeBundle(outer, outputDir)).rejects.toThrow('api-spec.yaml');
+    const {fileCount} = await unpackComputeBundle(sourceTarGz, outputDir);
+
+    expect(fileCount).toBe(1);
+    expect(await readFile(join(outputDir, 'Procfile'), 'utf8')).toBe('web: node src/app.js\n');
   });
 
-  it('throws error.sourceBundleMalformed when the outer bundle is missing source.tar.gz', async () => {
-    const outer = await buildTarGz([{data: Buffer.from('openapi: 3.0.0\n'), name: 'api-spec.yaml'}]);
+  it('rejects an empty archive instead of reporting a zero-file success', async () => {
+    const emptyTarGz = await buildTarGz([]);
 
-    await expect(unpackComputeBundle(outer, outputDir)).rejects.toThrow('source.tar.gz');
+    await expect(unpackComputeBundle(emptyTarGz, outputDir)).rejects.toThrow('archive contains no files');
   });
 
-  it('rejects a source entry whose name would tar-slip outside appDir, without writing it', async () => {
-    const sourceTarGz = await buildTarGz([{data: Buffer.from('pwned'), name: '../evil.txt'}]);
-    const outer = await buildTarGz([
+  it('rejects the older nested bundle shape (api-spec.yaml + source.tar.gz) without writing anything', async () => {
+    const nested = await buildTarGz([
       {data: Buffer.from('openapi: 3.0.0\n'), name: 'api-spec.yaml'},
-      {data: sourceTarGz, name: 'source.tar.gz'},
+      {data: Buffer.from('inner'), name: 'source.tar.gz'},
     ]);
 
-    await expect(unpackComputeBundle(outer, outputDir)).rejects.toThrow('unsafe entry path');
+    await expect(unpackComputeBundle(nested, outputDir)).rejects.toThrow('older nested bundle shape');
+    await expect(readFile(join(outputDir, 'api-spec.yaml'), 'utf8')).rejects.toThrow();
+  });
+
+  it('rejects an entry whose name would tar-slip outside appDir, without writing it or any sibling', async () => {
+    const sourceTarGz = await buildTarGz([
+      {data: Buffer.from('fine'), name: 'ok.txt'},
+      {data: Buffer.from('pwned'), name: '../evil.txt'},
+    ]);
+    vi.mocked(mkdir).mockClear();
+    vi.mocked(writeFile).mockClear();
+
+    await expect(unpackComputeBundle(sourceTarGz, outputDir)).rejects.toThrow('unsafe entry path');
+    // Every path is validated before any write, so nothing -- not even the safe sibling -- is
+    // started. Assert on mkdir too: it's the first thing a sibling's write calls (synchronously),
+    // whereas its writeFile may not have been reached yet when this assertion runs.
+    expect(mkdir).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
 
     let isEscaped = true;
     try {
@@ -302,13 +336,101 @@ describe('computeBundle.unpackComputeBundle', () => {
     expect(isEscaped, 'evil.txt must not have been written outside outputDir').toBe(false);
   });
 
+  it('rejects a file entry that resolves to appDir itself', async () => {
+    const sourceTarGz = await buildTarGz([{data: Buffer.from('x'), name: './'}]);
+
+    await expect(unpackComputeBundle(sourceTarGz, outputDir)).rejects.toThrow('unsafe entry path');
+  });
+
+  it('skips directory entries instead of writing them as empty files', async () => {
+    const sourceTarGz = await buildTarGz([
+      {data: Buffer.alloc(0), name: './', type: 'directory'},
+      {data: Buffer.alloc(0), name: 'src/', type: 'directory'},
+      {data: Buffer.from('console.log("hi");\n'), name: 'src/app.js'},
+    ]);
+
+    const {fileCount} = await unpackComputeBundle(sourceTarGz, outputDir);
+
+    expect(fileCount).toBe(1);
+    expect(await readFile(join(outputDir, 'src', 'app.js'), 'utf8')).toBe('console.log("hi");\n');
+  });
+
+  it('rejects a symlink entry instead of silently writing it as an empty file', async () => {
+    const sourceTarGz = await buildTarGz([
+      {data: Buffer.from('fine'), name: 'ok.txt'},
+      {
+        data: Buffer.alloc(0), linkname: '/etc/passwd', name: 'link', type: 'symlink',
+      },
+    ]);
+    vi.mocked(writeFile).mockClear();
+
+    await expect(unpackComputeBundle(sourceTarGz, outputDir)).rejects.toThrow('unsupported entry type "symlink"');
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it('collapses entries that name the same file to one write, last entry winning', async () => {
+    const sourceTarGz = await buildTarGz([
+      {data: Buffer.from('first'), name: 'a.txt'},
+      {data: Buffer.from('second'), name: './a.txt'},
+    ]);
+    vi.mocked(writeFile).mockClear();
+
+    const {fileCount} = await unpackComputeBundle(sourceTarGz, outputDir);
+
+    expect(fileCount).toBe(1);
+    expect(writeFile).toHaveBeenCalledOnce();
+    expect(await readFile(join(outputDir, 'a.txt'), 'utf8')).toBe('second');
+  });
+
+  it('decodeComputeBundle validates the archive without touching disk', async () => {
+    vi.mocked(mkdir).mockClear();
+    vi.mocked(writeFile).mockClear();
+
+    const good = await buildTarGz([{data: Buffer.from('x'), name: 'ok.txt'}]);
+    expect(await decodeComputeBundle(good, outputDir)).toEqual([
+      {data: Buffer.from('x'), filePath: join(outputDir, 'ok.txt')},
+    ]);
+
+    const evil = await buildTarGz([{data: Buffer.from('x'), name: '../evil.txt'}]);
+    await expect(decodeComputeBundle(evil, outputDir)).rejects.toThrow('unsafe entry path');
+    await expect(decodeComputeBundle(Buffer.from('nope'), outputDir)).rejects.toThrow('not a valid gzip archive');
+
+    expect(mkdir).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it('waits for every in-flight write to settle before reporting a write failure', async () => {
+    const sourceTarGz = await buildTarGz([
+      {data: Buffer.from('bad'), name: 'bad.txt'},
+      {data: Buffer.from('slow'), name: 'slow.txt'},
+    ]);
+    const realWriteFile = await vi.importActual<typeof FsPromises>('node:fs/promises');
+    let isSlowWriteDone = false;
+    vi.mocked(writeFile).mockImplementation(async (path, data) => {
+      if ((path as string).endsWith('bad.txt')) {
+        throw Object.assign(new Error('no space left on device'), {code: 'ENOSPC'});
+      }
+
+      await new Promise(resolve => {
+        setTimeout(resolve, 50);
+      });
+      await realWriteFile.writeFile(path, data);
+      isSlowWriteDone = true;
+    });
+
+    await expect(unpackComputeBundle(sourceTarGz, outputDir)).rejects.toThrow('no space left on device');
+
+    // With Promise.all the rejection would surface while slow.txt was still being written.
+    expect(isSlowWriteDone).toBe(true);
+  });
+
   it('throws error.sourceBundleMalformed instead of a raw zlib error when the download is not a valid gzip stream', async () => {
     await expect(unpackComputeBundle(Buffer.from('not a gzip archive'), outputDir)).rejects.toThrow(
       'not a valid gzip archive',
     );
   });
 
-  it('throws error.sourceBundleMalformed instead of a raw tar-stream error when the outer archive is gzip but not a valid tar', async () => {
+  it('throws error.sourceBundleMalformed instead of a raw tar-stream error when the archive is gzip but not a valid tar', async () => {
     const notATar = gzipSync(Buffer.from('just some gzipped bytes, not a tar archive'));
 
     await expect(unpackComputeBundle(notATar, outputDir)).rejects.toThrow('not a valid tar archive');

@@ -36,26 +36,123 @@ export type LogplexSnapshot = {
   timedOut: boolean;
 };
 
+export type LogplexFetchOptions = {
+  // Stop reading once no data has arrived for this long, treating what was received as the complete
+  // snapshot (not a timeout). For Fir session URLs, which stream live and never close, so there is
+  // no EOF to wait for; unset for Cedar, where the server closes the response itself.
+  idleMs?: number;
+  // Request and parse the session as Server-Sent Events. Fir session URLs only frame records
+  // (one event per record) when asked for text/event-stream; without it they send bare chunks whose
+  // boundaries are arbitrary. Unset for Cedar, which serves newline-delimited text.
+  sse?: boolean;
+};
+
+// Cedar requests stay byte-for-byte as before: the Accept header is only added when SSE is wanted.
+function requestInit(signal: AbortSignal | undefined, sse: boolean | undefined): RequestInit {
+  return sse ? {headers: {Accept: 'text/event-stream'}, signal} : {signal};
+}
+
+// A server that ignores the Accept header answers text/plain, which the SSE splitter would turn into
+// nothing at all -- so the response, not the request, decides how it is parsed.
+function createSplitterFor(response: Response, sse: boolean | undefined): LineSplitter | undefined {
+  if (!sse) {
+    return undefined;
+  }
+
+  const isSse = (response.headers.get('content-type') ?? '').toLowerCase().includes('text/event-stream');
+  return isSse ? createSseSplitter() : createNewlineSplitter();
+}
+
+type LineSplitter = {
+  flush: () => string[];
+  push: (chunk: string) => string[];
+};
+
+function createNewlineSplitter(): LineSplitter {
+  let buffer = '';
+  return {
+    flush() {
+      const rest = buffer;
+      buffer = '';
+      return rest.length > 0 ? [rest] : [];
+    },
+    push(chunk) {
+      const lines = (buffer + chunk).split('\n');
+      buffer = lines.pop() ?? '';
+      return lines;
+    },
+  };
+}
+
+// Events end at a blank line; an event's `data:` fields carry the record (id/comment/other fields
+// are ignored). A trailing incomplete event is dropped, as the SSE spec does for a closed stream.
+function createSseSplitter(): LineSplitter {
+  let buffer = '';
+  return {
+    flush: () => [],
+    push(chunk) {
+      const events = (buffer + chunk).replaceAll('\r\n', '\n').split('\n\n');
+      buffer = events.pop() ?? '';
+      return events.flatMap(event =>
+        event
+          .split('\n')
+          .filter(field => field.startsWith('data:'))
+          .map(field => field.slice('data:'.length).replace(/^ /v, ''))
+          .join('\n')
+          .split(/\n+/v)
+          .filter(line => line.length > 0),
+      );
+    },
+  };
+}
+
 // On timeout, returns the partial output if any arrived rather than discarding it; throws only
-// when nothing arrived before the deadline.
+// when nothing arrived before the deadline. With `idleMs`, an idle gap ends the read cleanly
+// (including with no output at all) instead of counting as a timeout.
 export async function fetchLogplexOutput(
   logplexUrl: string,
   timeoutMs: number = LOGPLEX_FETCH_TIMEOUT_MS,
+  options: LogplexFetchOptions = {},
 ): Promise<LogplexSnapshot> {
-  const signal = AbortSignal.timeout(timeoutMs);
+  const {idleMs, sse} = options;
+  const deadline = AbortSignal.timeout(timeoutMs);
+  const idle = new AbortController();
+  const signal = idleMs === undefined ? deadline : AbortSignal.any([deadline, idle.signal]);
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  const armIdleTimer = (): void => {
+    if (idleMs === undefined) {
+      return;
+    }
+
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      idle.abort();
+    }, idleMs);
+  };
+
+  let splitter: LineSplitter | undefined;
+  const decoder = new TextDecoder();
+  const toOutput = (text: string): string =>
+    splitter ? splitter.push(text).map(line => `${line}\n`).join('') : text;
+  const decode = (bytes?: Uint8Array): string => toOutput(decoder.decode(bytes, {stream: bytes !== undefined}));
+  const finish = (): string =>
+    decode() + (splitter ? splitter.flush().map(line => `${line}\n`).join('') : '');
+
   let output = '';
   try {
-    const response = await fetch(logplexUrl, {signal});
+    const response = await fetch(logplexUrl, requestInit(signal, sse));
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
 
+    splitter = createSplitterFor(response, sse);
     if (!response.body) {
-      return {output: await response.text(), timedOut: false};
+      return {output: toOutput(await response.text()), timedOut: false};
     }
 
+    // Armed only once connected, so "idle" means connected-but-silent, not slow to connect.
+    armIdleTimer();
     const reader = response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
-    const decoder = new TextDecoder();
     while (true) {
       // Sequential reads of one ordered stream -- there's nothing to parallelize.
       // eslint-disable-next-line no-await-in-loop
@@ -64,11 +161,16 @@ export async function fetchLogplexOutput(
         break;
       }
 
-      output += decoder.decode(value, {stream: true});
+      armIdleTimer();
+      output += decode(value);
     }
 
-    return {output: output + decoder.decode(), timedOut: false};
+    return {output: output + finish(), timedOut: false};
   } catch (error) {
+    if (idle.signal.aborted && !deadline.aborted) {
+      return {output: output + finish(), timedOut: false};
+    }
+
     if (signal.aborted) {
       if (output.length > 0) {
         return {output, timedOut: true};
@@ -78,6 +180,8 @@ export async function fetchLogplexOutput(
     }
 
     throw messages.createError('error.logStreamFailed', [(error as Error).message]);
+  } finally {
+    clearTimeout(idleTimer);
   }
 }
 
@@ -97,23 +201,74 @@ export async function fetchBuildOutputStream(outputStreamUrl: string): Promise<s
   }
 }
 
-export type StreamEndReason = 'aborted' | 'eof';
+// 'stalled' means the stream went silent for `stallMs` without closing, so the reader was cancelled.
+export type StreamEndReason = 'aborted' | 'eof' | 'stalled';
 
-// Reports whether the stream ended because the server closed it (EOF) or because the caller's
-// AbortSignal fired, rather than leaving the caller to re-derive that from signal.aborted after
-// the fact -- ambient signal state can flip between a natural EOF and a same-instant abort,
-// misattributing one for the other.
+export type StreamLogplexOptions = Pick<LogplexFetchOptions, 'sse'> & {
+  // Called for every chunk read, so a caller can tell a session that delivered data from one that
+  // only opened and closed.
+  onActivity?: () => void;
+  // Give up on a stream that has been silent for this long (a half-open socket or wedged proxy never
+  // closes, so it would otherwise hang until Ctrl-C). Armed once connected.
+  stallMs?: number;
+};
+
+// Reports whether the stream ended because the server closed it (EOF), because it went silent
+// (stalled), or because the caller's AbortSignal fired, rather than leaving the caller to
+// re-derive that from signal.aborted after the fact -- ambient signal state can flip between a
+// natural EOF and a same-instant abort, misattributing one for the other.
 export async function streamLogplexOutput(
   logplexUrl: string,
   onLine: (line: string) => void,
   signal?: AbortSignal,
+  options: StreamLogplexOptions = {},
 ): Promise<StreamEndReason> {
-  let response: Response;
+  const stall = new AbortController();
+  const requestSignal = signal ? AbortSignal.any([signal, stall.signal]) : stall.signal;
+  let stallTimer: ReturnType<typeof setTimeout> | undefined;
+  const armStallTimer = (): void => {
+    if (options.stallMs === undefined) {
+      return;
+    }
+
+    clearTimeout(stallTimer);
+    stallTimer = setTimeout(() => {
+      stall.abort();
+    }, options.stallMs);
+  };
+
   try {
-    response = await fetch(logplexUrl, {signal});
-  } catch (error) {
+    return await readLogplexStream(logplexUrl, onLine, signal, requestSignal, stall, armStallTimer, options);
+  } finally {
+    clearTimeout(stallTimer);
+  }
+}
+
+async function readLogplexStream(
+  logplexUrl: string,
+  onLine: (line: string) => void,
+  signal: AbortSignal | undefined,
+  requestSignal: AbortSignal,
+  stall: AbortController,
+  armStallTimer: () => void,
+  options: StreamLogplexOptions,
+): Promise<StreamEndReason> {
+  // An abort is either the caller's (stop) or the stall timer's (recreate); anything else is a failure.
+  const endedByAbort = (): StreamEndReason | undefined => {
     if (signal?.aborted) {
       return 'aborted';
+    }
+
+    return stall.signal.aborted ? 'stalled' : undefined;
+  };
+
+  let response: Response;
+  try {
+    response = await fetch(logplexUrl, requestInit(requestSignal, options.sse));
+  } catch (error) {
+    const ended = endedByAbort();
+    if (ended) {
+      return ended;
     }
 
     throw messages.createError('error.logStreamFailed', [(error as Error).message]);
@@ -132,7 +287,8 @@ export async function streamLogplexOutput(
   // actually returns.
   const reader = response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
   const decoder = new TextDecoder();
-  let buffer = '';
+  const splitter = createSplitterFor(response, options.sse) ?? createNewlineSplitter();
+  armStallTimer();
   try {
     while (true) {
       // Sequential reads of one ordered stream -- there's nothing to parallelize.
@@ -142,16 +298,16 @@ export async function streamLogplexOutput(
         break;
       }
 
-      buffer += decoder.decode(value, {stream: true});
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) {
+      armStallTimer();
+      options.onActivity?.();
+      for (const line of splitter.push(decoder.decode(value, {stream: true}))) {
         onLine(line);
       }
     }
   } catch (error) {
-    if (signal?.aborted) {
-      return 'aborted';
+    const ended = endedByAbort();
+    if (ended) {
+      return ended;
     }
 
     throw messages.createError('error.logStreamFailed', [(error as Error).message]);
@@ -160,8 +316,8 @@ export async function streamLogplexOutput(
   // Reaching here means reader.read() resolved with done:true, i.e. a genuine server-side close
   // -- not an abort artifact (an aborted fetch rejects the read instead), so this is unambiguously
   // EOF even if the signal happens to fire in the same tick.
-  if (buffer.length > 0) {
-    onLine(buffer);
+  for (const line of splitter.flush()) {
+    onLine(line);
   }
 
   return 'eof';

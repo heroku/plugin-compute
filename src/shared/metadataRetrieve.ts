@@ -17,8 +17,6 @@
 import {getLogger} from '@oclif/core';
 import {type Connection, Messages} from '@salesforce/core';
 import JSZip from 'jszip';
-import {mkdir, writeFile} from 'node:fs/promises';
-import {join} from 'node:path';
 
 import {resolveComputeApiVersion} from './metadataApiVersion.js';
 import {PLUGIN_NAME} from './plugin-name.js';
@@ -37,7 +35,14 @@ const {debug} = getLogger('sf:compute:metadataRetrieve');
 // retrieve API directly instead. Note the asymmetry with deployComputeMetadata's
 // deployResult.complete(true): RetrieveResultLocator#complete() takes no argument (unlike
 // DeployResultLocator#complete(includeDetails?)), per @jsforce/jsforce-node's metadata.d.ts.
-export async function retrieveComputeMetadata(connection: Connection, appDir: string, name: string): Promise<void> {
+// Returns the file rather than writing it, so the caller can finish every network call before
+// touching disk (see retrieve.ts).
+export type RetrievedMetadata = {
+  contents: Buffer;
+  fileName: string;
+};
+
+export async function retrieveComputeMetadata(connection: Connection, name: string): Promise<RetrievedMetadata> {
   const version = resolveComputeApiVersion(connection);
   const retrieveResult = connection.metadata.retrieve({
     apiVersion: Number(version),
@@ -74,6 +79,5 @@ export async function retrieveComputeMetadata(connection: Connection, appDir: st
     ]);
   }
 
-  await mkdir(appDir, {recursive: true});
-  await writeFile(join(appDir, metaFileName), await metaEntry.async('nodebuffer'));
+  return {contents: await metaEntry.async('nodebuffer'), fileName: metaFileName};
 }

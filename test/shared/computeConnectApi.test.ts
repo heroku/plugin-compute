@@ -67,7 +67,7 @@ describe('computeConnectApi.downloadComputeSource', () => {
     vi.restoreAllMocks();
   });
 
-  it('GETs /connect/compute/{app_id_or_name}/source with { encoding: binary } and returns the exact original bytes', async () => {
+  it('GETs /connect/compute/{app_id_or_name}/builds/latest/source with { encoding: binary } and returns the exact original bytes', async () => {
     // Bytes >0x7F are where UTF-8 decoding would corrupt a binary gzip payload -- this is a
     // real byte-content round-trip assertion, not just a "was called" assertion.
     const original = Buffer.from([0x1F, 0x8B, 0x00, 0xFF, 0x80, 0x41, 0x00, 0xDE, 0xAD, 0xBE, 0xEF]);
@@ -80,7 +80,7 @@ describe('computeConnectApi.downloadComputeSource', () => {
     expect(request).toHaveBeenCalledOnce();
     const [httpRequest, options] = request.mock.calls[0] as [{method: string; url: string}, {encoding: string}];
     expect(httpRequest.method).toBe('GET');
-    expect(httpRequest.url).toBe('/connect/compute/CreditRatingScorer/source');
+    expect(httpRequest.url).toBe('/connect/compute/CreditRatingScorer/builds/latest/source');
     expect(options).toEqual({encoding: 'binary'});
   });
 
@@ -91,7 +91,7 @@ describe('computeConnectApi.downloadComputeSource', () => {
     await downloadComputeSource(connection, {appIdOrName: 'my app/1'});
 
     const [httpRequest] = request.mock.calls[0] as [{url: string}];
-    expect(httpRequest.url).toBe('/connect/compute/my%20app%2F1/source');
+    expect(httpRequest.url).toBe('/connect/compute/my%20app%2F1/builds/latest/source');
   });
 
   it('translates a failed request into a createError-style message', async () => {

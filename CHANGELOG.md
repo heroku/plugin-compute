@@ -2,6 +2,27 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.4.4](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.3...plugin-compute-v0.4.4) (2026-11-11)
+
+
+### Bug Fixes
+
+* leave no app directory behind when sf compute source retrieve fails ([#77](https://github.com/heroku/plugin-compute/issues/77)) ([cdefb40](https://github.com/heroku/plugin-compute/commit/cdefb4088067a427ec1cc05a2f17a752db5bd006))
+
+## [0.4.3](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.2...plugin-compute-v0.4.3) (2026-11-06)
+
+
+### Bug Fixes
+
+* handle flat source.tar.gz response in sf compute source retrieve ([#75](https://github.com/heroku/plugin-compute/issues/75)) ([fb1b939](https://github.com/heroku/plugin-compute/commit/fb1b93952435a4b995af89bbd2203f9d84ae060a))
+
+## [0.4.2](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.1...plugin-compute-v0.4.2) (2026-11-03)
+
+
+### Features
+
+* support runtime-log fetch and tail on Fir apps via log sessions ([#73](https://github.com/heroku/plugin-compute/issues/73)) ([8f5b5d4](https://github.com/heroku/plugin-compute/commit/8f5b5d452feb43244b97ccc34b23732b820bfbeb))
+
 ## [0.4.1](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.3.2...plugin-compute-v0.4.1) (2026-10-29)
 
 

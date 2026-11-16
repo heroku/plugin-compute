@@ -1,6 +1,7 @@
 import type {Connection} from '@salesforce/core';
 
 import JSZip from 'jszip';
+
 /*
  * Copyright 2026, Salesforce, Inc.
  *
@@ -16,10 +17,6 @@ import JSZip from 'jszip';
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {mkdtemp, readFile, rm} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
-import {join} from 'node:path';
-
 import {retrieveComputeMetadata} from '../../src/shared/metadataRetrieve.js';
 
 async function zipBase64(entries: Record<string, string>): Promise<string> {
@@ -32,14 +29,7 @@ async function zipBase64(entries: Record<string, string>): Promise<string> {
 }
 
 describe('metadataRetrieve.retrieveComputeMetadata', () => {
-  let appDir: string;
-
-  beforeEach(async () => {
-    appDir = await mkdtemp(join(tmpdir(), 'plugin-compute-metaretrieve-'));
-  });
-
-  afterEach(async () => {
-    await rm(appDir, {force: true, recursive: true});
+  afterEach(() => {
     vi.restoreAllMocks();
   });
 
@@ -60,7 +50,7 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
     });
     const {connection, retrieve} = stubConnection({success: true, zipFile});
 
-    await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
+    await retrieveComputeMetadata(connection, 'CreditRatingScorer');
 
     expect(retrieve).toHaveBeenCalledOnce();
     const [request] = retrieve.mock.calls[0] as [
@@ -78,22 +68,22 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
     });
     const {complete, connection} = stubConnection({success: true, zipFile});
 
-    await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
+    await retrieveComputeMetadata(connection, 'CreditRatingScorer');
 
     expect(complete).toHaveBeenCalledOnce();
     expect(complete.mock.calls[0]).toEqual([]);
   });
 
-  it('writes the retrieved computeApp-meta.xml into appDir', async () => {
+  it('returns the retrieved computeApp-meta.xml contents without writing anything', async () => {
     const zipFile = await zipBase64({
       'computeApps/CreditRatingScorer.computeApp': '<ComputeApp><label>x</label></ComputeApp>\n',
     });
     const {connection} = stubConnection({success: true, zipFile});
 
-    await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
+    const result = await retrieveComputeMetadata(connection, 'CreditRatingScorer');
 
-    const written = await readFile(join(appDir, 'CreditRatingScorer.computeApp-meta.xml'), 'utf8');
-    expect(written).toBe('<ComputeApp><label>x</label></ComputeApp>\n');
+    expect(result.fileName).toBe('CreditRatingScorer.computeApp-meta.xml');
+    expect(result.contents.toString('utf8')).toBe('<ComputeApp><label>x</label></ComputeApp>\n');
   });
 
   // Regression guard: mirrors the same floor in metadataDeploy.test.ts -- ComputeApp
@@ -105,7 +95,7 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
     const {connection, retrieve} = stubConnection({success: true, zipFile});
     connection.getApiVersion = () => '62.0';
 
-    await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
+    await retrieveComputeMetadata(connection, 'CreditRatingScorer');
 
     const [request] = retrieve.mock.calls[0] as [{apiVersion: number; unpackaged: {version: string}}];
     expect(request.apiVersion).toBe(68);
@@ -117,7 +107,7 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
 
     let error: Error | undefined;
     try {
-      await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
+      await retrieveComputeMetadata(connection, 'CreditRatingScorer');
     } catch (error_) {
       error = error_ as Error;
     }
@@ -133,7 +123,7 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
 
     let error: Error | undefined;
     try {
-      await retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer');
+      await retrieveComputeMetadata(connection, 'CreditRatingScorer');
     } catch (error_) {
       error = error_ as Error;
     }
@@ -150,7 +140,7 @@ describe('metadataRetrieve.retrieveComputeMetadata', () => {
       zipFile,
     });
 
-    await expect(retrieveComputeMetadata(connection, appDir, 'CreditRatingScorer')).rejects.toThrow(
+    await expect(retrieveComputeMetadata(connection, 'CreditRatingScorer')).rejects.toThrow(
       "Entity type: 'ComputeApp' is unknown",
     );
   });

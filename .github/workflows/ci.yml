@@ -9,9 +9,9 @@ on:
 
 jobs:
   # Lint is platform-independent, so run it once on a single runner rather than
-  # across the test matrix. Private repo -> self-hosted sfdc-hk-* runners.
+  # across the test matrix. Public repo -> GitHub-hosted runners.
   lint:
-    runs-on: sfdc-hk-ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - name: Use Node.js
@@ -28,8 +28,7 @@ jobs:
     strategy:
       matrix:
         node-version: [22.x, 24.x]
-        os:
-          [sfdc-hk-ubuntu-latest, sfdc-hk-macos-latest, sfdc-hk-windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
       - name: Use Node.js ${{ matrix.node-version }}
@@ -49,7 +48,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [sfdc-hk-ubuntu-latest, sfdc-hk-windows-latest]
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
       - name: Use Node.js
@@ -72,7 +71,7 @@ jobs:
   # Not a required check. `npm ci` already builds via `prepare`.
   signing-dry-run:
     if: github.event_name == 'pull_request'
-    runs-on: sfdc-hk-ubuntu-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:

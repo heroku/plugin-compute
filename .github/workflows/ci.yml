@@ -70,19 +70,36 @@ jobs:
   # --dry-run) with no credentials, so signing breakage shows up before release.
   # Not a required check. `npm ci` already builds via `prepare`.
   signing-dry-run:
-    if: github.event_name == 'pull_request'
+    # Skipped for fork and Dependabot PRs: they cannot read the GitHub App secret.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
+      # This repo is public, so it cannot call the private npm-release-workflows
+      # actions directly. Check that repo out with a GitHub App token instead.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.DEV_TOOLS_RELEASE_WORKFLOW_APP_ID }}
+          private-key: ${{ secrets.DEV_TOOLS_RELEASE_WORKFLOW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
       - uses: actions/checkout@v7
+      - name: Checkout workflows repository
+        uses: actions/checkout@v7
+        with:
+          repository: heroku/npm-release-workflows
+          token: ${{ steps.app-token.outputs.token }}
+          path: workflows-repo
+          ref: main
       - name: Use Node.js
         uses: actions/setup-node@v7
         with:
           node-version: 22.x
       - run: npm ci
       - name: Sign and publish (dry run)
-        uses: heroku/npm-release-workflows/.github/actions/sign-and-publish@main
+        uses: ./workflows-repo/.github/actions/sign-and-publish
         with:
           signing-mode: dry-run
           npm_tag: latest

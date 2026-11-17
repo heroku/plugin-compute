@@ -7,7 +7,7 @@
   "dependencies": {
     "@oclif/core": "^4",
     "@salesforce/core": "^8.32.6",
-    "@salesforce/kit": "^4.0.1",
+    "@salesforce/kit": "^4.0.8",
     "@salesforce/sf-plugins-core": "^12",
     "@salesforce/source-deploy-retrieve": "^12.37.2",
     "form-data": "^4.0.6",
@@ -33,7 +33,7 @@
     "rimraf": "^6.1.4",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
-    "vite": "^7",
+    "vite": "^8",
     "vitest": "^5.0.5"
   },
   "engines": {

@@ -1,0 +1,4 @@
+false_positive: []
+not_exploitable:
+  - id: .github/workflows/push_dependabot_metadata.yml:543b367dfefff5c1b598b95a15b11ecdca06025392bef401d031c5d91fb97efc
+    justification: First-party action owned by the heroku organization (heroku/security-alerts-action). The workflow deliberately follows its stable channel, as in the standard productionization template, so fixes reach every repo without per-repo bumps.

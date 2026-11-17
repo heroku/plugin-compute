@@ -2,6 +2,14 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.4.6](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.5...plugin-compute-v0.4.6) (2026-11-17)
+
+
+### Dependencies
+
+* bump @salesforce/kit from 4.0.1 to 4.0.8 ([#69](https://github.com/heroku/plugin-compute/issues/69)) ([180bb45](https://github.com/heroku/plugin-compute/commit/180bb45ecdc74e71e6b64b90d677a4c9b7a09ae1))
+* bump fast-xml-parser from 5.11.2 to 5.12.0 ([#80](https://github.com/heroku/plugin-compute/issues/80)) ([c12d855](https://github.com/heroku/plugin-compute/commit/c12d8555dd7e6b2d7bfbd6a80bd4f5656521fed9))
+
 ## [0.4.5](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.4...plugin-compute-v0.4.5) (2026-11-17)
 
 

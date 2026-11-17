@@ -2,6 +2,13 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.4.5](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.4...plugin-compute-v0.4.5) (2026-11-17)
+
+
+### Dependencies
+
+* override transitive basic-ftp to ^6.2.4 ([#83](https://github.com/heroku/plugin-compute/issues/83)) ([e2ee7f2](https://github.com/heroku/plugin-compute/commit/e2ee7f2d4660fb945579a4f112805a1f6ee5aadc))
+
 ## [0.4.4](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.3...plugin-compute-v0.4.4) (2026-11-11)
 
 

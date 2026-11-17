@@ -1,7 +1,7 @@
 {
   "name": "@heroku/plugin-compute",
   "description": "CLI for Compute",
-  "version": "0.4.1",
+  "version": "0.4.5",
   "author": "Heroku",
   "bugs": "https://github.com/heroku/plugin-compute/issues",
   "dependencies": {
@@ -117,7 +117,8 @@
     "fast-uri": "^3.1.9",
     "@jsforce/jsforce-node": "^3.10.27",
     "typescript": "$typescript",
-    "http-cache-semantics": "^4.3.0"
+    "http-cache-semantics": "^4.3.0",
+    "basic-ftp": "^6.2.4"
   },
   "exports": "./dist/index.js",
   "type": "module"

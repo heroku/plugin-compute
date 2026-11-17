@@ -44,6 +44,26 @@ Stopped tailing %s.
 
 The log session for %s ended.
 
+# info.tailReconnecting
+
+The log session for %s expired; reconnecting.
+
+# info.tailStalled
+
+The log session for %s went quiet; reconnecting.
+
+# info.tailRetrying
+
+Lost the log session for %s (%s). Retrying in %s s (attempt %s of %s).
+
+# warning.generationUnknown
+
+Couldn't tell whether %s is a Fir or Cedar app, so it's being read as a Cedar app. If it's a Fir app, its log output may be missing or delayed; run the command again.
+
+# warning.tailEndedWithoutOutput
+
+The log session for %s closed without sending any log lines. The app may have produced no output yet; run the command again, or check that the app is running.
+
 # examples
 
 - Tail the log until stopped with Ctrl-C:

@@ -2,6 +2,13 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.4.7](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.6...plugin-compute-v0.4.7) (2026-11-18)
+
+
+### Bug Fixes
+
+* publish @heroku/plugin-compute with public access ([#87](https://github.com/heroku/plugin-compute/issues/87)) ([cd39ebf](https://github.com/heroku/plugin-compute/commit/cd39ebf6852f8f4ff4c2697de8f08bc8a8512ef7))
+
 ## [0.4.6](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.5...plugin-compute-v0.4.6) (2026-11-17)
 
 

@@ -93,8 +93,7 @@ export const fetchTemplateSource: FetchTemplateSource = async language => {
 
 // Decompress and read every file entry (directory entries are skipped) into memory, keyed by
 // its full in-tarball name. Wraps decompression/parse failures as error.templateSourceMalformed
-// rather than letting a raw zlib/tar-stream error reach the user -- mirrors computeBundle.ts's
-// untarGzip, which establishes the same idiom for the deploy-bundle tarball.
+// rather than letting a raw zlib/tar-stream error reach the user.
 async function untarGzip(buffer: Buffer, language: Language): Promise<Record<string, Buffer>> {
   return new Promise((resolveEntries, reject) => {
     let decompressed: Buffer;

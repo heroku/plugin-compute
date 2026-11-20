@@ -627,42 +627,28 @@ _See code: [src/commands/compute/set/config.ts](https://github.com/heroku/plugin
 
 ## `sf compute source retrieve`
 
-Retrieve a compute app's source and metadata from an org into your local Salesforce DX project.
+Show how to retrieve a compute app.
 
 ```
 USAGE
-  $ sf compute source retrieve -n <value> -o <value> [--json] [--flags-dir <value>] [--api-version <value>] [-d <value>]
-
-FLAGS
-  -d, --output-dir=<value>   [default: force-app/main/default/computeApps] Directory to create the app in.
-  -n, --name=<value>         (required) DeveloperName of the compute app to retrieve (or <namespace>\_\_<developerName>
-                             if it was deployed under a namespace).
-  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
-                             configuration variable is already set.
-      --api-version=<value>  Override the api version used for api requests made by this command
+  $ sf compute source retrieve [--json] [--flags-dir <value>]
 
 GLOBAL FLAGS
   --flags-dir=<value>  Import flag values from a directory.
   --json               Format output as json.
 
 DESCRIPTION
-  Retrieve a compute app's source and metadata from an org into your local Salesforce DX project.
+  Show how to retrieve a compute app.
 
-  Creates the compute app's directory under force-app/main/default/computeApps/<name>/
-  (or --output-dir), retrieves its <name>.computeApp-meta.xml through the Metadata
-  API, then downloads its source code through the Connect API and extracts it
-  into that same directory. Deploy it with project deploy start.
+  This command no longer retrieves compute apps. Install the Compute variant of
+  the deploy-retrieve plugin and use project retrieve start from your Salesforce
+  DX project instead.
 
 EXAMPLES
-  Retrieve a compute app's source and metadata from an org:
+  Install the plugin and retrieve a compute app:
 
-    $ sf compute source retrieve --name CreditRatingScorer --target-org my-org
-
-FLAG DESCRIPTIONS
-  -d, --output-dir=<value>  Directory to create the app in.
-
-    Defaults to force-app/main/default/computeApps. The app itself is created in a
-    subdirectory named after --name.
+    $ sf plugins install @salesforce/plugin-deploy-retrieve@compute
+    $ sf project retrieve start --metadata ComputeApp:my_app --target-org my-org
 ```
 
 _See code: [src/commands/compute/source/retrieve.ts](https://github.com/heroku/plugin-compute/blob/v0.4.7/src/commands/compute/source/retrieve.ts)_

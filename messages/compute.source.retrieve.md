@@ -1,63 +1,26 @@
 # summary
 
-Retrieve a compute app's source and metadata from an org into your local Salesforce DX project.
+Show how to retrieve a compute app.
 
 # description
 
-Creates the compute app's directory under force-app/main/default/computeApps/<name>/
-(or --output-dir), retrieves its <name>.computeApp-meta.xml through the Metadata
-API, then downloads its source code through the Connect API and extracts it
-into that same directory. Deploy it with project deploy start.
-
-# flags.name.summary
-
-DeveloperName of the compute app to retrieve (or <namespace>\_\_<developerName>
-if it was deployed under a namespace).
-
-# flags.output-dir.summary
-
-Directory to create the app in.
-
-# flags.output-dir.description
-
-Defaults to force-app/main/default/computeApps. The app itself is created in a
-subdirectory named after --name.
+This command no longer retrieves compute apps. Install the Compute variant of
+the deploy-retrieve plugin and use project retrieve start from your Salesforce
+DX project instead.
 
 # examples
 
-- Retrieve a compute app's source and metadata from an org:
+- Install the plugin and retrieve a compute app:
 
-  <%= config.bin %> <%= command.id %> --name CreditRatingScorer --target-org my-org
+  <%= config.bin %> plugins install @salesforce/plugin-deploy-retrieve@compute
 
-# error.appAlreadyExists
+  <%= config.bin %> project retrieve start --metadata ComputeApp:my_app --target-org my-org
 
-A directory named %s already exists at %s. Choose a different --output-dir, or remove the existing directory and run this command again.
+# error.migrate
 
-# error.appAlreadyExists.actions
+This command no longer retrieves compute apps.
 
-- Choose a different --output-dir.
-- Remove the existing directory and run this command again.
+# error.migrate.actions
 
-# info.retrieving
-
-Retrieving compute app %s from %s...
-
-# info.retrievedMetadata
-
-retrieved %s
-
-# info.downloadingSource
-
-Downloading source...
-
-# info.extractedSource
-
-extracted %s files
-
-# info.done
-
-Retrieved compute app %s into %s.
-
-# warning.cleanupFailed
-
-Retrieving the compute app failed, and the partially written directory %s could not be removed (%s). Delete it before running this command again, or it will stop with "already exists".
+- Run sf plugins install @salesforce/plugin-deploy-retrieve@compute.
+- From your Salesforce DX project, run sf project retrieve start --metadata ComputeApp:<app-name> --target-org <org>.

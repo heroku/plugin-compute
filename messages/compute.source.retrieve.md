@@ -16,7 +16,7 @@ replacement today, install the deploy-retrieve plugin (sf plugins install
 
 # deprecation.message
 
-This command will be available as sf project retrieve start in version 1.0.0 of plugin-compute. Until then, run sf plugins install @salesforce/plugin-deploy-retrieve@compute, then sf project retrieve start --metadata ComputeApp:<app-name> --target-org <org>.
+This command will be removed in a future release of plugin-compute. Instead, run sf plugins install @salesforce/plugin-deploy-retrieve@compute, then sf project retrieve start --metadata ComputeApp:<app-name> --target-org <org>.
 
 # flags.name.summary
 

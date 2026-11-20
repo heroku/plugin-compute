@@ -2,6 +2,13 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.4.8](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.7...plugin-compute-v0.4.8) (2026-11-20)
+
+
+### Dependencies
+
+* bump @salesforce/core to 9, sf-plugins-core to 13, SDR to 13, and @oclif/core to 5 ([#86](https://github.com/heroku/plugin-compute/issues/86)) ([1d33b4d](https://github.com/heroku/plugin-compute/commit/1d33b4d53eff0e4e8742ed683607a78864e94ad6))
+
 ## [0.4.7](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.6...plugin-compute-v0.4.7) (2026-11-18)
 
 

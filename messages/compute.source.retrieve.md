@@ -9,6 +9,15 @@ Creates the compute app's directory under force-app/main/default/computeApps/<na
 API, then downloads its source code through the Connect API and extracts it
 into that same directory. Deploy it with project deploy start.
 
+This command is deprecated but still works. To retrieve a compute app with the
+replacement today, install the deploy-retrieve plugin (sf plugins install
+@salesforce/plugin-deploy-retrieve@compute), then run sf project retrieve start
+--metadata ComputeApp:<app-name>.
+
+# deprecation.message
+
+This command will be available as sf project retrieve start in version 1.0.0 of plugin-compute. Until then, run sf plugins install @salesforce/plugin-deploy-retrieve@compute, then sf project retrieve start --metadata ComputeApp:<app-name> --target-org <org>.
+
 # flags.name.summary
 
 DeveloperName of the compute app to retrieve (or <namespace>\_\_<developerName>

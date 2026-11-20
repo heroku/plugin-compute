@@ -653,6 +653,11 @@ DESCRIPTION
   API, then downloads its source code through the Connect API and extracts it
   into that same directory. Deploy it with project deploy start.
 
+  This command is deprecated but still works. To retrieve a compute app with the
+  replacement today, install the deploy-retrieve plugin (sf plugins install
+  @salesforce/plugin-deploy-retrieve@compute), then run sf project retrieve start
+  --metadata ComputeApp:<app-name>.
+
 EXAMPLES
   Retrieve a compute app's source and metadata from an org:
 

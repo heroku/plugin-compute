@@ -160,6 +160,22 @@ describe('compute source retrieve', () => {
     vi.restoreAllMocks();
   });
 
+  it('is deprecated in favor of sf project retrieve start', () => {
+    expect(Retrieve.state).toBe('deprecated');
+    expect(Retrieve.deprecationOptions?.to).toBe('project retrieve start');
+    expect(Retrieve.deprecationOptions?.message).toContain('sf plugins install @salesforce/plugin-deploy-retrieve@compute');
+    expect(Retrieve.deprecationOptions?.message).toContain('sf project retrieve start --metadata ComputeApp:<app-name>');
+  });
+
+  it('emits the deprecation warning exactly once at runtime', async () => {
+    await Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username]);
+
+    const deprecationWarnings = sfCommandStubs.warn
+      .getCalls()
+      .filter(call => (call.args as [string])[0].includes(Retrieve.deprecationOptions.message));
+    expect(deprecationWarnings).toHaveLength(1);
+  });
+
   it('creates the app directory, retrieves metadata, then downloads and extracts source', async () => {
     const result = await Retrieve.run(['--name', 'CreditRatingScorer', '--target-org', testOrg.username, '--api-version', '70.0']);
     expect(connectionSpy).toHaveBeenCalledWith('70.0');

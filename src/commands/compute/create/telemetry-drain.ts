@@ -79,7 +79,9 @@ export default class TelemetryDrainCreate extends SfCommand<ComputeTelemetryDrai
     // Validate every input before the first network call so a typo never costs a round trip.
     const signals = validateAndFormatSignals(flags.signals);
     const exporterType = exporterTypeForTransport(flags.transport);
-    const headers = flags.header ? parseHeaderFlags(flags.header) : undefined;
+    // Always send exporter.headers, even when empty: the Heroku API rejects a create request that omits it
+    // (despite the OpenAPI spec marking it optional), and the Heroku CLI's `telemetry:add` does the same.
+    const headers = flags.header ? parseHeaderFlags(flags.header) : {};
 
     const connection = flags['target-org'].getConnection(flags['api-version']);
     const appId = await resolveHerokuAppId(connection, name);

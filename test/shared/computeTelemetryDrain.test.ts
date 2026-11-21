@@ -223,6 +223,15 @@ describe('computeTelemetryDrain.toTelemetryDrainResult', () => {
     });
   });
 
+  it('keeps an empty headers object as {} (what create now sends and the API echoes back)', () => {
+    expect(
+      toTelemetryDrainResult({
+        id: 'drain-3',
+        exporter: {type: 'otlphttp', endpoint: 'https://c.example.com', headers: {}},
+      }).headers,
+    ).toEqual({});
+  });
+
   it('defaults absent fields (signals to [], the rest undefined)', () => {
     expect(toTelemetryDrainResult({id: 'drain-2'})).toEqual({
       id: 'drain-2',

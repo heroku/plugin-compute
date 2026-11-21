@@ -93,7 +93,8 @@ describe('compute create telemetry-drain', () => {
     expect(JSON.parse(post!.body)).toEqual({
       owner: {id: APP_ID, type: 'app'},
       signals: ['traces', 'metrics', 'logs'],
-      exporter: {type: 'otlphttp', endpoint: URL_FLAG},
+      // headers is sent as {} (not omitted) because the Heroku API rejects a create without it.
+      exporter: {type: 'otlphttp', endpoint: URL_FLAG, headers: {}},
     });
     expect(result).toMatchObject({app: 'CreditRatingScorer', id: 'drain-new', transport: 'HTTP'});
   });

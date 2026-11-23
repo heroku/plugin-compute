@@ -2,6 +2,13 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.4.9](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.8...plugin-compute-v0.4.9) (2026-11-23)
+
+
+### Bug Fixes
+
+* send empty exporter headers when creating a telemetry drain without --header ([#92](https://github.com/heroku/plugin-compute/issues/92)) ([6d4ce90](https://github.com/heroku/plugin-compute/commit/6d4ce907debdc9d18f438d5f5b40994907994392))
+
 ## [0.4.8](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.7...plugin-compute-v0.4.8) (2026-11-20)
 
 

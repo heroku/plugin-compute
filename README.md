@@ -83,6 +83,20 @@ sf plugins link .
 sf plugins
 ```
 
+## Migrating from `sf compute deploy` and `sf compute source retrieve`
+
+`sf compute deploy` and `sf compute source retrieve` no longer deploy or retrieve compute apps. They still exist so existing scripts get these steps instead of a "command not found" error. Use the Compute variant of the deploy-retrieve plugin from your Salesforce DX project:
+
+```sh
+sf plugins install @salesforce/plugin-deploy-retrieve@compute
+
+# replaces `sf compute deploy`
+sf project deploy start --metadata ComputeApp:<app-name> --target-org <org>
+
+# replaces `sf compute source retrieve`
+sf project retrieve start --metadata ComputeApp:<app-name> --target-org <org>
+```
+
 ## Commands
 
 <!-- commands -->

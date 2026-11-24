@@ -20,7 +20,7 @@
     "@oclif/plugin-command-snapshot": "^6.0.12",
     "@salesforce/cli-plugins-testkit": "^5.3.93",
     "@typescript-eslint/parser": "^8.72.2",
-    "@types/node": "^22",
+    "@types/node": "^26",
     "@types/sinon": "22.0.2",
     "@vitest/coverage-v8": "^5.1.0",
     "@vitest/eslint-plugin": "^1.6.28",

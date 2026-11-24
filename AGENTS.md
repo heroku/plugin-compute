@@ -9,20 +9,18 @@ for managing "compute apps"
 (Heroku-backed `PlatformComputeApp` metadata invocable from Apex/Flow via
 AppLink External Services).
 
-## Package name: `@heroku/plugin-compute` (temporary — will become `@salesforce/`)
+## Package name: `@heroku/plugin-compute`
 
-The npm package name is **`@heroku/plugin-compute`**. This is deliberate and
-temporary: while the plugin is private/pre-GA it publishes under the `@heroku`
-scope. **Once it goes public, the name switches to `@salesforce/plugin-compute`.**
-The CLI binary (`sf`) and the `sf compute …` command surface are unaffected —
-only the npm identifier changes. The package name is load-bearing beyond
+The npm package name is **`@heroku/plugin-compute`**. The CLI binary (`sf`) and
+the `sf compute …` command surface don't depend on the npm scope. The package
+name is load-bearing beyond
 `package.json`: every `Messages.loadMessages(PLUGIN_NAME, …)` call in `src/`
 must match it (or message loading throws at runtime), and
 `command-snapshot.json`'s `plugin` field must match it (or `snapshot:compare`
 fails). The `loadMessages` first arg is centralized in one place — the
 `PLUGIN_NAME` const in `src/shared/plugin-name.ts` — so the message-bundle key
-is a single edit, not a `src/`-wide sweep. When the eventual `@salesforce/`
-rename happens, update all three in lockstep (`package.json` +
+is a single edit, not a `src/`-wide sweep. If the package is ever renamed,
+update all three in lockstep (`package.json` +
 `package-lock.json` name, the `PLUGIN_NAME` const in
 `src/shared/plugin-name.ts`, and the snapshot `plugin` field) plus the
 README/CHANGELOG/CONTRIBUTING references.
@@ -36,14 +34,8 @@ shared logic in `src/shared/`, user-facing strings in `messages/*.md`
 
 ## Repo-wide standing rule
 
-**Do not commit or push anything in this repo without an explicit user ask.**
-This overrides the global git-workflow defaults — treat every session as
-write-file-only unless told otherwise.
-
-For every `sf compute` command — deploy/display/generate/list and every
-command added since (get runtime-log/tail runtime-log/get build-log/scale/list config/get
-config/set config/unset config/list telemetry-drain/display telemetry-drain) — consult an
-Architect-role and QA-role review both BEFORE and AFTER implementing changes.
+**AI agents must not commit or push in this repo without an explicit ask.**
+Treat agent sessions as write-file-only unless told otherwise.
 
 ## Gotcha: `SfCommand.table()` styling is a no-op — don't chase it
 
@@ -61,7 +53,7 @@ rendering a table with those options set and observing them ignored. Don't
 "fix" this in `src/commands/compute/list.ts` or `display.ts` — there's
 nothing to fix at this layer.
 
-## Design decisions already made (don't re-litigate without new user input)
+## Design decisions already made (don't re-litigate without a fresh explicit ask)
 
 - **`sf compute deploy` is a migration-only error.** It performs no project,
   source, org, Connect API, or Metadata API work. It accepts the former
@@ -69,8 +61,8 @@ nothing to fix at this layer.
   users to install `@salesforce/plugin-deploy-retrieve@compute` and use a
   scoped `sf project deploy start` command.
 - **`sf compute list` has no `--verbose` flag** and always shows exactly 4
-  columns (`name`, `masterLabel`, `status`, `statusReason`). Explicit user
-  decision: "if the customer wants more details, they should use the display
+  columns (`name`, `masterLabel`, `status`, `statusReason`). Decision:
+  "if the customer wants more details, they should use the display
   command." `sf compute display --name <app>` is the place for full
   single-app detail (description, external service registration, current
   build). Don't re-add `--verbose` to `list` without a fresh explicit ask.
@@ -81,16 +73,17 @@ nothing to fix at this layer.
   They match the canonical standard verbs in `common-actions.html`
   (list = simple table, display = full detail, deploy = push local source,
   generate = scaffold). None of the four need interactive prompts or
-  sub-actions today. get runtime-log/tail runtime-log/get build-log/scale/list config/get
-  config/set config/unset config/list telemetry-drain/display telemetry-drain were added in
-  later sessions — re-audit before assuming the same guide compliance for those.
+  sub-actions today. The commands added since (get runtime-log/tail
+  runtime-log/get build-log/scale/list config/get config/set config/unset
+  config/list telemetry-drain/display telemetry-drain) haven't been audited the
+  same way — re-audit before assuming guide compliance.
 - **`sf compute` commands follow verb-noun grammar (`<topic> <action>
   <resource>`), and the resource is the trailing singular noun.** The
   telemetry-drain commands (`list telemetry-drain`, `display telemetry-drain`,
   PR #37) and the config commands (`list config`, `get config`, `set config`,
-  `unset config`, W-24542276 / PR #38) were both deliberately migrated from
-  the older noun-verb shape to this grammar. For config, the decision rule the
-  user ratified is: **the discrete unit is the config var** — `get config
+  `unset config`, PR #38) were both deliberately migrated from
+  the older noun-verb shape to this grammar. For config, the decision rule
+  is: **the discrete unit is the config var** — `get config
   <key>` addresses individual vars by name — so enumerating every var is
   `list config` and fetching named vars is `get config`. There is deliberately
   **no `display config`**: a config var's entire detail is its value (unlike a

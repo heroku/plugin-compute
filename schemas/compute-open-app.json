@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ComputeOpenAppResult",
+  "definitions": {
+    "ComputeOpenAppResult": {
+      "type": "object",
+      "properties": {
+        "appId": {
+          "type": "string"
+        },
+        "appName": {
+          "type": "string"
+        },
+        "orgId": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "orgId",
+        "url"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

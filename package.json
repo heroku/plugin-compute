@@ -13,6 +13,7 @@
     "form-data": "^4.0.6",
     "ignore": "^7.0.13",
     "jszip": "^3.10.1",
+    "open": "^11.0.4",
     "openapi-fetch": "^0.17.0",
     "tar-stream": "^3.2.1"
   },
@@ -71,6 +72,9 @@
       },
       "compute:get": {
         "description": "Retrieve read-only data about a compute app."
+      },
+      "compute:open": {
+        "description": "Open the Compute Dashboard in a browser."
       },
       "compute:set": {
         "description": "Set a compute app's config vars."

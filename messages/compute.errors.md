@@ -232,3 +232,30 @@ Heroku didn't find a telemetry drain with ID %s.
 # error.telemetryDrainNotFound.actions
 
 - Confirm the telemetry drain ID is correct; it may have already been removed.
+
+# error.invalidDashboardRoute
+
+The dashboard route "%s" is not valid.
+
+# error.invalidDashboardRoute.actions
+
+- Use a route within the Compute Dashboard only (no scheme or host). Omit the leading slash, for example resources or resources?x=1, so shells like Git Bash don't rewrite it.
+- Don't use backslashes, control characters, or .. segments that climb out of the dashboard.
+
+# error.invalidHerokuAppId
+
+The Heroku app identifier "%s" isn't valid.
+
+# error.invalidHerokuAppId.actions
+
+- Check Setup in the org for outstanding compute app errors, then run the command again later.
+- If the problem persists, contact Salesforce Support.
+
+# error.invalidDashboardRouteDrivePath
+
+The dashboard route "%s" looks like a Windows path. Git Bash (MSYS) rewrites arguments that start with a slash into file paths.
+
+# error.invalidDashboardRouteDrivePath.actions
+
+- Omit the leading slash, for example resources instead of /resources.
+- Or set MSYS_NO_PATHCONV=1 before running the command.

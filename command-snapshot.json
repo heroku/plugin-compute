@@ -276,6 +276,27 @@
     },
     {
         "alias": [],
+        "command": "compute:open:app",
+        "flagAliases": [],
+        "flagChars": [
+            "b",
+            "n",
+            "o",
+            "r"
+        ],
+        "flags": [
+            "api-version",
+            "browser",
+            "flags-dir",
+            "json",
+            "name",
+            "target-org",
+            "url-only"
+        ],
+        "plugin": "@heroku/plugin-compute"
+    },
+    {
+        "alias": [],
         "command": "compute:scale",
         "flagAliases": [],
         "flagChars": [

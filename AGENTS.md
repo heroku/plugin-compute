@@ -2,7 +2,7 @@
 
 `@heroku/plugin-compute` is a Salesforce CLI (`sf`) plugin, built on the
 oclif plugin framework and `@salesforce/sf-plugins-core`, that adds
-`sf compute deploy|display|generate|list|get runtime-log|tail runtime-log|
+`sf compute deploy|display|generate|list|open app|get runtime-log|tail runtime-log|
 get build-log|scale|list config|get config|set config|unset config|
 list telemetry-drain|display telemetry-drain` — commands
 for managing "compute apps"
@@ -68,6 +68,38 @@ nothing to fix at this layer.
   `--target-org` and `--source-dir` flags without resolving them, then directs
   users to install `@salesforce/plugin-deploy-retrieve@compute` and use a
   scoped `sf project deploy start` command.
+- **`sf compute open app` (design notes).**
+  - *Domain:* the Compute Dashboard is an LWR site
+    (`/lwr/application/heroku-compute_for_salesforce_dashboard[/apps/<heroku-app-id>]`).
+    LWR routes 404 on the My Domain host (`*.my.salesforce.com`, `*.my.pc-rnd.salesforce.com`)
+    and only work on the Lightning host (`*.lightning.force.com`; orgfarm:
+    `*.test1.lightning.pc-rnd.force.com`). `@salesforce/core`'s `SfdcUrl.toLightningDomain()`
+    is wrong for orgfarm hosts (yields `<org>.lightning.force.com`, which doesn't resolve), so
+    `src/shared/computeDashboardUrl.ts` handles the `my.<infix>salesforce.com` family itself
+    and delegates other shapes to core.
+  - *Frontdoor / `--url-only`:* `Org.getFrontDoorUrl()` (`singleaccess`) rejects an absolute
+    `redirect_uri` (`Invalid_Param`) and returns a My Domain frontdoor, so the command mints it
+    with the relative path and rewrites `startURL` to the absolute Lightning URL (verified:
+    frontdoor chains through `/secur/contentDoor` to the Lightning host). `--url-only` and
+    `--json` print/return the *plain* URL (never the single-use frontdoor token, which would
+    leak into logs/CI/--json) and never launch a browser; this deliberately differs from
+    `sf org open --url-only`, which prints the frontdoor URL. `--browser` is exclusive with
+    `--url-only` (as in `sf org open`). The frontdoor URL is passed in the launcher's argv, same
+    as `sf org open` (accepted risk); launch-failure warnings redact it.
+  - *Flags/env:* `--name`/`-n` is defined like `display`'s (including `env: COMPUTE_APP_NAME`),
+    so with that env var set a bare `open app` targets that app, same as sibling commands. No
+    cwd-name fallback: with neither flag nor env var, it opens the dashboard home (no query).
+    Browser launch uses the `open` package (direct dependency).
+  - *`[ROUTE]`:* appended to the app page URL and only valid with an app name (`--name` or
+    `COMPUTE_APP_NAME`); otherwise `error.routeRequiresName`. Accepted with or without a
+    leading `/` (normalized to one); schemes/hosts, `//`, backslashes, control chars, empty and
+    `..` escaping the base are rejected; query/fragment allowed; no route allowlist (routes
+    change; the base path may move to a vanity URL). Validated before any query or browser
+    launch. The Heroku app id must match `HEROKU_APP_ID_PATTERN` so `.`/`..` can't form the
+    `/apps/<id>` segment.
+  - *Known limitations:* legacy instance hosts (e.g. `na1.salesforce.com`) map to a Lightning host
+    that may not resolve; `--browser` is ignored with `--json`; a non-zero launcher exit is not
+    detected; very long routes can exceed OS command-line limits.
 - **`sf compute list` has no `--verbose` flag** and always shows exactly 4
   columns (`name`, `masterLabel`, `status`, `statusReason`). Explicit user
   decision: "if the customer wants more details, they should use the display

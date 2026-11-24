@@ -87,7 +87,7 @@ const SOQL_FIELDS = [
 // through parseName, so this is the primary injection guard for findDeveloperNameByHerokuAppId's
 // interpolation (escapeSoqlLiteral is the belt-and-suspenders second layer, matching
 // queryComputeApp's posture below).
-const HEROKU_APP_ID_PATTERN = /^[A-Za-z0-9\-]+$/v;
+export const HEROKU_APP_ID_PATTERN = /^[A-Za-z0-9\-]+$/v;
 
 // Defense-in-depth for the SOQL string interpolations in queryComputeApp and
 // findDeveloperNameByHerokuAppId below -- the shape guards there (parseName's regexes,

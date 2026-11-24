@@ -2,6 +2,17 @@
 
 All notable changes to `@heroku/plugin-compute` are documented here.
 
+## [0.5.0](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.9...plugin-compute-v0.5.0) (2026-11-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* `sf compute source retrieve` no longer retrieves a compute app. Install @salesforce/plugin-deploy-retrieve@compute and run `sf project retrieve start --metadata ComputeApp:<app-name> --target-org <org>`.
+
+### Features
+
+* remove compute source retrieve in favor of project retrieve start ([#91](https://github.com/heroku/plugin-compute/issues/91)) ([5ba5eb2](https://github.com/heroku/plugin-compute/commit/5ba5eb2bfc9d209daa804a25afcb1e8993bc6829))
+
 ## [0.4.9](https://github.com/heroku/plugin-compute/compare/plugin-compute-v0.4.8...plugin-compute-v0.4.9) (2026-11-23)
 
 

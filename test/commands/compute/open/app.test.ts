@@ -113,7 +113,7 @@ describe('compute open app', () => {
 
     await OpenApp.run(['-n', 'CreditScoringApp', '-o', testOrg.username, '-b', 'firefox']);
 
-    expect(openMock.mock.calls[0][1]).toEqual({app: {name: 'firefox'}});
+    expect(openMock.mock.calls[0][1]).toEqual({app: {name: apps.firefox}});
   });
 
   it('opens the dashboard home with no --name and makes no query', async () => {

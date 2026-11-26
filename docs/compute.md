@@ -15,6 +15,7 @@ Manage Salesforce Compute apps.
 * [`sf compute list`](#sf-compute-list)
 * [`sf compute list config`](#sf-compute-list-config)
 * [`sf compute list telemetry-drain`](#sf-compute-list-telemetry-drain)
+* [`sf compute open app [ROUTE]`](#sf-compute-open-app-route)
 * [`sf compute scale`](#sf-compute-scale)
 * [`sf compute set config [PAIR]`](#sf-compute-set-config-pair)
 * [`sf compute source retrieve`](#sf-compute-source-retrieve)
@@ -528,6 +529,68 @@ EXAMPLES
 ```
 
 _See code: [src/commands/compute/list/telemetry-drain.ts](https://github.com/heroku/plugin-compute/blob/v0.4.9/src/commands/compute/list/telemetry-drain.ts)_
+
+## `sf compute open app [ROUTE]`
+
+Open the Compute Dashboard for an org or one of its compute apps in a browser.
+
+```
+USAGE
+  $ sf compute open app [ROUTE] -o <value> [--json] [--flags-dir <value>] [-n <value>] [--api-version <value>] [-b
+    chrome|edge|firefox | -r]
+
+FLAGS
+  -b, --browser=<option>     Browser to open the dashboard in. Defaults to your system's default browser.
+                             <options: chrome|edge|firefox>
+  -n, --name=<value>         [env: COMPUTE_APP_NAME] DeveloperName of the compute app to open (or
+                             <namespace>\_\_<developerName> if it was deployed under a namespace). Defaults to the
+                             COMPUTE_APP_NAME environment variable. If neither is set, opens the dashboard home.
+  -o, --target-org=<value>   (required) Username or alias of the target org. Not required if the `target-org`
+                             configuration variable is already set.
+  -r, --url-only             Print the dashboard URL without opening a browser.
+      --api-version=<value>  Override the api version used for api requests made by this command
+
+GLOBAL FLAGS
+  --flags-dir=<value>  Import flag values from a directory.
+  --json               Format output as json.
+
+DESCRIPTION
+  Open the Compute Dashboard for an org or one of its compute apps in a browser.
+
+  Opens the Compute Dashboard in your browser, signed in to the target org. With no --name, opens the dashboard home;
+  with --name (or COMPUTE_APP_NAME), opens that app's page. The URL is always built on the org's Lightning domain, which
+  is the only domain that serves the dashboard.
+
+  An optional ROUTE argument is appended to the app's page URL. It requires an app, may omit the leading /, and may
+  include a query string and fragment, but must be a route only (no scheme or host). Use --url-only to print the plain
+  dashboard URL (no session token) instead of launching a browser; with --json, no browser is launched either.
+
+EXAMPLES
+  Open the Compute Dashboard home:
+
+    $ sf compute open app --target-org my-org
+
+  Open the dashboard page for a compute app:
+
+    $ sf compute open app --name CreditRatingScorer --target-org my-org
+
+  Open a route within a compute app's dashboard page:
+
+    $ sf compute open app --name CreditRatingScorer --target-org my-org resources
+
+  Open a route that includes a query string (name taken from the COMPUTE_APP_NAME environment variable):
+  $ COMPUTE_APP_NAME=CreditRatingScorer sf compute open app --target-org my-org "resources?tab=logs"
+
+  Open the dashboard in Firefox:
+
+    $ sf compute open app --name CreditRatingScorer --target-org my-org --browser firefox
+
+  Print the dashboard URL without opening a browser:
+
+    $ sf compute open app --name CreditRatingScorer --target-org my-org --url-only
+```
+
+_See code: [src/commands/compute/open/app.ts](https://github.com/heroku/plugin-compute/blob/v0.4.9/src/commands/compute/open/app.ts)_
 
 ## `sf compute scale`
 
